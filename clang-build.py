@@ -59,15 +59,15 @@ class Target:
     name               = "main"
     targetType         = TargetType.Executable
 
-    includeDirectories = []
+    includeDirectories = ["include", "thirdparty"]
     compileFlags       = []
     linkFlags          = []
 
     buildType          = BuildType.Default
     buildDirectory     = "build"
 
-    sourceFiles        = []
     headerFiles        = []
+    sourceFiles        = []
 
     def __init__(self):
         pass
@@ -89,6 +89,9 @@ class Target:
 
         for flag in self.compileFlags:
             command += " " + flag
+
+        for dir in self.includeDirectories:
+            command += " -I" + self.targetDirectory + "/" + dir
 
         outname = self.prefix + self.name + self.suffix
         command += " -o " + self.buildDirectory + "/" + outname
@@ -116,7 +119,7 @@ def main(argv=None):
     workingdir = os.getcwd()
     if args.directory:
         workingdir = args.directory
-        print("working: " + workingdir)
+        print("Working directory: " + workingdir)
 
 
     # Check for build configuration toml file
