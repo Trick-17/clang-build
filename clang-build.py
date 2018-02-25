@@ -120,6 +120,8 @@ def main(argv=None):
                         action="store_true")
     parser.add_argument("-d", "--directory",
                         help="set the root source directory")
+    parser.add_argument("-b", "--build-type",
+                        help="set the build type (default, release, debug, ...)")
     args = parser.parse_args()
 
     if args.verbose:
@@ -131,6 +133,10 @@ def main(argv=None):
         workingdir = args.directory
         print("-- Working directory: " + workingdir)
 
+    buildType = BuildType.Default
+    if args.build_type:
+        buildType = BuildType[args.build_type.lower().title()]
+        print("-- Build type: " + buildType.name )
 
     # Check for build configuration toml file
     if os.path.isfile("clang-build.toml"):
@@ -140,6 +146,7 @@ def main(argv=None):
         # Create target
         target = Target()
         target.targetDirectory = workingdir
+        target.buildType = buildType
         target.verbose = args.verbose
 
         from glob import glob
