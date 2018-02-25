@@ -59,6 +59,8 @@ class Target:
     name               = "main"
     targetType         = TargetType.Executable
 
+    verbose = False
+
     includeDirectories = ["include", "thirdparty"]
     compileFlags       = []
     linkFlags          = []
@@ -90,11 +92,17 @@ class Target:
         for flag in self.compileFlags:
             command += " " + flag
 
+        for flag in self.linkFlags:
+            command += " " + flag
+
         for dir in self.includeDirectories:
             command += " -I" + self.targetDirectory + "/" + dir
 
         outname = self.prefix + self.name + self.suffix
         command += " -o " + self.buildDirectory + "/" + outname
+
+        if self.verbose:
+            print("-- Compile target " + self.name + ": " + command)
 
         from distutils.dir_util import mkpath
         mkpath(self.buildDirectory)
@@ -115,13 +123,13 @@ def main(argv=None):
     args = parser.parse_args()
 
     if args.verbose:
-        print("Verbosity turned on. This functionality is not yet implemented")
+        print("-- Verbosity turned on")
 
     callingdir = os.getcwd()
     workingdir = os.getcwd()
     if args.directory:
         workingdir = args.directory
-        print("Working directory: " + workingdir)
+        print("-- Working directory: " + workingdir)
 
 
     # Check for build configuration toml file
@@ -132,6 +140,7 @@ def main(argv=None):
         # Create target
         target = Target()
         target.targetDirectory = workingdir
+        target.verbose = args.verbose
 
         from glob import glob
 
