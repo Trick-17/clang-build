@@ -85,7 +85,7 @@ class Target:
             self.prefix = static_library_prefix
             self.suffix = static_library_suffix
 
-        command = "clang"
+        command = "clang++"
         for file in self.sourceFiles:
             command += " " + file
 
