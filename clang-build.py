@@ -96,7 +96,9 @@ class Target:
         outname = self.prefix + self.name + self.suffix
         command += " -o " + self.buildDirectory + "/" + outname
 
-        os.makedirs(self.buildDirectory, exist_ok=True)
+        from distutils.dir_util import mkpath
+        mkpath(self.buildDirectory)
+
         call(command, shell=True)
 
 

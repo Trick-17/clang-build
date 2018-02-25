@@ -1,0 +1,50 @@
+dist: trusty
+sudo: false
+language: cpp
+
+
+matrix:
+  include:
+    # OSX
+    # - os: osx
+    #   osx_image: xcode8
+    #   env: CMAKE_OPTIONS="-DUSER_PATH_QT=~/usr/local/Cellar/qt/5.10.0_1" PYPI=true
+    # Linux, Python3
+    - os: linux
+      env: PYVERSION=3
+      addons:
+        apt:
+          packages:
+          - clang-5.0
+          - ca-certificates
+          - python3.6
+          sources:
+          - llvm-toolchain-trusty-5.0
+          - sourceline: 'ppa:fkrull/deadsnakes'
+    # Linux, Python2
+    - os: linux
+      env: PYVERSION=2
+      addons:
+        apt:
+          packages:
+          - clang-5.0
+          - ca-certificates
+          - python2.7
+          sources:
+          - llvm-toolchain-trusty-5.0
+          - sourceline: 'ppa:jonathonf/python-2.7'
+
+before_script:
+  - shopt -s expand_aliases
+  - alias clang=clang-5.0
+  - alias clang++=clang++-5.0
+  - alias python=python$PYVERSION
+  - alias pip=pip$PYVERSION
+  - sudo pip install twine enum setuptools
+
+script:
+  - python --version
+  - python clang-build.py -d"test/hello" -V
+  - ./build/test/main
+  - python clang-build.py -d"test/mini-project" -V
+  - ./build/test/main
