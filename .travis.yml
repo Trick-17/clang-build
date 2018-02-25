@@ -15,11 +15,11 @@ matrix:
       addons:
         apt:
           packages:
-          - clang-5.0
+          - clang
           - ca-certificates
           - python3.6
           sources:
-          - llvm-toolchain-trusty-5.0
+          - sourceline: 'ppa:ubuntu-toolchain-r/test'
           - sourceline: 'ppa:fkrull/deadsnakes'
     # Linux, Python2
     - os: linux
@@ -27,22 +27,21 @@ matrix:
       addons:
         apt:
           packages:
-          - clang-5.0
+          - clang
           - ca-certificates
           - python2.7
           sources:
-          - llvm-toolchain-trusty-5.0
+          - sourceline: 'ppa:ubuntu-toolchain-r/test'
           - sourceline: 'ppa:jonathonf/python-2.7'
 
 before_script:
   - shopt -s expand_aliases
-  - alias clang=clang-5.0
-  - alias clang++=clang++-5.0
   - alias python=python$PYVERSION
   - alias pip=pip$PYVERSION
   - sudo pip install twine enum setuptools
 
 script:
+  - clang --version
   - python --version
   - python clang-build.py -d"test/hello" -V
   - ./build/test/main
