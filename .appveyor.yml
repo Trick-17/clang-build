@@ -1,0 +1,25 @@
+image: Visual Studio 2017
+
+platform:
+  - x64
+ 
+configuration:
+  - Release
+  - Debug
+
+environment:
+  PYTHON: "C:\\Python36-x64"
+
+build: off
+
+install:
+  # update path to use installed pip
+  - set PATH=%PYTHON%\\scripts;%PATH%
+  # Install python packages
+  - "%PYTHON%/Scripts/pip.exe install twine"
+
+test_script:
+  - "%PYTHON%/python clang-build.py -d\"test/hello\" -V"
+  - 'build\main.exe'
+  - "%PYTHON%/python clang-build.py -d\"test/mini-project\" -V"
+  - 'build\main.exe'
