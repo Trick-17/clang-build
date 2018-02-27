@@ -10,6 +10,7 @@ import subprocess
 from subprocess import call, check_output
 import sys
 import getopt
+from distutils.dir_util import mkpath
 
 
 
@@ -53,6 +54,8 @@ elif _platform == "win32":
     static_library_prefix = ''
     static_library_suffix = '.dll'
 
+
+
 # Get the dialects of C++ available in clang
 supported_dialects = [98]
 # Create a temporary file with a main function
@@ -61,7 +64,7 @@ with tempfile.NamedTemporaryFile() as fp:
     fp.write(b"int main(int argc, char ** argv){return 0;}")
     fp.seek(0)
     # Try to compile the file using `-std=c++XX` flag
-    for dialect in range(98):
+    for dialect in range(30):
         command = "clang -xc++ -std=c++"+str(dialect)+" "+fp.name+" -o"+tempfile.gettempdir()+"/test"
         try:
             subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
@@ -70,8 +73,12 @@ with tempfile.NamedTemporaryFile() as fp:
         except:
             pass # We expect this to usually fail
 
+
+
 # The most recent C++ version available
 supported_dialect_newest = supported_dialects[-1]
+
+
 
 class Target:
     targetDirectory    = ""
@@ -91,10 +98,8 @@ class Target:
     headerFiles        = []
     sourceFiles        = []
 
-    def __init__(self):
-        pass
 
-    def build(self):
+    def __init__(self):
         if self.targetType == TargetType.Executable:
             self.prefix = ""
             self.suffix = executable_suffix
@@ -104,35 +109,73 @@ class Target:
         elif self.targetType == TargetType.StaticLibrary:
             self.prefix = static_library_prefix
             self.suffix = static_library_suffix
+        
+        self.outname = self.prefix + self.name + self.suffix
 
-        command = "clang++"
-        for file in self.sourceFiles:
-            command += " " + file
+
+    def compile(self):
+        compileCommand = "clang++"
 
         for flag in self.compileFlags:
-            command += " " + flag
-
-        for flag in self.linkFlags:
-            command += " " + flag
+            compileCommand += " " + flag
 
         for dir in self.includeDirectories:
-            command += " -I" + self.targetDirectory + "/" + dir
+            compileCommand += " -I" + self.targetDirectory + "/" + dir
 
-        outname = self.prefix + self.name + self.suffix
-        command += " -o " + self.buildDirectory + "/" + outname
+        if self.targetType == TargetType.Executable:
+            compileCommand += " -c"
+        
+        elif self.targetType == TargetType.SharedLibrary:
+            compileCommand += " -fPIC -c"
+        
+        elif self.targetType == TargetType.StaticLibrary:
+            compileCommand += " -fPIC -c"
 
-        if self.verbose:
-            print("-- Compile target " + self.name + ": " + command)
-
-        from distutils.dir_util import mkpath
+        # Execute compile command
+        print("-- Compile target " + self.name)
         mkpath(self.buildDirectory)
+        for sourceFile in self.sourceFiles:
+            path, file = os.path.split(sourceFile)
+            fname, extension = os.path.splitext(file)
+            objectCommand = " " + sourceFile + " -o " + self.buildDirectory + "/" + fname + ".o"
 
-        call(command, shell=True)
+            if self.verbose:
+                print("--   " + compileCommand + objectCommand)
+            call(compileCommand + objectCommand, shell=True)
 
+
+    def link(self):
+        ### Link self
+        if self.targetType == TargetType.Executable:
+            linkCommand = "clang++ -o " + self.buildDirectory + "/" + self.outname
+
+        elif self.targetType == TargetType.SharedLibrary:
+            linkCommand = "clang++ -shared -Wl,-soname," + self.buildDirectory + "/" + self.outname
+
+        elif self.targetType == TargetType.StaticLibrary:
+            linkCommand = "llvm-ar rc " + self.buildDirectory + "/" + self.outname
+
+        for dir in self.includeDirectories:
+            linkCommand += " -I" + self.targetDirectory + "/" + dir
+
+        ### Link Dependencies
+
+        # Execute link command
+        for sourceFile in self.sourceFiles:
+            path, file = os.path.split(sourceFile)
+            fname, extension = os.path.splitext(file)
+            linkCommand += " " + self.buildDirectory + "/" + fname + ".o"
+        print("-- Link target " + self.name)
+        if self.verbose:
+            print("--   " + linkCommand)
+        mkpath(self.buildDirectory)
+        call(linkCommand, shell=True)
 
 
 
 def main(argv=None):
+    print("---- clang-build v0.0.0")
+
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-V", "--verbose",
@@ -189,9 +232,15 @@ def main(argv=None):
         targets = [target]
 
     # Build the targets
+    print("---- Compile step")
     for target in targets:
-        target.build()
+        target.compile()
 
+    print("---- Link step")
+    for target in targets:
+        target.link()
+
+    print("---- clang-build finished")
 
 
 if __name__ == "__main__":
