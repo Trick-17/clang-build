@@ -6,6 +6,7 @@ clang-build:
 
 
 import os
+import subprocess
 from subprocess import call, check_output
 import sys
 import getopt
@@ -52,17 +53,36 @@ elif _platform == "win32":
     static_library_prefix = ''
     static_library_suffix = '.dll'
 
+# Get the dialects of C++ available in clang
+supported_dialects = [98]
+# Create a temporary file with a main function
+import tempfile
+with tempfile.NamedTemporaryFile() as fp:
+    fp.write(b"int main(int argc, char ** argv){return 0;}")
+    fp.seek(0)
+    # Try to compile the file using `-std=c++XX` flag
+    for dialect in range(98):
+        command = "clang -xc++ -std=c++"+str(dialect)+" "+fp.name+" -o"+tempfile.gettempdir()+"/test"
+        try:
+            subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
+            # If it compiled, the dialect is supported
+            if dialect not in supported_dialects: supported_dialects.append(dialect)
+        except:
+            pass # We expect this to usually fail
 
+# The most recent C++ version available
+supported_dialect_newest = supported_dialects[-1]
 
 class Target:
     targetDirectory    = ""
     name               = "main"
     targetType         = TargetType.Executable
+    dialect            = supported_dialect_newest
 
     verbose = False
 
     includeDirectories = ["include", "thirdparty"]
-    compileFlags       = []
+    compileFlags       = ["-std=c++"+str(supported_dialect_newest)]
     linkFlags          = []
 
     buildType          = BuildType.Default
