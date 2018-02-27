@@ -44,6 +44,6 @@ script:
   - clang --version
   - python --version
   - python clang-build.py -d"test/hello" -V
-  - ./build/test/main
+  - ./build/main
   - python clang-build.py -d"test/mini-project" -V
-  - ./build/test/main
+  - ./build/main
