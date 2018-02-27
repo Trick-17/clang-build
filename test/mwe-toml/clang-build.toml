@@ -1,0 +1,5 @@
+[myexe]
+output_name = "runHello"
+[myexe.sources]
+include_directories = ["include"]
+source_directories = ["src"]

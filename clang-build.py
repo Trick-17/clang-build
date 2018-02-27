@@ -6,15 +6,20 @@ clang-build:
 
 
 import os
+import sys
+from sys import platform as _platform
 import subprocess
 from subprocess import call, check_output
-import sys
 import getopt
+import argparse
 from distutils.dir_util import mkpath
-
-
-
 from enum import Enum
+from glob import glob
+import tempfile
+import toml
+
+
+
 class TargetType(Enum):
     SharedLibrary = 0
     StaticLibrary = 1
@@ -28,7 +33,6 @@ class BuildType(Enum):
 
 
 
-from sys import platform as _platform
 executable_suffix     = ''
 shared_library_prefix = ''
 shared_library_suffix = ''
@@ -59,7 +63,6 @@ elif _platform == "win32":
 # Get the dialects of C++ available in clang
 supported_dialects = [98]
 # Create a temporary file with a main function
-import tempfile
 with tempfile.NamedTemporaryFile() as fp:
     fp.write(b"int main(int argc, char ** argv){return 0;}")
     fp.seek(0)
@@ -109,8 +112,7 @@ class Target:
         elif self.targetType == TargetType.StaticLibrary:
             self.prefix = static_library_prefix
             self.suffix = static_library_suffix
-        
-        self.outname = self.prefix + self.name + self.suffix
+
 
 
     def compile(self):
@@ -145,6 +147,8 @@ class Target:
 
 
     def link(self):
+        self.outname = self.prefix + self.name + self.suffix
+
         ### Link self
         if self.targetType == TargetType.Executable:
             linkCommand = "clang++ -o " + self.buildDirectory + "/" + self.outname
@@ -176,7 +180,6 @@ class Target:
 def main(argv=None):
     print("---- clang-build v0.0.0")
 
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-V", "--verbose",
                         help="activate verbose build",
@@ -202,8 +205,41 @@ def main(argv=None):
         print("-- Build type: " + buildType.name )
 
     # Check for build configuration toml file
-    if os.path.isfile("clang-build.toml"):
-        pass
+    if os.path.isfile(workingdir + "/clang-build.toml"):
+        config = toml.load(workingdir + "/clang-build.toml")
+        # print(toml.dumps(config))
+
+        # Create target
+        target = Target()
+        target.targetDirectory = workingdir
+        target.buildType = buildType
+        target.verbose = args.verbose
+        target.name = config["myexe"]["output_name"]
+        
+        for dir in config["myexe"]["sources"]["include_directories"]:
+            if dir not in target.includeDirectories:
+                target.includeDirectories.append(dir)
+
+        # Search for header files
+        headers = []
+        for ext in ('*.hpp', '*.hxx'):
+            for dir in config["myexe"]["sources"]["include_directories"]:
+                headers += glob(os.path.join(workingdir+"/"+dir, ext))
+
+        # Search for source files
+        sources = []
+        for ext in ('*.cpp', '*.cxx'):
+            for dir in config["myexe"]["sources"]["source_directories"]:
+                sources += glob(os.path.join(workingdir+"/"+dir, ext))
+
+        # Set target
+        target.headerFiles = headers
+        target.sourceFiles = sources
+
+        # List of targets
+        targets = []
+        targets = [target]
+
     # Otherwise we try to build it as a simple hello world or mwe project
     else:
         # Create target
@@ -211,8 +247,6 @@ def main(argv=None):
         target.targetDirectory = workingdir
         target.buildType = buildType
         target.verbose = args.verbose
-
-        from glob import glob
 
         # Search for header files
         headers = []

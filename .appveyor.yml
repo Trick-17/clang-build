@@ -16,7 +16,7 @@ install:
   # update path to use installed pip
   - set PATH=%PYTHON%\\scripts;%PATH%
   # Install python packages
-  - "%PYTHON%/Scripts/pip.exe install twine"
+  - "%PYTHON%/Scripts/pip.exe install twine toml"
 
 test_script:
   - "%PYTHON%/python clang-build.py -d\"test/hello\" -V"
