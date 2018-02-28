@@ -21,8 +21,8 @@ import toml
 
 
 class TargetType(Enum):
-    SharedLibrary = 0
-    StaticLibrary = 1
+    Sharedlibrary = 0
+    Staticlibrary = 1
     Executable    = 2
 class BuildType(Enum):
     Default        = 0
@@ -107,16 +107,6 @@ class Target:
         self.dependencies       = []
         self.dependencyTargets  = []
 
-        # TODO: this needs to be redesigned
-        if self.targetType == TargetType.Executable:
-            self.prefix = ""
-            self.suffix = executable_suffix
-        elif self.targetType == TargetType.SharedLibrary:
-            self.prefix = shared_library_prefix
-            self.suffix = shared_library_suffix
-        elif self.targetType == TargetType.StaticLibrary:
-            self.prefix = static_library_prefix
-            self.suffix = static_library_suffix
 
 
     def compile(self):
@@ -132,17 +122,21 @@ class Target:
         for dir in self.includeDirectories:
             compileCommand += " -I" + self.targetDirectory + "/" + dir
         for target in self.dependencyTargets:
-            for dir in target.includeDirectories:
-                compileCommand += " -I" + dir
+            if target.external:
+                for dir in target.includeDirectories:
+                    compileCommand += " -I" + dir
+            else:
+                for dir in target.includeDirectories:
+                    compileCommand += " -I" + target.targetDirectory + "/" + dir
 
         if self.targetType == TargetType.Executable:
             compileCommand += " -c"
         
-        elif self.targetType == TargetType.SharedLibrary:
-            compileCommand += " -fPIC -c"
+        elif self.targetType == TargetType.Sharedlibrary:
+            compileCommand += " -c"
         
-        elif self.targetType == TargetType.StaticLibrary:
-            compileCommand += " -fPIC -c"
+        elif self.targetType == TargetType.Staticlibrary:
+            compileCommand += " -c"
 
         # Execute compile command
         print("-- Compile target " + self.outname)
@@ -158,32 +152,51 @@ class Target:
 
 
     def link(self):
+        if self.targetType == TargetType.Executable:
+            self.prefix = ""
+            self.suffix = executable_suffix
+        elif self.targetType == TargetType.Sharedlibrary:
+            self.prefix = shared_library_prefix
+            self.suffix = shared_library_suffix
+        elif self.targetType == TargetType.Staticlibrary:
+            self.prefix = static_library_prefix
+            self.suffix = static_library_suffix
+
         if len(self.sourceFiles) < 1: return
 
         self.outfile = self.prefix + self.outname + self.suffix
 
-        ### Link self
         if self.targetType == TargetType.Executable:
             linkCommand = "clang++ -o " + self.buildDirectory + "/" + self.outfile
 
-        elif self.targetType == TargetType.SharedLibrary:
-            linkCommand = "clang++ -shared -Wl,-soname," + self.buildDirectory + "/" + self.outfile
+        elif self.targetType == TargetType.Sharedlibrary:
+            linkCommand = "clang++ -shared -o " + self.buildDirectory + "/" + self.outfile
 
-        elif self.targetType == TargetType.StaticLibrary:
+        elif self.targetType == TargetType.Staticlibrary:
             linkCommand = "llvm-ar rc " + self.buildDirectory + "/" + self.outfile
 
+        ### Link Dependencies
+        for target in self.dependencyTargets:
+            for sourceFile in target.sourceFiles:
+                # path, file = os.path.split(sourceFile)
+                # fname, extension = os.path.splitext(file)
+                # linkCommand += " " + dependency.buildDirectory + "/" + fname + ".o"
+                linkCommand += " -L\""+os.path.abspath("build/mylib\"")+" build/mylib/mylib.dll"# + target.outname
+
+        ### Link self
         for dir in self.includeDirectories:
             linkCommand += " -I" + self.targetDirectory + "/" + dir
+        for target in self.dependencyTargets:
+            for dir in target.includeDirectories:
+                linkCommand += " -I" + dir
 
-        ### Link Dependencies
-        for dep in self.dependencies:
-            pass
-
-        # Execute link command
         for sourceFile in self.sourceFiles:
             path, file = os.path.split(sourceFile)
             fname, extension = os.path.splitext(file)
             linkCommand += " " + self.buildDirectory + "/" + fname + ".o"
+
+        # TODO: dependencies need to be linked before they can be linked into the target
+        # Execute link command
         print("-- Link target " + self.outname)
         if self.verbose:
             print("--   " + linkCommand)
@@ -236,6 +249,11 @@ def main(argv=None):
             target.buildType       = buildType
             target.verbose         = args.verbose
             target.name            = nodename
+
+            target.targetType      = TargetType.Executable
+            if "target_type" in node:
+                target.targetType  = TargetType[node["target_type"].lower().title()]
+
             if "output_name" in node:
                 target.outname     = node["output_name"]
             else:
