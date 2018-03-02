@@ -7,6 +7,7 @@ namespace mylib
 {
     float calculate()
     {
-        return 3;
+        using Eigen::Vector3f;
+        return Vector3f{1,0,0}.cross(Vector3f{0,1,0}).dot(Vector3f{0,0,2});
     }
 }

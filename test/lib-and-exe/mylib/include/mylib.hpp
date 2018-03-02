@@ -1,6 +1,10 @@
 #pragma once
 
+#include "DLL_Define_Export.h"
+
 namespace mylib
 {
-    float calculate();
+    DLLEXPORT float calculate();
 }
+
+#include "DLL_Undefine_Export.h"

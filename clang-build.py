@@ -106,49 +106,58 @@ class Target:
 
         self.dependencies       = []
         self.dependencyTargets  = []
+        self.dependencyParents  = []
 
+        self.compiled = False
+        self.linked   = False
 
 
     def compile(self):
         if len(self.sourceFiles) < 1:
             print("-- Target " + self.outname + " seems to be header-only")
-            return
-        
-        compileCommand = "clang++"
+        else:
+            compileCommand = "clang++"
 
-        for flag in self.compileFlags:
-            compileCommand += " " + flag
+            for flag in self.compileFlags:
+                compileCommand += " " + flag
 
-        for dir in self.includeDirectories:
-            compileCommand += " -I" + self.targetDirectory + "/" + dir
-        for target in self.dependencyTargets:
-            if target.external:
-                for dir in target.includeDirectories:
-                    compileCommand += " -I" + dir
-            else:
-                for dir in target.includeDirectories:
-                    compileCommand += " -I" + target.targetDirectory + "/" + dir
+            for dir in self.includeDirectories:
+                compileCommand += " -I" + self.targetDirectory + "/" + dir
+            for target in self.dependencyTargets:
+                if target.external:
+                    for dir in target.includeDirectories:
+                        compileCommand += " -I" + dir
+                else:
+                    for dir in target.includeDirectories:
+                        compileCommand += " -I" + target.targetDirectory + "/" + dir
 
-        if self.targetType == TargetType.Executable:
-            compileCommand += " -c"
-        
-        elif self.targetType == TargetType.Sharedlibrary:
-            compileCommand += " -c"
-        
-        elif self.targetType == TargetType.Staticlibrary:
-            compileCommand += " -c"
+            if self.targetType == TargetType.Executable:
+                compileCommand += " -c"
 
-        # Execute compile command
-        print("-- Compile target " + self.outname)
-        mkpath(self.buildDirectory)
-        for sourceFile in self.sourceFiles:
-            path, file = os.path.split(sourceFile)
-            fname, extension = os.path.splitext(file)
-            objectCommand = " " + sourceFile + " -o " + self.buildDirectory + "/" + fname + ".o"
+            elif self.targetType == TargetType.Sharedlibrary:
+                compileCommand += " -DCOMPILING_DLL -c"
 
-            if self.verbose:
-                print("--   " + compileCommand + objectCommand)
-            call(compileCommand + objectCommand, shell=True)
+            elif self.targetType == TargetType.Staticlibrary:
+                compileCommand += " -c"
+
+            # Execute compile command
+            print("-- Compile target " + self.outname)
+            mkpath(self.buildDirectory)
+            for sourceFile in self.sourceFiles:
+                path, file = os.path.split(sourceFile)
+                fname, extension = os.path.splitext(file)
+                objectCommand = " " + sourceFile + " -o " + self.buildDirectory + "/" + fname + ".o"
+
+                if self.verbose:
+                    print("--   " + compileCommand + objectCommand)
+                call(compileCommand + objectCommand, shell=True)
+
+        # Done
+        self.compiled = True
+
+        # Spawn compilation of dependency parents
+        for parent in self.dependencyParents:
+            parent.compile()
 
 
     def link(self):
@@ -162,46 +171,54 @@ class Target:
             self.prefix = static_library_prefix
             self.suffix = static_library_suffix
 
-        if len(self.sourceFiles) < 1: return
+        if len(self.sourceFiles) < 1:
+            pass
+        else:
+            self.outfile = self.prefix + self.outname + self.suffix
 
-        self.outfile = self.prefix + self.outname + self.suffix
+            if self.targetType == TargetType.Executable:
+                linkCommand = "clang++ -o " + self.buildDirectory + "/" + self.outfile
 
-        if self.targetType == TargetType.Executable:
-            linkCommand = "clang++ -o " + self.buildDirectory + "/" + self.outfile
+            elif self.targetType == TargetType.Sharedlibrary:
+                linkCommand = "clang++ -shared -DCOMPILING_DLL -o " + self.buildDirectory + "/" + self.outfile
 
-        elif self.targetType == TargetType.Sharedlibrary:
-            linkCommand = "clang++ -shared -o " + self.buildDirectory + "/" + self.outfile
+            elif self.targetType == TargetType.Staticlibrary:
+                linkCommand = "llvm-ar rc " + self.buildDirectory + "/" + self.outfile
 
-        elif self.targetType == TargetType.Staticlibrary:
-            linkCommand = "llvm-ar rc " + self.buildDirectory + "/" + self.outfile
+            ### Link Dependencies
+            for target in self.dependencyTargets:
+                for sourceFile in target.sourceFiles:
+                    # path, file = os.path.split(sourceFile)
+                    # fname, extension = os.path.splitext(file)
+                    # linkCommand += " " + dependency.buildDirectory + "/" + fname + ".o"
+                    linkCommand += " -L\""+os.path.abspath("build/mylib\"")+" -lmylib"# + target.outname
 
-        ### Link Dependencies
-        for target in self.dependencyTargets:
-            for sourceFile in target.sourceFiles:
-                # path, file = os.path.split(sourceFile)
-                # fname, extension = os.path.splitext(file)
-                # linkCommand += " " + dependency.buildDirectory + "/" + fname + ".o"
-                linkCommand += " -L\""+os.path.abspath("build/mylib\"")+" build/mylib/mylib.dll"# + target.outname
+            ### Link self
+            for dir in self.includeDirectories:
+                linkCommand += " -I" + self.targetDirectory + "/" + dir
+            for target in self.dependencyTargets:
+                for dir in target.includeDirectories:
+                    linkCommand += " -I" + dir
 
-        ### Link self
-        for dir in self.includeDirectories:
-            linkCommand += " -I" + self.targetDirectory + "/" + dir
-        for target in self.dependencyTargets:
-            for dir in target.includeDirectories:
-                linkCommand += " -I" + dir
+            for sourceFile in self.sourceFiles:
+                path, file = os.path.split(sourceFile)
+                fname, extension = os.path.splitext(file)
+                linkCommand += " " + self.buildDirectory + "/" + fname + ".o"
 
-        for sourceFile in self.sourceFiles:
-            path, file = os.path.split(sourceFile)
-            fname, extension = os.path.splitext(file)
-            linkCommand += " " + self.buildDirectory + "/" + fname + ".o"
+            # TODO: dependencies need to be linked before they can be linked into the target
+            # Execute link command
+            print("-- Link target " + self.outname)
+            if self.verbose:
+                print("--   " + linkCommand)
+            mkpath(self.buildDirectory)
+            call(linkCommand, shell=True)
 
-        # TODO: dependencies need to be linked before they can be linked into the target
-        # Execute link command
-        print("-- Link target " + self.outname)
-        if self.verbose:
-            print("--   " + linkCommand)
-        mkpath(self.buildDirectory)
-        call(linkCommand, shell=True)
+        # Done
+        self.linked = True
+
+        # Spawn compilation of dependency parents
+        for parent in self.dependencyParents:
+            parent.link()
 
 
 
@@ -323,11 +340,20 @@ def main(argv=None):
                         valid = True
                         if depTarget not in target.dependencyTargets:
                             target.dependencyTargets.append(depTarget)
+                            depTarget.dependencyParents.append(target)
                             print("-- Dependency: "+target.name+" depends on "+dep)
                         else:
                             print("-- WARNING: you may have a double dependency of "+target.name+" on "+dep)
                 if not valid:
                     print("-- WARNING: could not resolve dependency of "+target.name+" on "+dep)
+
+        # Determine leafs on dependency graph
+        leafs = []
+        for target in targets:
+            if not target.dependencyTargets:
+                leafs.append(target)
+        if not leafs:
+            print("-- WARNING: did not find any leafs in dependency graph!")
 
     # Otherwise we try to build it as a simple hello world or mwe project
     else:
@@ -351,16 +377,16 @@ def main(argv=None):
         target.headerFiles = headers
         target.sourceFiles = sources
 
-        # List of targets
-        targets = [target]
+        # Only one target -> root and leaf of dependency graph
+        leafs = [target]
 
     # Build the targets
     print("---- Compile step")
-    for target in targets:
+    for target in leafs:
         target.compile()
 
     print("---- Link step")
-    for target in targets:
+    for target in leafs:
         target.link()
 
     print("---- clang-build finished")
