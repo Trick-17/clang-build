@@ -19,7 +19,19 @@ install:
   - "%PYTHON%/Scripts/pip.exe install twine toml"
 
 test_script:
+  # test/hello
   - "%PYTHON%/python clang-build.py -d\"test/hello\" -V"
   - 'build\main.exe'
+  # test/mini-project
   - "%PYTHON%/python clang-build.py -d\"test/mini-project\" -V"
   - 'build\main.exe'
+  # test/mwe-toml
+  - "%PYTHON%/python clang-build.py -d\"test/mwe-toml\" -V"
+  - 'build\runHello.exe'
+  # test/external-project
+  - "%PYTHON%/python clang-build.py -d\"test/external-project\" -V"
+  - 'build\myexe\runHello.exe'
+  # test/lib-and-exe
+  - "%PYTHON%/python clang-build.py -d\"test/lib-and-exe\" -V"
+  # TODO: need to copy build/mylib/mylib.dll into exe's directory
+  # - 'build\myexe\runLib.exe'

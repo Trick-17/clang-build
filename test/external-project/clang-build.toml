@@ -10,3 +10,6 @@ dependencies = ["Eigen"]
 external = true
 url = "https://github.com/eigenteam/eigen-git-mirror"
 # version = 1.1 # will try to git checkout [v]1.1[.*]
+[Eigen.flags]
+compile = ["-Wno-deprecated-declarations"]
+compileRelease = ["-DEIGEN_NO_DEBUG"]

@@ -10,7 +10,7 @@ This project exists in order to work towards the following goals:
 In order to run `clang-build` one should only need to have Python and Clang.
 `pip install` it or, if e.g. you don't have admin rights, drop-in a single python script.
 
-Linux test:   [![Test status](https://travis-ci.org/GPMueller/clang-build-test.svg?branch=master)](https://travis-ci.org/GPMueller/clang-build-test)
+Linux and OSX test: [![Test status](https://travis-ci.org/GPMueller/clang-build-test.svg?branch=master)](https://travis-ci.org/GPMueller/clang-build-test)
 
 Windows test: [![Test status](https://ci.appveyor.com/api/projects/status/u3hx7eq5sjox8b6m/branch/master?svg=true)](https://ci.appveyor.com/project/GPMueller/clang-build-test)
 

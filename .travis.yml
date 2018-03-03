@@ -1,30 +1,30 @@
 dist: trusty
-sudo: false
+sudo: required
 language: cpp
 
 
 matrix:
   include:
     # OSX
-    # - os: osx
-    #   osx_image: xcode8
-    #   env: CMAKE_OPTIONS="-DUSER_PATH_QT=~/usr/local/Cellar/qt/5.10.0_1" PYPI=true
-    # Linux, Python3
-    - os: linux
-      env: PYVERSION=3
-      addons:
-        apt:
-          packages:
-          - clang
-          - ca-certificates
-          - python3.6
-          - python3-pip
-          sources:
-          - sourceline: 'ppa:ubuntu-toolchain-r/test'
-          - sourceline: 'ppa:deadsnakes/ppa'
+    - os: osx
+      osx_image: xcode8
+      # env: PYVERSION=2
+    # # Linux, Python3
+    # - os: linux
+    #   env: PYVERSION=3
+    #   addons:
+    #     apt:
+    #       packages:
+    #       - clang
+    #       - ca-certificates
+    #       - python3.6
+    #       - python3-pip
+    #       sources:
+    #       - sourceline: 'ppa:ubuntu-toolchain-r/test'
+    #       - sourceline: 'ppa:deadsnakes/ppa'
     # Linux, Python2
     - os: linux
-      env: PYVERSION=2
+      # env: PYVERSION=2
       addons:
         apt:
           packages:
@@ -36,18 +36,31 @@ matrix:
           - sourceline: 'ppa:deadsnakes/ppa'
 
 before_script:
-  - shopt -s expand_aliases
-  - alias python=python$PYVERSION
-  - alias pip=pip$PYVERSION
-  - sudo pip install twine enum setuptools toml
+  # Run homebrew on osx
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
+  # - shopt -s expand_aliases
+  # - alias python=python$PYVERSION
+  # - alias pip=pip$PYVERSION
+  # pip install dependencies
+  - sudo pip install twine enum34 setuptools toml
 
 script:
   - clang --version
   - python --version
   - pip --version
+  # test/hello
   - python clang-build.py -d"test/hello" -V
   - ./build/main
+  # test/mini-project
   - python clang-build.py -d"test/mini-project" -V
   - ./build/main
+  # test/mwe-toml
   - python clang-build.py -d"test/mwe-toml" -V
   - ./build/runHello
+  # test/external-project
+  - python clang-build.py -d"test/external-project" -V
+  - ./build/myexe/runHello
+  # test/lib-and-exe
+  - python clang-build.py -d"test/lib-and-exe" -V
+  # TODO: need to copy build/mylib/mylib.so into exe's directory on linux
+  # - ./build/myexe/runLib
