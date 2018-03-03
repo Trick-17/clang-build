@@ -45,12 +45,14 @@ if _platform == "linux" or _platform == "linux2":
     shared_library_suffix = '.so'
     static_library_prefix = 'lib'
     static_library_suffix = '.a'
+    platform_extra_flags  = ' -fpic'
 elif _platform == "darwin":
     # OS X
     shared_library_prefix = 'lib'
     shared_library_suffix = '.dylib'
     static_library_prefix = 'lib'
     static_library_suffix = '.a'
+    platform_extra_flags  = ''
 elif _platform == "win32":
     # Windows
     executable_suffix     = '.exe'
@@ -58,6 +60,7 @@ elif _platform == "win32":
     shared_library_suffix = '.dll'
     static_library_prefix = ''
     static_library_suffix = '.dll'
+    platform_extra_flags  = ''
 
 
 
@@ -136,14 +139,25 @@ class Target:
 
 
     def compile(self):
-        # All dependencies need to be finished before the target can be linked
+        # All dependencies need to be compiled before the target can be compiled
         for target in self.dependencyTargets:
             if not target.compiled:
                 return
 
+        # If the target is header-only it does not need to be compiled
         if len(self.sourceFiles) < 1:
-            print("-- Target " + self.outname + " seems to be header-only")
-        else:
+            if self.verbose:
+                print("-- Target " + self.outname + " seems to be header-only")
+            self.compiled = True
+
+        # If the target was not modified, it may not need to compile
+        if self.compiled:
+            if self.verbose:
+                print("-- Target " + self.outname + " is already compiled")
+            self.compiled = True
+        
+        # Compile
+        if not self.compiled:
             compileCommand = "clang++"
 
             # Own flags
@@ -192,7 +206,7 @@ class Target:
                 compileCommand += " -c"
 
             elif self.targetType == TargetType.Sharedlibrary:
-                compileCommand += " -c"
+                compileCommand += platform_extra_flags + " -c"
 
             elif self.targetType == TargetType.Staticlibrary:
                 compileCommand += " -c"
@@ -209,8 +223,8 @@ class Target:
                     print("--   " + compileCommand + objectCommand)
                 call(compileCommand + objectCommand, shell=True)
 
-        # Done
-        self.compiled = True
+            # Done
+            self.compiled = True
 
         # Spawn compilation of dependency parents
         for parent in self.dependencyParents:
@@ -242,7 +256,7 @@ class Target:
                 linkCommand = "clang++ -o " + self.buildDirectory + "/" + self.outfile
 
             elif self.targetType == TargetType.Sharedlibrary:
-                linkCommand = "clang++ -shared -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = "clang++" + platform_extra_flags + " -shared -o " + self.buildDirectory + "/" + self.outfile
 
             elif self.targetType == TargetType.Staticlibrary:
                 linkCommand = "llvm-ar rc " + self.buildDirectory + "/" + self.outfile
@@ -353,10 +367,10 @@ def main(argv=None):
                         print("-- External target " + target.name + ": downloaded")
                     target.includeDirectories.append(downloaddir)
 
+            sources = []
+            headers = []
             if "sources" in node:
                 sourcenode = node["sources"]
-                sources = []
-                headers = []
                 # Add include directories
                 if "include_directories" in sourcenode:
                     for dir in sourcenode["include_directories"]:
@@ -366,17 +380,25 @@ def main(argv=None):
                     # Search for header files
                     for ext in ('*.hpp', '*.hxx'):
                         for dir in sourcenode["include_directories"]:
-                            headers += glob(os.path.join(workingdir+"/"+dir, ext))
+                            headers += glob(os.path.join(target.targetDirectory+"/"+dir, ext))
 
                 # Search for source files
                 if "source_directories" in sourcenode:
                     for ext in ('*.cpp', '*.cxx'):
                         for dir in sourcenode["source_directories"]:
-                            sources += glob(os.path.join(workingdir+"/"+dir, ext))
+                            sources += glob(os.path.join(target.targetDirectory+"/"+dir, ext))
 
-                # Set target sources
-                target.headerFiles = headers
-                target.sourceFiles = sources
+            else:
+                # Search for header files
+                for ext in ('*.hpp', '*.hxx'):
+                    headers += glob(os.path.join(target.targetDirectory, ext))
+                # Search for source files
+                for ext in ('*.cpp', '*.cxx'):
+                    sources += glob(os.path.join(target.targetDirectory, ext))
+
+            # Set target sources
+            target.headerFiles = headers
+            target.sourceFiles = sources
 
             # Flags
             if "flags" in node:
