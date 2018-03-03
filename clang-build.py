@@ -89,15 +89,19 @@ supported_dialect_newest = supported_dialects[-1]
 
 class Target:
     def __init__(self):
+        # Clang
+        self.clangpp   = "clang++"
+        self.clang_ar  = "llvm-ar"
+        self.llvm_root = ""
         # Basics
-        self.targetDirectory    = ""
-        self.name               = "main"
-        self.outname            = "main"
-        self.targetType         = TargetType.Executable
-        self.dialect            = supported_dialect_newest
-        self.external           = False
+        self.targetDirectory = ""
+        self.name            = "main"
+        self.outname         = "main"
+        self.targetType      = TargetType.Executable
+        self.dialect         = supported_dialect_newest
+        self.external        = False
 
-        self.verbose            = False
+        self.verbose         = False
 
         # Custom flags (set from project file)
         self.includeDirectories  = []
@@ -158,7 +162,7 @@ class Target:
         
         # Compile
         if not self.compiled:
-            compileCommand = "clang++"
+            compileCommand = self.clangpp
 
             # Own flags
             for flag in self.defaultCompileFlags:
@@ -253,13 +257,13 @@ class Target:
             self.outfile = self.prefix + self.outname + self.suffix
 
             if self.targetType == TargetType.Executable:
-                linkCommand = "clang++ -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clangpp + " -o " + self.buildDirectory + "/" + self.outfile
 
             elif self.targetType == TargetType.Sharedlibrary:
-                linkCommand = "clang++" + platform_extra_flags + " -shared -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clangpp + platform_extra_flags + " -shared -o " + self.buildDirectory + "/" + self.outfile
 
             elif self.targetType == TargetType.Staticlibrary:
-                linkCommand = "llvm-ar rc " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clang_ar + " rc " + self.buildDirectory + "/" + self.outfile
 
             ### Link Dependencies
             for target in self.dependencyTargets:
@@ -299,6 +303,18 @@ class Target:
 def main(argv=None):
     print("---- clang-build v0.0.0")
 
+    # Check for clang++ executable
+    from distutils.spawn import find_executable
+    clangpp  = find_executable("clang++")
+    clang_ar = find_executable("llvm-ar")
+    llvm_root = os.path.dirname(os.path.abspath(os.path.join(clangpp, "..")))
+
+    if not clangpp:
+        print("---- WARNING: could not find clang++! Please check your installation...")
+    if not clang_ar:
+        print("---- WARNING: could not find llvm-ar! Please check your installation...")
+
+    # Parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("-V", "--verbose",
                         help="activate verbose build",
@@ -309,14 +325,22 @@ def main(argv=None):
                         help="set the build type (default, release, debug, ...)")
     args = parser.parse_args()
 
+    # Verbosity
     if args.verbose: print("-- Verbosity turned on")
+    
+    if args.verbose:
+        if clangpp:  print("-- llvm root directory: " + llvm_root)
+        if clangpp:  print("-- clang++ executable:  " + clangpp)
+        if clang_ar: print("-- llvm-ar executable:  " + clang_ar)
 
+    # Working directory
     callingdir = os.getcwd()
     workingdir = os.getcwd()
     if args.directory:
         workingdir = args.directory
         print("-- Working directory: " + workingdir)
 
+    # Build directory
     buildType = BuildType.Default
     if args.build_type:
         buildType = BuildType[args.build_type.lower().title()]
@@ -336,6 +360,7 @@ def main(argv=None):
         for nodename, node in config.items():
             # Create target
             target = Target()
+            target.llvm_root       = llvm_root
             target.targetDirectory = workingdir
             target.buildType       = buildType
             target.verbose         = args.verbose
