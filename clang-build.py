@@ -59,7 +59,7 @@ elif _platform == "win32":
     shared_library_prefix = ''
     shared_library_suffix = '.dll'
     static_library_prefix = ''
-    static_library_suffix = '.dll'
+    static_library_suffix = '.lib'
     platform_extra_flags  = ''
 
 
@@ -95,6 +95,7 @@ class Target:
         self.llvm_root = ""
         # Basics
         self.targetDirectory = ""
+        self.root            = ""
         self.name            = "main"
         self.outname         = "main"
         self.targetType      = TargetType.Executable
@@ -131,6 +132,9 @@ class Target:
         self.headerFiles        = []
         self.sourceFiles        = []
 
+        # Compiled objects
+        self.objectFiles        = []
+
         # Dependencies
         self.dependencies       = [] # string
         self.dependencyTargets  = [] # Target
@@ -164,41 +168,55 @@ class Target:
         if not self.compiled:
             compileCommand = self.clangpp
 
+            flags = []
             # Own flags
             for flag in self.defaultCompileFlags:
-                compileCommand += " " + flag
+                if flag not in flags:
+                    flags.append(flag)
             for flag in self.compileFlags:
-                compileCommand += " " + flag
+                if flag not in flags:
+                    flags.append(flag)
             if self.buildType == BuildType.Release:
                 for flag in self.defaultReleaseCompileFlags:
-                    compileCommand += " " + flag
+                    if flag not in flags:
+                        flags.append(flag)
             if self.buildType == BuildType.Debug:
                 for flag in self.defaultDebugCompileFlags:
-                    compileCommand += " " + flag
-
+                    if flag not in flags:
+                        flags.append(flag)
             # Dependency flags
             for target in self.dependencyTargets:
                 for flag in target.defaultCompileFlags:
-                    compileCommand += " " + flag
+                    if flag not in flags:
+                        flags.append(flag)
                 for flag in target.compileFlags:
-                    compileCommand += " " + flag
+                    if flag not in flags:
+                        flags.append(flag)
                 if target.buildType == BuildType.Release:
                     for flag in target.defaultReleaseCompileFlags:
-                        compileCommand += " " + flag
+                        if flag not in flags:
+                            flags.append(flag)
                     for flag in target.compileFlagsRelease:
-                        compileCommand += " " + flag
+                        if flag not in flags:
+                            flags.append(flag)
                 if target.buildType == BuildType.Debug:
                     for flag in target.defaultDebugCompileFlags:
-                        compileCommand += " " + flag
+                        if flag not in flags:
+                            flags.append(flag)
                     for flag in target.compileFlagsDebug:
-                        compileCommand += " " + flag
+                        if flag not in flags:
+                            flags.append(flag)
+            for flag in flags:
+                compileCommand += " " + flag
 
             # Own include directories
+            compileCommand += " -I" + self.targetDirectory + "/" + self.root
             for dir in self.defaultIncludeDirectories:
                 compileCommand += " -I" + self.targetDirectory + "/" + dir
             for dir in self.includeDirectories:
                 compileCommand += " -I" + self.targetDirectory + "/" + dir
             for target in self.dependencyTargets:
+                compileCommand += " -I" + target.targetDirectory + "/" + target.root
                 if target.external:
                     for dir in target.includeDirectories:
                         compileCommand += " -I" + dir
@@ -220,12 +238,18 @@ class Target:
             mkpath(self.buildDirectory)
             for sourceFile in self.sourceFiles:
                 path, file = os.path.split(sourceFile)
+                relpath = os.path.relpath(path, self.targetDirectory+"/"+self.root)
+                if  os.path.exists(self.targetDirectory+"/"+self.root+'/src'):
+                    relpath = os.path.relpath(relpath, 'src')
                 fname, extension = os.path.splitext(file)
-                objectCommand = " " + sourceFile + " -o " + self.buildDirectory + "/" + fname + ".o"
+                mkpath(self.buildDirectory + "/" + relpath)
+                objectFile = self.buildDirectory + "/" + relpath + "/" + fname + ".o"
+                objectCommand = " " + sourceFile + " -o " + objectFile
 
                 if self.verbose:
                     print("--   " + compileCommand + objectCommand)
                 call(compileCommand + objectCommand, shell=True)
+                self.objectFiles.append(objectFile)
 
             # Done
             self.compiled = True
@@ -265,24 +289,24 @@ class Target:
             elif self.targetType == TargetType.Staticlibrary:
                 linkCommand = self.clang_ar + " rc " + self.buildDirectory + "/" + self.outfile
 
-            ### Link Dependencies
+            ### Link dependencies
             for target in self.dependencyTargets:
-                for sourceFile in target.sourceFiles:
-                    linkCommand += " -L\""+ target.buildDirectory +"\" -l" + target.outname
+                linkCommand += " -L\""+ target.buildDirectory +"\" -l" + target.outname
+
+            ### Include directories
+            if self.targetType == TargetType.Executable or self.targetType == TargetType.Sharedlibrary:
+                linkCommand += " -I" + self.targetDirectory + "/" + self.root
+                for dir in self.defaultIncludeDirectories:
+                    linkCommand += " -I" + self.targetDirectory + "/" + dir
+                for dir in self.includeDirectories:
+                    linkCommand += " -I" + self.targetDirectory + "/" + dir
+                for target in self.dependencyTargets:
+                    for dir in target.includeDirectories:
+                        linkCommand += " -I" + dir
 
             ### Link self
-            for dir in self.defaultIncludeDirectories:
-                linkCommand += " -I" + self.targetDirectory + "/" + dir
-            for dir in self.includeDirectories:
-                linkCommand += " -I" + self.targetDirectory + "/" + dir
-            for target in self.dependencyTargets:
-                for dir in target.includeDirectories:
-                    linkCommand += " -I" + dir
-
-            for sourceFile in self.sourceFiles:
-                path, file = os.path.split(sourceFile)
-                fname, extension = os.path.splitext(file)
-                linkCommand += " " + self.buildDirectory + "/" + fname + ".o"
+            for obj in self.objectFiles:
+                linkCommand += " " + obj
 
             # Execute link command
             print("-- Link target " + self.outname)
@@ -396,22 +420,28 @@ def main(argv=None):
             headers = []
             if "sources" in node:
                 sourcenode = node["sources"]
+
+                # Target root directory
+                sourceroot = ""
+                if "root" in sourcenode:
+                    target.root = sourcenode["root"]
+
                 # Add include directories
                 if "include_directories" in sourcenode:
                     for dir in sourcenode["include_directories"]:
                         if dir not in target.includeDirectories:
-                            target.includeDirectories.append(dir)
+                            target.includeDirectories.append(target.root+"/"+dir)
 
                     # Search for header files
-                    for ext in ('*.hpp', '*.hxx'):
+                    for ext in ('*.hpp', '*.hxx', '*.h'):
                         for dir in sourcenode["include_directories"]:
-                            headers += glob(os.path.join(target.targetDirectory+"/"+dir, ext))
+                            headers += glob(os.path.join(target.targetDirectory+"/"+target.root+"/"+dir, ext))
 
                 # Search for source files
                 if "source_directories" in sourcenode:
-                    for ext in ('*.cpp', '*.cxx'):
+                    for ext in ('*.cpp', '*.cxx', '*.c'):
                         for dir in sourcenode["source_directories"]:
-                            sources += glob(os.path.join(target.targetDirectory+"/"+dir, ext))
+                            sources += glob(os.path.join(target.targetDirectory+"/"+target.root+"/"+dir, ext))
 
             else:
                 # Search for header files
