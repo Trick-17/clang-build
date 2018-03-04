@@ -45,14 +45,18 @@ if _platform == "linux" or _platform == "linux2":
     shared_library_suffix = '.so'
     static_library_prefix = 'lib'
     static_library_suffix = '.a'
-    platform_extra_flags  = ' -fpic'
+    platform_extra_flags_executable = ''
+    platform_extra_flags_shared     = ' -fpic'
+    platform_extra_flags_static     = ''
 elif _platform == "darwin":
     # OS X
     shared_library_prefix = 'lib'
     shared_library_suffix = '.dylib'
     static_library_prefix = 'lib'
     static_library_suffix = '.a'
-    platform_extra_flags  = ''
+    platform_extra_flags_executable = ''
+    platform_extra_flags_shared     = ''
+    platform_extra_flags_static     = ''
 elif _platform == "win32":
     # Windows
     executable_suffix     = '.exe'
@@ -60,7 +64,9 @@ elif _platform == "win32":
     shared_library_suffix = '.dll'
     static_library_prefix = ''
     static_library_suffix = '.lib'
-    platform_extra_flags  = ''
+    platform_extra_flags_executable = ' -Xclang -flto-visibility-public-std'
+    platform_extra_flags_shared     = ' -Xclang -flto-visibility-public-std'
+    platform_extra_flags_static     = ' -Xclang -flto-visibility-public-std'
 
 
 
@@ -101,6 +107,7 @@ class Target:
         self.targetType      = TargetType.Executable
         self.dialect         = supported_dialect_newest
         self.external        = False
+        self.header_only     = False
 
         self.verbose         = False
 
@@ -156,7 +163,7 @@ class Target:
         if len(self.sourceFiles) < 1:
             if self.verbose:
                 print("-- Target " + self.outname + " seems to be header-only")
-            self.compiled = True
+            self.header_only = True
 
         # If the target was not modified, it may not need to compile
         if self.compiled:
@@ -165,7 +172,7 @@ class Target:
             self.compiled = True
         
         # Compile
-        if not self.compiled:
+        if not (self.compiled or self.header_only):
             compileCommand = self.clangpp
 
             flags = []
@@ -225,13 +232,13 @@ class Target:
                         compileCommand += " -I" + target.targetDirectory + "/" + dir
 
             if self.targetType == TargetType.Executable:
-                compileCommand += " -c"
+                compileCommand += platform_extra_flags_executable + " -c"
 
             elif self.targetType == TargetType.Sharedlibrary:
-                compileCommand += platform_extra_flags + " -c"
+                compileCommand += platform_extra_flags_shared + " -c"
 
             elif self.targetType == TargetType.Staticlibrary:
-                compileCommand += " -c"
+                compileCommand += platform_extra_flags_static + " -c"
 
             # Execute compile command
             print("-- Compile target " + self.outname)
@@ -251,8 +258,8 @@ class Target:
                 call(compileCommand + objectCommand, shell=True)
                 self.objectFiles.append(objectFile)
 
-            # Done
-            self.compiled = True
+        # Done
+        self.compiled = True
 
         # Spawn compilation of dependency parents
         for parent in self.dependencyParents:
@@ -276,22 +283,23 @@ class Target:
             self.suffix = static_library_suffix
 
         if len(self.sourceFiles) < 1:
-            pass
+            self.header_only = True
         else:
             self.outfile = self.prefix + self.outname + self.suffix
 
             if self.targetType == TargetType.Executable:
-                linkCommand = self.clangpp + " -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clangpp + platform_extra_flags_executable + " -o " + self.buildDirectory + "/" + self.outfile
 
             elif self.targetType == TargetType.Sharedlibrary:
-                linkCommand = self.clangpp + platform_extra_flags + " -shared -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clangpp + platform_extra_flags_shared + " -shared -o " + self.buildDirectory + "/" + self.outfile
 
             elif self.targetType == TargetType.Staticlibrary:
-                linkCommand = self.clang_ar + " rc " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clang_ar + platform_extra_flags_static + " rc " + self.buildDirectory + "/" + self.outfile
 
             ### Link dependencies
             for target in self.dependencyTargets:
-                linkCommand += " -L\""+ target.buildDirectory +"\" -l" + target.outname
+                if not target.header_only:
+                    linkCommand += " -L\""+ target.buildDirectory +"\" -l" + target.outname
 
             ### Include directories
             if self.targetType == TargetType.Executable or self.targetType == TargetType.Sharedlibrary:
