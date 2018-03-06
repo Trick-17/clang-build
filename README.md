@@ -1,26 +1,50 @@
 Clang-build
 ==============================================
 
-This project exists in order to work towards the following goals:
-- one compiler, one build system, one dependency
-- simplification of build process for reasonable project structures
-- make trivial projects trivial to build (hello world, MWEs, ...)
-- drop-in replacement 
-
-In order to run `clang-build` one should only need to have Python and Clang.
-`pip install` it or, if e.g. you don't have admin rights, drop-in a single python script.
-
 Linux and OSX test: [![Test status](https://travis-ci.org/GPMueller/clang-build-test.svg?branch=master)](https://travis-ci.org/GPMueller/clang-build-test)
-
 Windows test: [![Test status](https://ci.appveyor.com/api/projects/status/u3hx7eq5sjox8b6m/branch/master?svg=true)](https://ci.appveyor.com/project/GPMueller/clang-build-test)
+
+
+
+**Motivation:**
+
+- Meta build systems are inherently the wrong way to go, either the build system or the compiler should be platform-agnostic.
+- Trying to cover all use-cases is the wrong way to go - there is no need to let people do it the wrong way
+- CMake is cumbersome, unnecessarily generic and verbose and people should not need a second programming language to be able to build C++
+- With Clang, finally a properly cross-platform compiler exists
+- With Python we have a language we can use consistently across platforms
+
+**Goals:**
+
+- One compiler (Clang), one build system (written in Python)
+- Simple projects should be simple to build
+- Build process for reasonable project structures should still be easy
+- Adding third-party dependencies should be manageable
+
+**Related resources:**
+
+- [CppCon 2017: Isabella Muerte “There Will Be Build Systems: I Configure Your Milkshake”](https://www.youtube.com/watch?v=7THzO-D0ta4)
+- https://medium.com/@corentin.jabot/accio-dependency-manager-b1846e1caf76
 
 
 
 Usage
 ----------------------------------------------
 
+In order to run `clang-build` one should only need to have Python and Clang installed.
+If you have admin rights, `pip install`, otherwise just drop-in the `clang-build.py` script,
+e.g. `curl -O https://raw.githubusercontent.com/GPMueller/clang-build-test/master/clang-build.py`
+
 - `clang-build` to build the current directory
 - `clang-build -d"path/to/dir"` to build a different directory (alternatively `--directory`)
+- `clang-build -V` to print the called clang commands (alternatively `--verbose`)
+
+The given directory will be searched for a `clang-build.toml` file, which you can use to configure
+your build targets, if necessary. If the build file cannot be found, `clang-build` will try to
+create an executable from your project, searching the root and some default folders for sources
+and headers.
+
+*Note: until this is a package on pypi, you need to call `python clang-build.py` instead of just `clang-build`...*
 
 
 
@@ -32,19 +56,22 @@ General Ideas
 What should be trivial
 ----------------------------------------------
 
-This would be things that require only the invocation of `clang-build`
+This would be things that require only the invocation of `clang-build` and no build file.
 
 - build a hello world program (i.e anything with single main and without non-std dependencies)
 - build a reasonable MWE with local dependencies (potentially folder structure with e.g. `src`, `include/MWE` and `include/thirdparty`)
 - include stdlib
 - include anything that can be found by sane default search
-- set build type (last used should be remembered)
-- set build verbosity
+- using command line arguments:
+  - specify root/source folder
+  - set build type from (last used should be cached/remembered)
+  - set build verbosity
 
-The sane defaults and default behaviour should include:
+Sane defaults and default behaviour:
 
 - platform-independence
-- build into a "build/" directory, not into toplevel. For multiple targets into "build/target"
+- build into a "build/" directory, not into toplevel
+- for multiple targets build into "build/target"
 - default search paths for different platforms, including also e.g. "./include", "./lib", "./build/lib", "/usr/local/...", ...
 
 
@@ -54,7 +81,9 @@ What should be easy
 
 This would be things that only require a minimal TOML project file
 
-- add a header-only dependency, via source folder or external (github, ...)
+- add dependency / external project from source folder or remote (e.g. github)
+  - header-only should be trivial
+  - for a regular (not too complicated) library it should be easy to write a build config
 - create a library from one subfolder, an executable from another and link them
 - setting target-specific (note: defaults should be sane!)
   - source file extensions
@@ -67,10 +96,7 @@ This would be things that only require a minimal TOML project file
   - coverage
   - cuda
   - openmp
-- possibly explicit exporting of variables, targets, include paths; maybe default is that namespace contents are public;
-  (note: it's probably sane to require a "namespace" if anything is to be exported. A target cannot just be exported,
-  should require names to be inside a namespace in order to e.g. avoid collisions of common target names, such as "test".)
-  This may be related directly to packaging - maybe only a package can export anything?
+- set target-specific flags, include folders, etc. which should not be propagated to dependency parents as "private"
 
 
 
@@ -87,6 +113,109 @@ Steps that would involve more effort from the user, including possibly some pyth
   - source on a server (fallback from binaries)
   - binaries on disk, try to determine version from path and file names
   - source on disk, try to determine version from path and file names
+
+
+
+Project File By Example
+==============================================
+
+
+
+A single target
+----------------------------------------------
+
+```TOML
+# Top-level brackets indicate a target
+[hello]
+# Note: the following sources settings could be left out.
+# .hpp and .cpp files will be searched for in include and src by default
+[hello.sources]
+file_extensions = [".hpp", ".cpp"]
+include_directories = ["include"]
+source_directories = ["src"]
+# Some properties
+[hello.properties]
+cpp_version = 17
+output_name = "runHello" # name should not contain pre- or suffixes such as lib, .exe, .so
+```
+
+
+
+Two targets with linking
+----------------------------------------------
+
+```TOML
+# Build a library
+[mylib]
+target_type = "sharedlibrary"
+[mylib.sources]
+include_directories = ["mylib/include"]
+source_directories = ["mylib/src"]
+
+# Build an executable and link the library
+[myexe]
+output_name = "runExe"
+target_type = "executable"
+[myexe.sources]
+include_directories = ["myexe/include"]
+source_directories = ["myexe/src"]
+
+[myexe.link]
+dependencies = ["mylib"]
+
+[myexe.flags]
+link = ["-DMYLIB_SOME_DEFINE"]
+```
+
+
+
+A package used by a target
+----------------------------------------------
+
+`mypackage/clang-build.toml`
+```TOML
+# Build a library
+[mylib]
+target_type = "library"
+[mylib.sources]
+include_directories = ["mylib/include"]
+source_directories = ["mylib/src"]
+```
+
+`myexe/clang-build.toml`
+```TOML
+# Include an external package/target (i.e. not from this toml file)
+[somelib]
+external = true
+path = "/path/to/sources"
+
+# Build an executable and link the library
+[myexe]
+[myexe.sources]
+include_directories = ["include", "mylib.sources.include_directories"]
+source_directories = ["src"]
+
+[myexe.link]
+dependencies = ["somelib"]
+```
+
+
+
+Packages from server
+----------------------------------------------
+
+```TOML
+# Build a library
+[mylib]
+external = true
+url = "https://github.com/trick-17/mylib"
+version = 1.1 # will try to git checkout [v]1.1[.*] 
+
+# Build an executable and link the library
+[myexe]
+[myexe.link]
+dependencies = ["mylib"]
+```
 
 
 
@@ -159,142 +288,3 @@ Local:
 git server:
 - `<url>`
 - `<url>/<target_name>`
-
-
-
-Project File By Example
-==============================================
-
-
-
-A single target
-----------------------------------------------
-
-```TOML
-# Top-level brackets indicate a target
-[hello]
-# Note: the following sources settings could be left out.
-# .hpp and .cpp files will be searched for in include and src by default
-[hello.sources]
-file_extensions = [".hpp", ".cpp"]
-include_directories = ["include"]
-source_directories = ["src"]
-# Some properties
-[hello.properties]
-cpp_version = 17
-output_name = "runHello" # name should not contain pre- or suffixes such as lib, .exe, .so
-```
-
-
-
-Two targets with linking
-----------------------------------------------
-
-```TOML
-# Build a library
-[mylib]
-[mylib.sources]
-include_directories = ["mylib/include"]
-source_directories = ["mylib/src"]
-
-# Build an executable and link the library
-[myexe]
-[myexe.sources]
-include_directories = ["myexe/include"]
-source_directories = ["myexe/src"]
-
-[myexe.link]
-dependencies = ["mylib"]
-flags = ["-DMYLIB_SOME_DEFINE"]
-```
-
-
-
-A package used by a target
-----------------------------------------------
-
-`mypackage/clang-build.toml`
-```TOML
-# Build a library
-[mylib]
-[mylib.sources]
-include_directories = ["mylib/include"]
-source_directories = ["mylib/src"]
-```
-
-`myexe/clang-build.toml`
-```TOML
-# Include an external package/target (i.e. not from this toml file)
-[external] # should this be a reserved name??
-[external.mylib]
-add_search_directories = [".."] # all paths by default relative to the toml file
-
-# Build an executable and link the library
-[myexe]
-[myexe.sources]
-include_directories = ["include", "mylib.sources.include_directories"]
-source_directories = ["src"]
-
-[myexe.link]
-dependencies = ["mylib"]
-flags = ["-DMYLIB_SOME_DEFINE"]
-```
-
-
-
-Nested target in package
-----------------------------------------------
-
-`mypackage/clang-build.toml`
-```TOML
-# Include an external package/target (i.e. not from this toml file)
-[external] # should this be a reserved name??
-[external.mycorelib]
-version = 2.4.5 # if available
-version_required = 2.4 # failure if not satisfied
-
-### Maybe instead:
-[mycorelib]
-external = true
-version = 2.4.5 # if available
-version_required = 2.4 # failure if not satisfied
-# optionally specify additional search paths, ".", "/usr/local" etc are in default
-###
-
-# Build a library
-[mylib]
-[mylib.sources]
-include_directories = ["mylib/include"]
-source_directories = ["mylib/src"]
-[mylib.link]
-dependencies = ["mycorelib"]
-```
-
-`mypackage/mycorelib/clang-build.toml`
-```TOML
-# Build a library
-[mycorelib]
-version = 2.4.6 # this automatically defines mylib.version.major etc.
-[mycorelib.sources]
-include_directories = ["mycorelib/include"]
-source_directories = ["mycorelib/src"]
-```
-
-
-
-Packages from server
-----------------------------------------------
-
-```TOML
-# Build a library
-[mylib]
-external = true
-url = "https://github.com/trick-17/mylib"
-version = 1.1 # will try to git checkout [v]1.1[.*] 
-
-# Build an executable and link the library
-[myexe]
-[myexe.link]
-dependencies = ["mylib"]
-flags = ["-DMYLIB_SOME_DEFINE"]
-```
