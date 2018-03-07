@@ -138,9 +138,10 @@ class Target:
         # Sources
         self.headerFiles        = []
         self.sourceFiles        = []
-
         # Compiled objects
-        self.objectFiles        = []
+        self.objectFiles        = {}
+        # Dependency files
+        self.depfiles           = {}
 
         # Dependencies
         self.dependencies       = [] # string
@@ -153,6 +154,35 @@ class Target:
         self.linked   = False
 
 
+    # From the list of sources generate a list of object files and corresponding depfiles
+    def generateObjectList(self):
+        for sourceFile in self.sourceFiles:
+            path, file = os.path.split(sourceFile)
+            relpath = os.path.relpath(path, self.targetDirectory+"/"+self.root)
+            if  os.path.exists(self.targetDirectory+"/"+self.root+'/src'):
+                relpath = os.path.relpath(relpath, 'src')
+            fname, extension = os.path.splitext(file)
+
+            self.objectFiles[sourceFile] = self.buildDirectory + "/" + relpath + "/" + fname + ".o"
+            self.depfiles[sourceFile]    = self.buildDirectory + "/" + relpath + "/" + fname + ".d"
+
+
+    # Find and parse the dependency file corresponding to a given source file
+    def getDepfileHeaders(self, sourceFile):
+        depfileHeaders = []
+        depfile = self.depfiles[sourceFile]
+        with open(depfile, "r") as the_file:
+            depStr = the_file.read()
+            colonPos = depStr.find(":")
+            for line in depStr[colonPos + 1:].splitlines():
+                depline = line.replace(' \\', '').strip().split()
+                for header in depline:
+                    depfileHeaders.append(header)
+
+        return depfileHeaders
+
+
+    # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self):
         # All dependencies need to be compiled before the target can be compiled
         for target in self.dependencyTargets:
@@ -165,15 +195,37 @@ class Target:
                 print("-- Target " + self.outname + " seems to be header-only")
             self.header_only = True
 
+        # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
+        buildSourceFiles = []
+        for sourceFile in self.sourceFiles:
+            # If the object file is not found or out of date, we rebuild
+            objectFile = self.objectFiles[sourceFile]
+            # Check if object file has been compiled
+            if os.path.isfile(objectFile):
+                # If object file is found, check if it is up to date
+                if os.path.getmtime(sourceFile) > os.path.getmtime(objectFile):
+                    buildSourceFiles.append(sourceFile)
+                # If object file is up to date, we check the headers it depends on
+                else:
+                    depHeaderFiles = self.getDepfileHeaders(sourceFile)
+                    for depHeaderFile in depHeaderFiles:
+                        if os.path.getmtime(depHeaderFile) > os.path.getmtime(objectFile):
+                            buildSourceFiles.append(sourceFile)
+            else:
+                buildSourceFiles.append(sourceFile)
+
         # If the target was not modified, it may not need to compile
-        if self.compiled:
+        if not buildSourceFiles and not self.header_only:
             if self.verbose:
                 print("-- Target " + self.outname + " is already compiled")
             self.compiled = True
-        
+
+        if self.verbose and buildSourceFiles:
+            print("-- Target " + self.outname + ": need to rebuild sources ", buildSourceFiles)
+
         # Compile
         if not (self.compiled or self.header_only):
-            compileCommand = self.clangpp
+            genericCommand = self.clangpp
 
             flags = []
             # Own flags
@@ -214,49 +266,66 @@ class Target:
                         if flag not in flags:
                             flags.append(flag)
             for flag in flags:
-                compileCommand += " " + flag
+                genericCommand += " " + flag
 
             # Own include directories
-            compileCommand += " -I" + self.targetDirectory + "/" + self.root
+            genericCommand += " -I" + self.targetDirectory + "/" + self.root
             for dir in self.defaultIncludeDirectories:
-                compileCommand += " -I" + self.targetDirectory + "/" + dir
+                genericCommand += " -I" + self.targetDirectory + "/" + dir
             for dir in self.includeDirectories:
-                compileCommand += " -I" + self.targetDirectory + "/" + dir
+                genericCommand += " -I" + self.targetDirectory + "/" + dir
             for target in self.dependencyTargets:
-                compileCommand += " -I" + target.targetDirectory + "/" + target.root
+                genericCommand += " -I" + target.targetDirectory + "/" + target.root
                 if target.external:
                     for dir in target.includeDirectories:
-                        compileCommand += " -I" + dir
+                        genericCommand += " -I" + dir
                 else:
                     for dir in target.includeDirectories:
-                        compileCommand += " -I" + target.targetDirectory + "/" + dir
+                        genericCommand += " -I" + target.targetDirectory + "/" + dir
 
             if self.targetType == TargetType.Executable:
-                compileCommand += platform_extra_flags_executable + " -c"
+                compileCommand = platform_extra_flags_executable + " -c"
 
             elif self.targetType == TargetType.Sharedlibrary:
-                compileCommand += platform_extra_flags_shared + " -c"
+                compileCommand = platform_extra_flags_shared + " -c"
 
             elif self.targetType == TargetType.Staticlibrary:
-                compileCommand += platform_extra_flags_static + " -c"
+                compileCommand = platform_extra_flags_static + " -c"
 
+            # Create base directory for build
+            mkpath(self.buildDirectory)
+
+            # Create header dependency graph
+            print("-- Scanning dependencies of target " + self.outname)
+            depfileCommand = " -E -MMD"
+            for sourceFile in buildSourceFiles:
+                objectFile = self.objectFiles[sourceFile]
+                path, _ = os.path.split(objectFile)
+                mkpath(path)
+
+                depfile    = self.depfiles[sourceFile]
+                path, _ = os.path.split(depfile)
+                mkpath(path)
+
+                # depFile = path + "/" + fname+".d"
+                fileCommand = " " + sourceFile + " -MF " + depfile
+                if self.verbose:
+                    print("--   " + genericCommand + depfileCommand + fileCommand)
+                devnull = open(os.devnull, 'w')
+                call(genericCommand + depfileCommand + fileCommand, shell=True, stdout=devnull, stderr=devnull)
+            
             # Execute compile command
             print("-- Compile target " + self.outname)
-            mkpath(self.buildDirectory)
-            for sourceFile in self.sourceFiles:
-                path, file = os.path.split(sourceFile)
-                relpath = os.path.relpath(path, self.targetDirectory+"/"+self.root)
-                if  os.path.exists(self.targetDirectory+"/"+self.root+'/src'):
-                    relpath = os.path.relpath(relpath, 'src')
-                fname, extension = os.path.splitext(file)
-                mkpath(self.buildDirectory + "/" + relpath)
-                objectFile = self.buildDirectory + "/" + relpath + "/" + fname + ".o"
+            for sourceFile in buildSourceFiles:
+                objectFile = self.objectFiles[sourceFile]
+                path, file = os.path.split(objectFile)
+                mkpath(path)
+
                 objectCommand = " " + sourceFile + " -o " + objectFile
 
                 if self.verbose:
-                    print("--   " + compileCommand + objectCommand)
-                call(compileCommand + objectCommand, shell=True)
-                self.objectFiles.append(objectFile)
+                    print("--   " + genericCommand + compileCommand + objectCommand)
+                call(genericCommand + compileCommand + objectCommand, shell=True)
 
         # Done
         self.compiled = True
@@ -265,7 +334,7 @@ class Target:
         for parent in self.dependencyParents:
             parent.compile()
 
-
+    # Link the compiled object files
     def link(self):
         # All dependencies need to be finished before the target can be linked
         for target in self.dependencyTargets:
@@ -288,13 +357,13 @@ class Target:
             self.outfile = self.prefix + self.outname + self.suffix
 
             if self.targetType == TargetType.Executable:
-                linkCommand = self.clangpp + platform_extra_flags_executable + " -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clangpp + " -o " + self.buildDirectory + "/" + self.outfile
 
             elif self.targetType == TargetType.Sharedlibrary:
-                linkCommand = self.clangpp + platform_extra_flags_shared + " -shared -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clangpp + " -shared -o " + self.buildDirectory + "/" + self.outfile
 
             elif self.targetType == TargetType.Staticlibrary:
-                linkCommand = self.clang_ar + platform_extra_flags_static + " rc " + self.buildDirectory + "/" + self.outfile
+                linkCommand = self.clang_ar + " rc " + self.buildDirectory + "/" + self.outfile
 
             ### Link dependencies
             for target in self.dependencyTargets:
@@ -313,8 +382,9 @@ class Target:
                         linkCommand += " -I" + dir
 
             ### Link self
-            for obj in self.objectFiles:
-                linkCommand += " " + obj
+            for sourceFile in self.sourceFiles:
+                objectFile = self.objectFiles[sourceFile]
+                linkCommand += " " + objectFile
 
             # Execute link command
             print("-- Link target " + self.outname)
@@ -381,7 +451,6 @@ def main(argv=None):
     # Check for build configuration toml file
     if os.path.isfile(workingdir + "/clang-build.toml"):
         config = toml.load(workingdir + "/clang-build.toml")
-        # print(toml.dumps(config))
 
         # Use sub-build directories if multiple targets
         subbuilddirs = False
@@ -463,6 +532,9 @@ def main(argv=None):
             target.headerFiles = headers
             target.sourceFiles = sources
 
+            # Update targets object list
+            target.generateObjectList()
+
             # Flags
             if "flags" in node:
                 flagsnode = node["flags"]
@@ -538,6 +610,9 @@ def main(argv=None):
         target.headerFiles = headers
         target.sourceFiles = sources
 
+        # Update targets object list
+        target.generateObjectList()
+        
         # Only one target -> root and leaf of dependency graph
         leafs = [target]
 
