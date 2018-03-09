@@ -20,7 +20,7 @@ install:
 
 test_script:
   # test/hello
-  - "%PYTHON%/python setup.py develop --user"
+  - "%PYTHON%/python setup.py develop"
   - "clang-build -d\"test/hello\" -V"
   - 'build\main.exe'
   # test/mini-project
