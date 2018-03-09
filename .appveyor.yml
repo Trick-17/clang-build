@@ -20,19 +20,19 @@ install:
 
 test_script:
   # test/hello
-  - "%PYTHON%/python setup.py develop --user
-  - clang-build -d\"test/hello\" -V"
+  - "%PYTHON%/python setup.py develop --user"
+  - "clang-build -d\"test/hello\" -V"
   - 'build\main.exe'
   # test/mini-project
-  - clang-build -d\"test/mini-project\" -V"
+  - "clang-build -d\"test/mini-project\" -V"
   - 'build\main.exe'
   # test/mwe-toml
-  - clang-build -d\"test/mwe-toml\" -V"
+  - "clang-build -d\"test/mwe-toml\" -V"
   - 'build\runHello.exe'
   # test/external-project
-  - clang-build -d\"test/external-project\" -V"
+  - "clang-build -d\"test/external-project\" -V"
   - 'build\myexe\runHello.exe'
   # test/lib-and-exe
-  - clang-build -d\"test/lib-and-exe\" -V"
+  - "clang-build -d\"test/lib-and-exe\" -V"
   # TODO: need to copy build/mylib/mylib.dll into exe's directory
   # - 'build\myexe\runLib.exe'
