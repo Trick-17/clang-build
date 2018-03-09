@@ -42,14 +42,14 @@ before_script:
   # - alias python=python$PYVERSION
   # - alias pip=pip$PYVERSION
   # pip install dependencies
-  - sudo pip install twine enum34 setuptools toml
+  - sudo pip install twine enum34 setuptools
 
 script:
   - clang --version
   - python --version
   - pip --version
   # test/hello
-  - python setup.py install --user
+  - python setup.py develop --user
   - clang-build -d"test/hello" -V
   - ./build/main
   # test/mini-project
