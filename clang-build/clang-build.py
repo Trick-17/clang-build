@@ -434,7 +434,7 @@ class Target:
 
 
 
-def main(argv=None):
+def main():
     print("---- clang-build v0.0.0")
 
     # Check for clang++ executable
