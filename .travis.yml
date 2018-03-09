@@ -1,11 +1,14 @@
 dist: trusty
-language: python
+sudo: required
 
-os:
-  - osx
-    osx_image: xcode8
-  - linux
-    addons:
+matrix:
+  include:
+    - language: python
+      os: linux
+      python:
+        - 2.7
+        - 3.6
+      addons:
         apt:
           packages:
           - clang
@@ -13,26 +16,22 @@ os:
           sources:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
           - sourceline: 'ppa:deadsnakes/ppa'
+    - language: cpp
+      os: osx
+      osx_image: xcode8
+      before_script:
+        - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
 
-python:
-  - '3.6'
-  - '2.7'
-
-
-before_install:
-  # Run homebrew on osx
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install --with-clang llvm; else ; fi
 
 install:
-  - pip install setuptools
+  - sudo pip install setuptools
 
 script:
   - clang --version
   - python --version
   - pip --version
   # test/hello
-  - python setup.py develop
+  - python setup.py develop --user
   - clang-build -d"test/hello" -V
   - ./build/main
   # test/mini-project
