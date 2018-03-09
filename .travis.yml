@@ -49,7 +49,7 @@ script:
   - python --version
   - pip --version
   # test/hello
-  - python setup.py install
+  - python setup.py install --user
   - clang-build -d"test/hello" -V
   - ./build/main
   # test/mini-project
