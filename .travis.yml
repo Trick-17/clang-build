@@ -12,7 +12,18 @@ matrix:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
           - sourceline: 'ppa:deadsnakes/ppa'
       dist: trusty
-
+    - language: python
+      os: linux
+      python: 2.7
+      addons:
+        apt:
+          packages:
+          - clang
+          - ca-certificates
+          sources:
+          - sourceline: 'ppa:ubuntu-toolchain-r/test'
+          - sourceline: 'ppa:deadsnakes/ppa'
+      dist: trusty
     - language: cpp
       os: osx
       osx_image: xcode8
