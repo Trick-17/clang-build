@@ -267,7 +267,12 @@ class Target:
 
     def generateFlags(self):
         flags = []
+        # Default flags
+        for flag in self.defaultCompileFlags:
+            flags.append(flag)
         # Own flags
+        for flag in self.compileFlags:
+            flags.append(flag)
         if self.buildType == BuildType.Release:
             for flag in self.defaultReleaseCompileFlags:
                 flags.append(flag)
@@ -291,6 +296,7 @@ class Target:
                 for flag in target.compileFlagsDebug:
                     flags.append(flag)
         # Append
+        self.compileFlags = []
         for flag in flags:
             if flag not in self.compileFlags:
                 self.compileFlags.append(flag)
@@ -584,8 +590,6 @@ def main():
             target.sourceFiles = sources
 
             # Flags
-            for flag in target.defaultCompileFlags: # the default flags need to go first
-                target.compileFlags.append(flag)
             if "flags" in node:
                 flagsnode = node["flags"]
                 if "compile" in flagsnode:
