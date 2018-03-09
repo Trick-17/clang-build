@@ -12,20 +12,16 @@ matrix:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
           - sourceline: 'ppa:deadsnakes/ppa'
       dist: trusty
-      sudo: required
-      before_script:
-        - python setup.py develop
 
     - language: cpp
       os: osx
       osx_image: xcode8
       before_script:
         - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
-        - python setup.py develop
-
 
 install:
-  - sudo pip install setuptools
+  - pip install setuptools
+  - python setup.py develop
 
 script:
   - clang --version
