@@ -1,55 +1,38 @@
 dist: trusty
-sudo: required
-language: cpp
+language: python
 
-
-matrix:
-  include:
-    # OSX
-    - os: osx
-      osx_image: xcode8
-      # env: PYVERSION=2
-    # # Linux, Python3
-    # - os: linux
-    #   env: PYVERSION=3
-    #   addons:
-    #     apt:
-    #       packages:
-    #       - clang
-    #       - ca-certificates
-    #       - python3.6
-    #       - python3-pip
-    #       sources:
-    #       - sourceline: 'ppa:ubuntu-toolchain-r/test'
-    #       - sourceline: 'ppa:deadsnakes/ppa'
-    # Linux, Python2
-    - os: linux
-      # env: PYVERSION=2
-      addons:
+os:
+  - osx
+    osx_image: xcode8
+  - linux
+    addons:
         apt:
           packages:
           - clang
           - ca-certificates
-          - python2.7
           sources:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
           - sourceline: 'ppa:deadsnakes/ppa'
 
-before_script:
+python:
+  - '3.6'
+  - '2.7'
+
+
+before_install:
   # Run homebrew on osx
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
-  # - shopt -s expand_aliases
-  # - alias python=python$PYVERSION
-  # - alias pip=pip$PYVERSION
-  # pip install dependencies
-  - sudo pip install twine enum34 setuptools
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install --with-clang llvm; else ; fi
+
+install:
+  - pip install setuptools
 
 script:
   - clang --version
   - python --version
   - pip --version
   # test/hello
-  - python setup.py develop --user
+  - python setup.py develop
   - clang-build -d"test/hello" -V
   - ./build/main
   # test/mini-project
