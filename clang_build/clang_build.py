@@ -22,7 +22,7 @@ import toml
 
 
 # Global pool for multiprocess build
-processpool = Pool(processes=1)
+processpool = None
 
 
 
@@ -268,8 +268,6 @@ class Target:
     def generateFlags(self):
         flags = []
         # Own flags
-        for flag in self.defaultCompileFlags:
-            flags.append(flag)
         if self.buildType == BuildType.Release:
             for flag in self.defaultReleaseCompileFlags:
                 flags.append(flag)
@@ -436,7 +434,8 @@ class Target:
 
 def main():
     print("---- clang-build v0.0.0")
-
+    global processpool
+    processpool = Pool(processes=1)
     # Check for clang++ executable
     from distutils.spawn import find_executable
     clangpp  = find_executable("clang++")
@@ -486,7 +485,6 @@ def main():
 
     # Multiprocessing pool
     if args.jobs:
-        global processpool
         processpool = Pool(processes = args.jobs)
         if args.verbose:
             print("-- Running " + str(args.jobs) + " concurrent build jobs" )
@@ -510,7 +508,7 @@ def main():
             target.buildType       = buildType
             target.verbose         = args.verbose
             target.name            = nodename
-            target.includeDirectories = [target.targetDirectory + "/" + target.root]
+            target.includeDirectories = []
 
             # Parse Targets type (Executable, Library, Test)
             target.targetType      = TargetType.Executable
@@ -553,12 +551,13 @@ def main():
                 sourceroot = ""
                 if "root" in sourcenode:
                     target.root = sourcenode["root"]
+                    target.includeDirectories.append(target.targetDirectory+"/"+target.root)
 
                 # Add include directories
                 if "include_directories" in sourcenode:
                     for dir in sourcenode["include_directories"]:
                         if dir not in target.includeDirectories:
-                            target.includeDirectories.append(target.targetDirectory+"/"+dir)
+                            target.includeDirectories.append(target.targetDirectory+"/"+target.root+"/"+dir)
 
                     # Search for header files
                     for ext in ('*.hpp', '*.hxx', '*.h'):
@@ -585,6 +584,8 @@ def main():
             target.sourceFiles = sources
 
             # Flags
+            for flag in target.defaultCompileFlags: # the default flags need to go first
+                target.compileFlags.append(flag)
             if "flags" in node:
                 flagsnode = node["flags"]
                 if "compile" in flagsnode:

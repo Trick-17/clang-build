@@ -1,8 +1,8 @@
 Clang-build
 ==============================================
 
-Linux and OSX test: [![Test status](https://travis-ci.org/GPMueller/clang-build-test.svg?branch=master)](https://travis-ci.org/GPMueller/clang-build-test)
-Windows test: [![Test status](https://ci.appveyor.com/api/projects/status/u3hx7eq5sjox8b6m/branch/master?svg=true)](https://ci.appveyor.com/project/GPMueller/clang-build-test)
+Linux and OSX test: [![Test status](https://travis-ci.org/Trick-17/clang-build.svg?branch=master)](https://travis-ci.org/Trick-17/clang-build)
+Windows test: [![Test status](https://ci.appveyor.com/api/projects/status/57qv53r4totihxrj/branch/master?svg=true)](https://ci.appveyor.com/project/GPMueller/clang-build)
 
 
 
