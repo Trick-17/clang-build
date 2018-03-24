@@ -6,11 +6,13 @@ matrix:
       addons:
         apt:
           packages:
-          - clang
-          - libc++-dev
           - ca-certificates
+          - libc++-dev
+          - g++-7
+          - clang
           sources:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
+          - sourceline: 'ppa:jonathonf/gcc-7.1'
           - sourceline: 'ppa:deadsnakes/ppa'
       dist: trusty
     - language: python
@@ -19,11 +21,13 @@ matrix:
       addons:
         apt:
           packages:
-          - clang
-          - libc++-dev
           - ca-certificates
+          - libc++-dev
+          - g++-7
+          - clang
           sources:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
+          - sourceline: 'ppa:jonathonf/gcc-7.1'
           - sourceline: 'ppa:deadsnakes/ppa'
       dist: trusty
     - language: cpp
