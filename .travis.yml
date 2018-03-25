@@ -7,6 +7,7 @@ matrix:
   include:
     - language: python
       os: linux
+      env: DEPLOY=false
       python: 3.6
       addons:
         apt:
@@ -22,6 +23,7 @@ matrix:
       dist: trusty
     - language: python
       os: linux
+      env: DEPLOY=false
       python: 2.7
       addons:
         apt:
@@ -37,6 +39,7 @@ matrix:
       dist: trusty
     - language: cpp
       os: osx
+      env: DEPLOY=true
       osx_image: xcode8
       before_script:
         - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
@@ -72,3 +75,4 @@ deploy:
   password: "$PYPIPASSWORD"
   on:
     all_branches: true
+    condition: $DEPLOY = true
