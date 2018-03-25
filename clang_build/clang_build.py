@@ -9,7 +9,6 @@ import os
 import sys
 from sys import platform as _platform
 import subprocess
-from subprocess import call, check_output
 from multiprocessing import Pool
 import getopt
 import argparse
@@ -165,7 +164,9 @@ def generateDepfile(buildable):
     if buildable.verbose:
         print("--   " + command )
     devnull = open(os.devnull, 'w')
-    call(command, shell=True, stdout=devnull, stderr=devnull)
+    subprocess.call(command, stdout=devnull, stderr=devnull)
+
+
 
 """
 Compile a Buildable...
@@ -194,7 +195,7 @@ def compile(buildable):
 
     if buildable.verbose:
         print("--   " + command)
-    call(command, shell=True)
+    subprocess.call(command)
 
 
 
@@ -231,7 +232,7 @@ class Target:
         self.defaultIncludeDirectories = ["include", "thirdparty"]
 
         # Default flags
-        self.defaultCompileFlags       = ["-std=c++" + str(supported_dialect_newest) + " -Wall -Werror"]
+        self.defaultCompileFlags       = ["-std=c++" + supported_dialect_newest + " -Wall -Werror"]
 
         # Default release flags
         self.defaultReleaseCompileFlags  = ["-O3 -DNDEBUG"]
@@ -428,7 +429,7 @@ class Target:
             if self.verbose:
                 print("--   " + linkCommand)
             mkpath(self.buildDirectory)
-            call(linkCommand, shell=True)
+            subprocess.call(linkCommand)
 
         # Done
         self.linked = True
@@ -545,7 +546,7 @@ def main():
                     else:
                         print("-- External target " + target.name + ": downloading to "+downloaddir)
                         mkpath(downloaddir)
-                        call("git clone "+node["url"]+" "+downloaddir, shell=True)
+                        subprocess.call("git clone "+node["url"]+" "+downloaddir)
                         print("-- External target " + target.name + ": downloaded")
                     target.includeDirectories.append(downloaddir)
 
