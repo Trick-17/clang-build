@@ -77,18 +77,19 @@ elif _platform == "win32":
 
 
 # Get the dialects of C++ available in clang
-supported_dialects = [98]
+supported_dialects = ['98']
 # Create a temporary file with a main function
 with tempfile.NamedTemporaryFile() as fp:
     fp.write(b"int main(int argc, char ** argv){return 0;}")
     fp.seek(0)
     # Try to compile the file using `-std=c++XX` flag
     for dialect in range(30):
-        command = "clang -xc++ -std=c++"+str(dialect)+" "+fp.name+" -o"+tempfile.gettempdir()+"/test"
+        str_dialect = str(dialect).zfill(2)
+        command = "clang -xc++ -std=c++"+str_dialect+" "+fp.name+" -o"+tempfile.gettempdir()+"/test"
         try:
             subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
             # If it compiled, the dialect is supported
-            if dialect not in supported_dialects: supported_dialects.append(dialect)
+            if str_dialect not in supported_dialects: supported_dialects.append(str_dialect)
         except:
             pass # We expect this to usually fail
 
@@ -472,6 +473,7 @@ def main():
         if clangpp:  print("-- llvm root directory: " + llvm_root)
         if clangpp:  print("-- clang++ executable:  " + clangpp)
         if clang_ar: print("-- llvm-ar executable:  " + clang_ar)
+        if clangpp:  print("-- Found supported C++ dialects: ", supported_dialects)
 
     # Directory this was called from
     callingdir = os.getcwd()
