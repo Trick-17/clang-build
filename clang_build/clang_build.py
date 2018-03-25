@@ -50,18 +50,18 @@ if _platform == "linux" or _platform == "linux2":
     shared_library_suffix = '.so'
     static_library_prefix = 'lib'
     static_library_suffix = '.a'
-    platform_extra_flags_executable = ''
-    platform_extra_flags_shared     = ' -fpic'
-    platform_extra_flags_static     = ''
+    platform_extra_flags_executable = ['']
+    platform_extra_flags_shared     = ['-fpic']
+    platform_extra_flags_static     = ['']
 elif _platform == "darwin":
     # OS X
     shared_library_prefix = 'lib'
     shared_library_suffix = '.dylib'
     static_library_prefix = 'lib'
     static_library_suffix = '.a'
-    platform_extra_flags_executable = ''
-    platform_extra_flags_shared     = ''
-    platform_extra_flags_static     = ''
+    platform_extra_flags_executable = ['']
+    platform_extra_flags_shared     = ['']
+    platform_extra_flags_static     = ['']
 elif _platform == "win32":
     # Windows
     executable_suffix     = '.exe'
@@ -69,9 +69,9 @@ elif _platform == "win32":
     shared_library_suffix = '.dll'
     static_library_prefix = ''
     static_library_suffix = '.lib'
-    platform_extra_flags_executable = ' -Xclang -flto-visibility-public-std'
-    platform_extra_flags_shared     = ' -Xclang -flto-visibility-public-std'
-    platform_extra_flags_static     = ' -Xclang -flto-visibility-public-std'
+    platform_extra_flags_executable = ['-Xclang', '-flto-visibility-public-std']
+    platform_extra_flags_shared     = ['-Xclang', '-flto-visibility-public-std']
+    platform_extra_flags_static     = ['-Xclang', '-flto-visibility-public-std']
 
 
 
@@ -84,9 +84,9 @@ with tempfile.NamedTemporaryFile() as fp:
     # Try to compile the file using `-std=c++XX` flag
     for dialect in range(30):
         str_dialect = str(dialect).zfill(2)
-        command = "clang -xc++ -std=c++"+str_dialect+" "+fp.name+" -o"+tempfile.gettempdir()+"/test"
+        command = ["clang", "-xc++", "-std=c++"+str_dialect, fp.name, "-o"+tempfile.gettempdir()+"/test"]
         try:
-            subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
+            subprocess.check_output(command, stderr=subprocess.STDOUT)
             # If it compiled, the dialect is supported
             if str_dialect not in supported_dialects: supported_dialects.append(str_dialect)
         except:
@@ -94,6 +94,14 @@ with tempfile.NamedTemporaryFile() as fp:
 
 # The most recent C++ version available
 supported_dialect_newest = supported_dialects[-1]
+
+
+
+def listToString(theList, separator=" "):
+    theString = theList[0]
+    for string in theList[1:]:
+        theString += separator + string
+    return theString
 
 
 
@@ -151,18 +159,19 @@ def generateDepfile(buildable):
     path, _ = os.path.split(buildable.depfile)
     mkpath(path)
 
-    flags = ""
+    flags = []
 
     for flag in buildable.compileFlags:
-        flags += " " + flag
+        flags.append(flag)
 
     for dir in buildable.includeDirectories:
-        flags += " -I" + dir
+        flags.append("-I" + dir)
 
-    command = "clang++ -E -MMD "+ sourceFile + " -MF " + buildable.depfile + flags
+    command = ["clang++", "-E", "-MMD", sourceFile, "-MF", buildable.depfile]
+    command += flags
 
     if buildable.verbose:
-        print("--   " + command )
+        print("--   " + listToString(command))
     devnull = open(os.devnull, 'w')
     subprocess.call(command, stdout=devnull, stderr=devnull)
 
@@ -176,13 +185,13 @@ def compile(buildable):
     path, _ = os.path.split(buildable.objectFile)
     mkpath(path)
 
-    flags = ""
+    flags = []
 
     for flag in buildable.compileFlags:
-        flags += " " + flag
+        flags.append(flag)
 
     for dir in buildable.includeDirectories:
-        flags += " -I" + dir
+        flags.append("-I" + dir)
 
     if buildable.targetType == TargetType.Executable:
         flags += platform_extra_flags_executable
@@ -191,10 +200,11 @@ def compile(buildable):
     elif buildable.targetType == TargetType.Staticlibrary:
         flags += platform_extra_flags_static
 
-    command = "clang++ -c " + buildable.sourceFile + " -o " + buildable.objectFile + flags
+    command = ["clang++", "-c", buildable.sourceFile, "-o", buildable.objectFile]
+    command += flags
 
     if buildable.verbose:
-        print("--   " + command)
+        print("--   " + listToString(command))
     subprocess.call(command)
 
 
@@ -232,14 +242,14 @@ class Target:
         self.defaultIncludeDirectories = ["include", "thirdparty"]
 
         # Default flags
-        self.defaultCompileFlags       = ["-std=c++" + supported_dialect_newest + " -Wall -Werror"]
+        self.defaultCompileFlags       = ["-std=c++"+supported_dialect_newest, "-Wall", "-Werror"]
 
         # Default release flags
-        self.defaultReleaseCompileFlags  = ["-O3 -DNDEBUG"]
+        self.defaultReleaseCompileFlags  = ["-O3", "-DNDEBUG"]
         # Default debug flags
-        self.defaultDebugCompileFlags    = ["-O0 -g3 -DDEBUG"]
+        self.defaultDebugCompileFlags    = ["-O0", "-g3", "-DDEBUG"]
         # Default coverage flags
-        self.defaultCoverageCompileFlags = self.defaultDebugCompileFlags + ["--coverage -fno-inline -fno-inline-small-functions -fno-default-inline"]
+        self.defaultCoverageCompileFlags = self.defaultDebugCompileFlags + ["--coverage", "-fno-inline", "-fno-inline-small-functions", "-fno-default-inline"]
 
         # Build options
         self.buildType          = BuildType.Default
@@ -401,33 +411,33 @@ class Target:
             self.outfile = self.prefix + self.outname + self.suffix
 
             if self.targetType == TargetType.Executable:
-                linkCommand = self.clangpp + " -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = [self.clangpp, "-o", self.buildDirectory+"/"+self.outfile]
 
             elif self.targetType == TargetType.Sharedlibrary:
-                linkCommand = self.clangpp + " -shared -o " + self.buildDirectory + "/" + self.outfile
+                linkCommand = [self.clangpp, "-shared", "-o", self.buildDirectory+"/"+self.outfile]
 
             elif self.targetType == TargetType.Staticlibrary:
-                linkCommand = self.clang_ar + " rc " + self.buildDirectory + "/" + self.outfile
+                linkCommand = [self.clang_ar, "rc", self.buildDirectory+"/"+self.outfile]
 
             ### Link dependencies
             for target in self.dependencyTargets:
                 if not target.header_only:
-                    linkCommand += " -L\""+ target.buildDirectory +"\" -l" + target.outname
+                    linkCommand += ["-L"+target.buildDirectory, "-l"+target.outname]
 
             ### Include directories
             if self.targetType == TargetType.Executable or self.targetType == TargetType.Sharedlibrary:
                 for dir in self.includeDirectories:
-                    linkCommand += " -I" + dir
+                    linkCommand.append("-I"+dir)
 
             ### Link self
             for buildable in self.buildables:
                 objectFile = buildable.objectFile
-                linkCommand += " " + objectFile
+                linkCommand.append(objectFile)
 
             # Execute link command
             print("-- Link target " + self.outname)
             if self.verbose:
-                print("--   " + linkCommand)
+                print("--   " + listToString(linkCommand))
             mkpath(self.buildDirectory)
             subprocess.call(linkCommand)
 
@@ -546,7 +556,7 @@ def main():
                     else:
                         print("-- External target " + target.name + ": downloading to "+downloaddir)
                         mkpath(downloaddir)
-                        subprocess.call("git clone "+node["url"]+" "+downloaddir)
+                        subprocess.call(["git", "clone", node["url"], downloaddir])
                         print("-- External target " + target.name + ": downloaded")
                     target.includeDirectories.append(downloaddir)
 
