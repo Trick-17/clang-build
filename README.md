@@ -23,7 +23,7 @@ Windows test: [![Test status](https://ci.appveyor.com/api/projects/status/57qv53
 
 **Related resources:**
 
-- [CppCon 2017: Isabella Muerte “There Will Be Build Systems: I Configure Your Milkshake”](https://www.youtube.com/watch?v=7THzO-D0ta4)
+- [CppCon 2017: Isabella Muerte "There Will Be Build Systems: I Configure Your Milkshake"](https://www.youtube.com/watch?v=7THzO-D0ta4)
 - https://medium.com/@corentin.jabot/accio-dependency-manager-b1846e1caf76
 
 
@@ -209,7 +209,7 @@ Packages from server
 [mylib]
 external = true
 url = "https://github.com/trick-17/mylib"
-version = 1.1 # will try to git checkout [v]1.1[.*] 
+version = 1.1 # will try to git checkout [v]1.1[.*]
 
 # Build an executable and link the library
 [myexe]

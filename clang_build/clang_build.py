@@ -170,7 +170,7 @@ def generateDepfile(buildable):
 Compile a Buildable...
 """
 def compile(buildable):
-    
+
     path, _ = os.path.split(buildable.objectFile)
     mkpath(path)
 
@@ -181,7 +181,7 @@ def compile(buildable):
 
     for dir in buildable.includeDirectories:
         flags += " -I" + dir
-    
+
     if buildable.targetType == TargetType.Executable:
         flags += platform_extra_flags_executable
     elif buildable.targetType == TargetType.Sharedlibrary:
@@ -382,7 +382,7 @@ class Target:
         for target in self.dependencyTargets:
             if not target.linked:
                 return
-        
+
         if self.targetType == TargetType.Executable:
             self.prefix = ""
             self.suffix = executable_suffix
@@ -438,7 +438,7 @@ class Target:
 
 
 
-def main(argv=None):
+def main():
     print("---- clang-build v0.0.0")
     global processpool
     processpool = Pool(processes=1)
@@ -530,7 +530,7 @@ def main(argv=None):
             # If we have multiple targets, each gets its own sub-builddirectory
             if subbuilddirs:
                 target.buildDirectory += "/"+target.name
-            
+
             # Handle the case that the target is an external project
             if "external" in node:
                 target.external        = node["external"]
@@ -546,7 +546,7 @@ def main(argv=None):
                         call("git clone "+node["url"]+" "+downloaddir, shell=True)
                         print("-- External target " + target.name + ": downloaded")
                     target.includeDirectories.append(downloaddir)
- 
+
             # Parse the Targets sources
             sources = []
             headers = []

@@ -1,66 +1,78 @@
-dist: trusty
-sudo: required
-language: cpp
-
+env:
+  global:
+    - secure: "WDG1lYvH4eJUqtzX/+lA+CRRHuRdjLUvJQDb4OIQ8LhrTS2VNrFtjFOO2L4BPOothwoB7WMBd4Sgd5x4DHilvqYlj8O9Jfe2rBXZbZC73I9weCBezgJ1l2eM7fFkUrnhqW8QOXRI4ALE4bhSwW6y/CMOhkLW++xw0AVlWnF+gLa44V/dPBoaQODkS5Rn/k+vE4cwyyMBLFoTXvCKeyQQZBTZ5t3VV3QLR+gpcti+GfnkAkozBEjUpWGuafu4Z+rsqvvadErP/lihM0QjDxbKv5BXFTpts1ooSj0L4i9ga0qbNuD9sSGpj2TPV8qAomZqaoIsi9PCep4StcyuFhvPKt860WrIvCNi3yBG4N7DfH4rHruOHfDT7bUZtLWJ7qlVwdrs/qz7t0l6VpnInw1WoBFbC7Jbd0qFD/38AzkZ4UKHgh+Zp5gUPdOs5oLgHq59YEzkS/2Lv7dMU98BT5TpcqqJhvzBclW0xqUz3yabgw3rOpVfmiwoVSgtCJfkgJy7xJDd78Mr1JmWOT4/zkZBNTHDnfZtRGNfyEXOeohL6JrtRft1o/qKypsA2pi86H0bAM4j0KBBCpptgpckNvS2vdRUZlBWJRISp/sEEQdoT+u9YIDPpa8Kr1tzbdXLoIV4K+FIW3dvWSkVwL+IFpvQzcpKMWTHKXawzBai42Fccfo="
+    - secure: "LK4LJMHZaik7zmibnNCVcFfqUZirwmc6VSwOAa/eNmUOldM9Jxq4+F9rK4zghwFq6HR5xptcTtCFMn8muX4mDq5AKNbsfrcKoA/d5uNdfbviCm34VB0F0ALLqXkBsfwcm7FbRVox4o1HomMRCTu7Grahy7LvH6a5B4bSvtZM2teuss2nMasT7OBv5c1RT7onx+dwQeLlhNDaaGOQYRLNh2CiPgGAXSA5433IQg2pNW8HuCjGGKdSisPmkGqNVDAoCPsuk8EmvMlWq4S6Bmja8gToxPNbyXe9zqF3SjAdLxhDRgivpBEeFFJSDBCmVdnwQnAY1Edmw1/bERU0+/E0XOCFJpeiFxd9Arjw+dcD3ZHpAbga0x3/jsj2PYitZNhg1HBzIYKTeR7MgfSJGMwG/oKtSMaKILV5bpWfdUcvdk8r3z23uMBRZoGrl4EcF0jKpfe99oUTFkqVF226eu8tLA9KasFyFBMXqw+t7Wk3vnoQZ7IlT4XTKy4cMIuGkcoswkMsLZWQHzOQ/z3znifc703KmxJXNlK/VweDnT/h7dmxlraJRElCkhQSDcJoruuvcnTV8qMPcPm0x5o20hgtvdtFzuh0obHp3qDd/26SL7CcPI1kTUMw4oT1h3yG5u/kFPb/ChfpVDY/y3wwGr6baUvmXyrDGG9yCNPj9wCoo6A="
 
 matrix:
   include:
-    # OSX
-    - os: osx
-      osx_image: xcode8
-      # env: PYVERSION=2
-    # # Linux, Python3
-    # - os: linux
-    #   env: PYVERSION=3
-    #   addons:
-    #     apt:
-    #       packages:
-    #       - clang
-    #       - ca-certificates
-    #       - python3.6
-    #       - python3-pip
-    #       sources:
-    #       - sourceline: 'ppa:ubuntu-toolchain-r/test'
-    #       - sourceline: 'ppa:deadsnakes/ppa'
-    # Linux, Python2
-    - os: linux
-      # env: PYVERSION=2
+    - language: python
+      os: linux
+      env: DEPLOY=false
+      python: 3.6
       addons:
         apt:
           packages:
-          - clang
           - ca-certificates
-          - python2.7
+          - libc++-dev
+          - g++-7
+          - clang
           sources:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
+          - sourceline: 'ppa:jonathonf/gcc-7.1'
           - sourceline: 'ppa:deadsnakes/ppa'
+      dist: trusty
+    - language: python
+      os: linux
+      env: DEPLOY=false
+      python: 2.7
+      addons:
+        apt:
+          packages:
+          - ca-certificates
+          - libc++-dev
+          - g++-7
+          - clang
+          sources:
+          - sourceline: 'ppa:ubuntu-toolchain-r/test'
+          - sourceline: 'ppa:jonathonf/gcc-7.1'
+          - sourceline: 'ppa:deadsnakes/ppa'
+      dist: trusty
+    - language: cpp
+      os: osx
+      env: DEPLOY=true
+      osx_image: xcode8
+      before_script:
+        - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
 
-before_script:
-  # Run homebrew on osx
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
-  # - shopt -s expand_aliases
-  # - alias python=python$PYVERSION
-  # - alias pip=pip$PYVERSION
-  # pip install dependencies
-  - sudo pip install twine enum34 setuptools toml
+install:
+  - pip install setuptools
+  - python setup.py develop
 
 script:
   - clang --version
   - python --version
   - pip --version
   # test/hello
-  - python clang-build.py -d"test/hello" -V
+  - clang-build -d"test/hello" -V
   - ./build/main
   # test/mini-project
-  - python clang-build.py -d"test/mini-project" -V
+  - clang-build -d"test/mini-project" -V
   - ./build/main
   # test/mwe-toml
-  - python clang-build.py -d"test/mwe-toml" -V
+  - clang-build -d"test/mwe-toml" -V
   - ./build/runHello
   # test/external-project
-  - python clang-build.py -d"test/external-project" -V
+  - clang-build -d"test/external-project" -V
   - ./build/myexe/runHello
   # test/lib-and-exe
-  - python clang-build.py -d"test/lib-and-exe" -V
+  - clang-build -d"test/lib-and-exe" -V
   # TODO: need to copy build/mylib/mylib.so into exe's directory on linux
   # - ./build/myexe/runLib
+
+deploy:
+  provider: pypi
+  user:     "$PYPIUSER"
+  password: "$PYPIPASSWORD"
+  on:
+    all_branches: true
+    condition: $DEPLOY = true
