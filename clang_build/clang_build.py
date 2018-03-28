@@ -109,12 +109,15 @@ def listToString(theList, separator=" "):
 Buildable describes a source file and all information needed to build it.
 """
 class Buildable:
-    def __init__(self, sourceFile, targetType, verbose=False, targetDirectory="", buildDirectory="", root="", includeDirectories=[], compileFlags=[], linkFlags=[]):
+    def __init__(self, sourceFile, targetType, buildType=BuildType.Default, verbose=False, targetDirectory="", depfileDirectory="", objectDirectory="", buildDirectory="", root="", includeDirectories=[], compileFlags=[], linkFlags=[]):
         self.sourceFile         = sourceFile
         self.targetType         = targetType
+        self.buildType          = buildType
         self.verbose            = verbose
         self.targetDirectory    = targetDirectory
         self.buildDirectory     = buildDirectory
+        self.objectDirectory    = objectDirectory
+        self.depfileDirectory   = depfileDirectory
         self.root               = root
         self.includeDirectories = includeDirectories
         self.compileFlags       = compileFlags
@@ -131,8 +134,8 @@ class Buildable:
         # Set name, extension and potentially produced output files
         self.name          = name
         self.fileExtension = extension
-        self.objectFile    = self.buildDirectory + "/" + relpath + "/" + self.name + ".o"
-        self.depfile       = self.buildDirectory + "/" + relpath + "/" + self.name + ".d"
+        self.objectFile    = self.objectDirectory + "/" + relpath + "/" + self.name + ".o"
+        self.depfile       = self.depfileDirectory + "/" + relpath + "/" + self.name + ".d"
 
     # Find and parse the dependency file, return list of headers this file depends on
     def getDepfileHeaders(self):
@@ -274,7 +277,7 @@ class Target:
 
     def generateBuildables(self):
         for sourceFile in self.sourceFiles:
-            buildable = Buildable(sourceFile, self.targetType, verbose=self.verbose, targetDirectory=self.targetDirectory, buildDirectory=self.buildDirectory, root=self.root, includeDirectories=self.includeDirectories, compileFlags=self.compileFlags, linkFlags=self.linkFlags)
+            buildable = Buildable(sourceFile, self.targetType, buildType=self.buildType, verbose=self.verbose, depfileDirectory=self.depfileDirectory, objectDirectory=self.objectDirectory, targetDirectory=self.targetDirectory, buildDirectory=self.buildDirectory, root=self.root, includeDirectories=self.includeDirectories, compileFlags=self.compileFlags, linkFlags=self.linkFlags)
             self.buildables.append(buildable)
 
     def generateFlags(self):
@@ -411,18 +414,21 @@ class Target:
             self.outfile = self.prefix + self.outname + self.suffix
 
             if self.targetType == TargetType.Executable:
-                linkCommand = [self.clangpp, "-o", self.buildDirectory+"/"+self.outfile]
+                linkCommand = [self.clangpp, "-o", self.binaryDirectory+"/"+self.outfile]
+                mkpath(self.binaryDirectory)
 
             elif self.targetType == TargetType.Sharedlibrary:
-                linkCommand = [self.clangpp, "-shared", "-o", self.buildDirectory+"/"+self.outfile]
+                linkCommand = [self.clangpp, "-shared", "-o", self.libraryDirectory+"/"+self.outfile]
+                mkpath(self.libraryDirectory)
 
             elif self.targetType == TargetType.Staticlibrary:
-                linkCommand = [self.clang_ar, "rc", self.buildDirectory+"/"+self.outfile]
+                linkCommand = [self.clang_ar, "rc", self.libraryDirectory+"/"+self.outfile]
+                mkpath(self.libraryDirectory)
 
-            ### Link dependencies
+            ### Library dependency search paths
             for target in self.dependencyTargets:
                 if not target.header_only:
-                    linkCommand += ["-L"+target.buildDirectory, "-l"+target.outname]
+                    linkCommand += ["-L"+os.path.abspath(target.libraryDirectory)]
 
             ### Include directories
             if self.targetType == TargetType.Executable or self.targetType == TargetType.Sharedlibrary:
@@ -434,11 +440,15 @@ class Target:
                 objectFile = buildable.objectFile
                 linkCommand.append(objectFile)
 
+            ### Link dependencies
+            for target in self.dependencyTargets:
+                if not target.header_only:
+                    linkCommand += ["-l"+target.outname]
+
             # Execute link command
             print("-- Link target " + self.outname)
             if self.verbose:
                 print("--   " + listToString(linkCommand))
-            mkpath(self.buildDirectory)
             subprocess.call(linkCommand)
 
         # Done
@@ -484,7 +494,7 @@ def main():
         if clangpp:  print("-- llvm root directory: " + llvm_root)
         if clangpp:  print("-- clang++ executable:  " + clangpp)
         if clang_ar: print("-- llvm-ar executable:  " + clang_ar)
-        if clangpp:  print("-- Found supported C++ dialects: ", supported_dialects)
+        if clangpp:  print("-- Found supported C++ dialects: " + ', '.join(supported_dialects))
 
     # Directory this was called from
     callingdir = os.getcwd()
@@ -494,13 +504,19 @@ def main():
         workingdir = os.path.abspath(args.directory)
     else:
         workingdir = callingdir
+
+    if not os.path.exists(workingdir):
+        print("-- ERROR: specified non-existent directory \'" + workingdir + "\'")
+        print("---- clang-build finished")
+        sys.exit(1)
+
     print("-- Working directory: " + workingdir)
 
     # Build type (Default, Release, Debug)
     buildType = BuildType.Default
     if args.build_type:
         buildType = BuildType[args.build_type.lower().title()]
-        print("-- Build type: " + buildType.name )
+    print("-- Build type: " + buildType.name )
 
     # Multiprocessing pool
     if args.jobs:
@@ -528,6 +544,13 @@ def main():
             target.verbose         = args.verbose
             target.name            = nodename
             target.includeDirectories = []
+
+            # Set output directories
+            target.binaryDirectory     = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/bin"
+            target.libraryDirectory    = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/lib"
+            target.objectDirectory     = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/obj"
+            target.depfileDirectory    = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/deps"
+            target.testBinaryDirectory = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/test"
 
             # Parse Targets type (Executable, Library, Test)
             target.targetType      = TargetType.Executable
@@ -665,17 +688,25 @@ def main():
         # Create target
         target = Target()
         target.targetDirectory = workingdir
-        target.buildType = buildType
-        target.verbose = args.verbose
+        target.buildType       = buildType
+        target.verbose         = args.verbose
+        target.name            = ""
+
+        # Set output directories
+        target.binaryDirectory     = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/bin"
+        target.libraryDirectory    = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/lib"
+        target.objectDirectory     = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/obj"
+        target.depfileDirectory    = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/deps"
+        target.testBinaryDirectory = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/test"
 
         # Search for header files
         headers = []
-        for ext in ('*.hpp', '*.hxx'):
+        for ext in ('*.hpp', '*.hxx', '*.h'):
             headers += glob(os.path.join(workingdir, ext))
 
         # Search for source files
         sources = []
-        for ext in ('*.cpp', '*.cxx'):
+        for ext in ('*.cpp', '*.cxx', '*.c'):
             sources += glob(os.path.join(workingdir, ext))
 
         # Set target
