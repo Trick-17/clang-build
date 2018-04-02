@@ -271,6 +271,8 @@ class Target:
         # Parents in the dependency graph
         self.dependencyParents  = []
 
+        # Flag whether generation of all flags has been completed
+        self.flagsGenerated = False
         # Flags whether compilation/linkage has been completed
         self.compiled = False
         self.linked   = False
@@ -281,6 +283,11 @@ class Target:
             self.buildables.append(buildable)
 
     def generateFlags(self):
+        # All dependencies need to have generated their flags before this target can proceed
+        for target in self.dependencyTargets:
+            if not target.flagsGenerated:
+                return
+
         flags = []
         # Default flags
         for flag in self.defaultCompileFlags:
@@ -291,25 +298,18 @@ class Target:
         if self.buildType == BuildType.Release:
             for flag in self.defaultReleaseCompileFlags:
                 flags.append(flag)
+            for flag in self.compileFlagsRelease:
+                flags.append(flag)
         if self.buildType == BuildType.Debug:
             for flag in self.defaultDebugCompileFlags:
                 flags.append(flag)
+            for flag in self.compileFlagsDebug:
+                flags.append(flag)
+
         # Dependency flags
         for target in self.dependencyTargets:
-            for flag in target.defaultCompileFlags:
-                flags.append(flag)
-            for flag in target.compileFlags:
-                flags.append(flag)
-            if target.buildType == BuildType.Release:
-                for flag in target.defaultReleaseCompileFlags:
-                    flags.append(flag)
-                for flag in target.compileFlagsRelease:
-                    flags.append(flag)
-            if target.buildType == BuildType.Debug:
-                for flag in target.defaultDebugCompileFlags:
-                    flags.append(flag)
-                for flag in target.compileFlagsDebug:
-                    flags.append(flag)
+            flags += target.compileFlags
+
         # Append
         self.compileFlags = []
         for flag in flags:
@@ -329,6 +329,13 @@ class Target:
         for dir in includeDirs:
             if not dir in self.includeDirectories:
                 self.includeDirectories.append(dir)
+
+        # Done
+        self.flagsGenerated = True
+
+        # Spawn compilation of dependency parents
+        for parent in self.dependencyParents:
+            parent.generateFlags()
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self):
@@ -670,11 +677,6 @@ def main():
                 if not valid:
                     print("-- WARNING: could not resolve dependency "+target.name+" -> "+dep)
 
-        # Let the targets generate flags and buildables
-        for target in targets:
-            target.generateFlags()
-            target.generateBuildables()
-
         # Determine leafs on dependency graph
         leafs = []
         for target in targets:
@@ -713,14 +715,19 @@ def main():
         target.headerFiles = headers
         target.sourceFiles = sources
 
-        # Let the target generate its flags and buildables
+        # Only one target -> root and leaf of dependency graph
+        targets = [target]
+        leafs   = [target]
+
+    # Generate flags of all targets, propagating up the dependency graph
+    for target in leafs:
         target.generateFlags()
+
+    # Generate the buildables of all targets
+    for target in targets:
         target.generateBuildables()
 
-        # Only one target -> root and leaf of dependency graph
-        leafs = [target]
-
-    # Build the targets
+    # Build the targets, moving successively up the dependency graph
     print("---- Compile step")
     for target in leafs:
         target.compile()
