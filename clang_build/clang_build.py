@@ -217,22 +217,26 @@ Target describes a single build or dependency target with all needed paths and
 a list of buildables that comprise it's compile and link steps.
 """
 class Target:
-    def __init__(self):
+    def __init__(self, environment, name=""):
         # Clang
-        self.clangpp   = "clang++"
-        self.clang_ar  = "llvm-ar"
-        self.llvm_root = ""
+        self.clangpp   = environment.clangpp
+        self.clang_ar  = environment.clang_ar
+        self.llvm_root = environment.llvm_root
+
         # Basics
-        self.targetDirectory = ""
+        self.targetDirectory = environment.workingDirectory
+        self.buildType       = environment.buildType
+        self.verbose         = environment.verbose
         self.root            = ""
-        self.name            = "main"
+        self.dialect         = supported_dialect_newest
+
+        # Properties
+        self.buildDirectory  = "build"
+        self.name            = name
         self.outname         = "main"
         self.targetType      = TargetType.Executable
-        self.dialect         = supported_dialect_newest
         self.external        = False
         self.header_only     = False
-
-        self.verbose         = False
 
         # Custom flags (set from project file)
         self.includeDirectories  = []
@@ -254,9 +258,16 @@ class Target:
         # Default coverage flags
         self.defaultCoverageCompileFlags = self.defaultDebugCompileFlags + ["--coverage", "-fno-inline", "-fno-inline-small-functions", "-fno-default-inline"]
 
-        # Build options
-        self.buildType          = BuildType.Default
-        self.buildDirectory     = "build"
+        # Output directories
+        if environment.config:
+            targetBuildDir = self.buildDirectory + "/" + self.name + "/" + self.buildType.name.lower()
+        else:
+            targetBuildDir = self.buildDirectory + "/" + self.buildType.name.lower()
+        self.binaryDirectory     = targetBuildDir + "/bin"
+        self.libraryDirectory    = targetBuildDir + "/lib"
+        self.objectDirectory     = targetBuildDir + "/obj"
+        self.depfileDirectory    = targetBuildDir + "/deps"
+        self.testBinaryDirectory = targetBuildDir + "/test"
 
         # Sources
         self.headerFiles        = []
@@ -276,6 +287,11 @@ class Target:
         # Flags whether compilation/linkage has been completed
         self.compiled = False
         self.linked   = False
+
+        # Extra scripts
+        self.beforeCompileScript = ""
+        self.beforeLinkScript    = ""
+        self.afterBuildScript    = ""
 
     def generateBuildables(self):
         for sourceFile in self.sourceFiles:
@@ -378,6 +394,18 @@ class Target:
         if self.verbose and neededBuildables:
             print("-- Target " + self.outname + ": need to rebuild sources ", [b.name for b in neededBuildables])
 
+        # Before-compile step
+        if self.beforeCompileScript and not self.compiled:
+            if self.verbose:
+                print("-- Pre-compile step of target " + self.outname)
+            originalDir = os.getcwd()
+            newDir, _ = os.path.split(self.beforeCompileScript)
+            os.chdir(newDir)
+            execfile(self.beforeCompileScript)
+            os.chdir(originalDir)
+            if self.verbose:
+                print("-- Finished pre-compile step of target " + self.outname)
+
         # Compile
         if not (self.compiled or self.header_only):
             # Create base directory for build
@@ -415,9 +443,20 @@ class Target:
             self.prefix = static_library_prefix
             self.suffix = static_library_suffix
 
-        if len(self.sourceFiles) < 1:
-            self.header_only = True
-        else:
+        # Before-link step
+        if self.beforeLinkScript:
+            if self.verbose:
+                print("-- Pre-link step of target " + self.outname)
+            originalDir = os.getcwd()
+            newDir, _ = os.path.split(self.beforeCompileScript)
+            os.chdir(newDir)
+            execfile(self.beforeLinkScript)
+            os.chdir(originalDir)
+            if self.verbose:
+                print("-- Finished pre-link step of target " + self.outname)
+
+        # Link
+        if not self.header_only:
             self.outfile = self.prefix + self.outname + self.suffix
 
             if self.targetType == TargetType.Executable:
@@ -461,263 +500,289 @@ class Target:
         # Done
         self.linked = True
 
+        # After-build step
+        if self.afterBuildScript:
+            if self.verbose:
+                print("-- After-build step of target " + self.outname)
+            originalDir = os.getcwd()
+            newDir, _ = os.path.split(self.beforeCompileScript)
+            os.chdir(newDir)
+            execfile(self.afterBuildScript)
+            os.chdir(originalDir)
+            if self.verbose:
+                print("-- Finished after-build step of target " + self.outname)
+
         # Spawn compilation of dependency parents
         for parent in self.dependencyParents:
             parent.link()
 
 
 
-def main():
-    print("---- clang-build v0.0.0")
-    global processpool
-    processpool = Pool(processes=1)
-    # Check for clang++ executable
-    from distutils.spawn import find_executable
-    clangpp  = find_executable("clang++")
-    clang_ar = find_executable("llvm-ar")
-    llvm_root = os.path.dirname(os.path.abspath(os.path.join(clangpp, "..")))
+class Environment:
+    def __init__(self):
+        global processpool
+        self.nJobs = 1
+        processpool = Pool(processes=self.nJobs)
 
-    if not clangpp:
-        print("---- WARNING: could not find clang++! Please check your installation...")
-    if not clang_ar:
-        print("---- WARNING: could not find llvm-ar! Please check your installation...")
+        # Check for clang++ executable
+        from distutils.spawn import find_executable
+        self.clangpp  = find_executable("clang++")
+        self.clang_ar = find_executable("llvm-ar")
+        self.llvm_root = os.path.dirname(os.path.abspath(os.path.join(self.clangpp, "..")))
 
-    # Parse command line arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-V", "--verbose",
-                        help="activate verbose build",
-                        action="store_true")
-    parser.add_argument("-d", "--directory",
-                        help="set the root source directory")
-    parser.add_argument("-b", "--build-type",
-                        help="set the build type (default, release, debug, ...)")
-    parser.add_argument("-j", "--jobs", type=int,
-                        help="set the number of concurrent build jobs (default: 1)")
-    args = parser.parse_args()
+        if not self.clangpp:
+            print("---- WARNING: could not find clang++! Please check your installation...")
+        if not self.clang_ar:
+            print("---- WARNING: could not find llvm-ar! Please check your installation...")
 
-    # Verbosity
-    if args.verbose: print("-- Verbosity turned on")
-    if args.verbose:
-        if clangpp:  print("-- llvm root directory: " + llvm_root)
-        if clangpp:  print("-- clang++ executable:  " + clangpp)
-        if clang_ar: print("-- llvm-ar executable:  " + clang_ar)
-        if clangpp:  print("-- Found supported C++ dialects: " + ', '.join(supported_dialects))
+        # Parse command line arguments
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-V", "--verbose",
+                            help="activate verbose build",
+                            action="store_true")
+        parser.add_argument("-d", "--directory",
+                            help="set the root source directory")
+        parser.add_argument("-b", "--build-type",
+                            help="set the build type (default, release, debug, ...)")
+        parser.add_argument("-j", "--jobs", type=int,
+                            help="set the number of concurrent build jobs (default: 1)")
+        args = parser.parse_args()
 
-    # Directory this was called from
-    callingdir = os.getcwd()
+        # Verbosity
+        self.verbose = args.verbose
+        if self.verbose:
+            print("-- Verbosity turned on")
+            if self.clangpp:  print("-- llvm root directory: " + self.llvm_root)
+            if self.clangpp:  print("-- clang++ executable:  " + self.clangpp)
+            if self.clang_ar: print("-- llvm-ar executable:  " + self.clang_ar)
+            if self.clangpp:  print("-- Found supported C++ dialects: " + ', '.join(supported_dialects))
 
-    # Working directory is where the project root should be - this is searched for "clang-build.toml"
-    if args.directory:
-        workingdir = os.path.abspath(args.directory)
-    else:
-        workingdir = callingdir
+        # Directory this was called from
+        self.callingdir = os.getcwd()
 
-    if not os.path.exists(workingdir):
-        print("-- ERROR: specified non-existent directory \'" + workingdir + "\'")
-        print("---- clang-build finished")
-        sys.exit(1)
+        # Working directory is where the project root should be - this is searched for "clang-build.toml"
+        if args.directory:
+            self.workingDirectory = os.path.abspath(args.directory)
+        else:
+            self.workingDirectory = self.callingdir
 
-    print("-- Working directory: " + workingdir)
+        if not os.path.exists(self.workingDirectory):
+            print("-- ERROR: specified non-existent directory \'" + self.workingDirectory + "\'")
+            print("---- clang-build finished")
+            sys.exit(1)
 
-    # Build type (Default, Release, Debug)
-    buildType = BuildType.Default
-    if args.build_type:
-        buildType = BuildType[args.build_type.lower().title()]
-    print("-- Build type: " + buildType.name )
+        print("-- Working directory: " + self.workingDirectory)
 
-    # Multiprocessing pool
-    if args.jobs:
-        processpool = Pool(processes = args.jobs)
-        if args.verbose:
-            print("-- Running " + str(args.jobs) + " concurrent build jobs" )
+        # Check for presence of build config file
+        self.config = ""
+        if os.path.isfile(self.workingDirectory + "/clang-build.toml"):
+            self.config = self.workingDirectory + "/clang-build.toml"
+            if self.verbose:
+                print("-- Found config file!")
+        elif self.verbose:
+            print("-- Did not find config file!")
 
-    # Check for build configuration toml file
-    if os.path.isfile(workingdir + "/clang-build.toml"):
-        config = toml.load(workingdir + "/clang-build.toml")
+        # Build type (Default, Release, Debug)
+        self.buildType = BuildType.Default
+        if args.build_type:
+            self.buildType = BuildType[args.build_type.lower().title()]
+        print("-- Build type: " + self.buildType.name)
 
-        # Use sub-build directories if multiple targets
-        subbuilddirs = False
-        if len(config.items()) > 1:
-            subbuilddirs = True
 
-        # Parse targets from toml file
-        targets = []
-        for nodename, node in config.items():
-            # Create target
-            target = Target()
-            target.llvm_root       = llvm_root
-            target.targetDirectory = workingdir
-            target.buildType       = buildType
-            target.verbose         = args.verbose
-            target.name            = nodename
-            target.includeDirectories = []
+        # Multiprocessing pool
+        if args.jobs:
+            self.nJobs = args.jobs
+            processpool = Pool(processes = self.nJobs)
+            if self.verbose:
+                print("-- Running " + str(self.nJobs) + " concurrent build jobs" )
 
-            # Set output directories
-            target.binaryDirectory     = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/bin"
-            target.libraryDirectory    = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/lib"
-            target.objectDirectory     = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/obj"
-            target.depfileDirectory    = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/deps"
-            target.testBinaryDirectory = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/test"
 
-            # Parse Targets type (Executable, Library, Test)
-            target.targetType      = TargetType.Executable
-            if "target_type" in node:
-                target.targetType  = TargetType[node["target_type"].lower().title()]
+def parseBuildConfig(environment):
+    config = toml.load(environment.config)
 
-            # Parse output name for the compiled target
-            if "output_name" in node:
-                target.outname     = node["output_name"]
-            else:
-                target.outname     = target.name
+    # Use sub-build directories if multiple targets
+    subbuilddirs = False
+    if len(config.items()) > 1:
+        subbuilddirs = True
 
-            # If we have multiple targets, each gets its own sub-builddirectory
-            if subbuilddirs:
-                target.buildDirectory += "/"+target.name
-
-            # Handle the case that the target is an external project
-            if "external" in node:
-                target.external        = node["external"]
-                if target.external:
-                    downloaddir = target.buildDirectory + "/external_sources"
-                    # Check if directory is already present and non-empty
-                    if os.path.exists(downloaddir) and os.listdir(downloaddir):
-                        print("-- External target " + target.name + ": sources found in "+downloaddir)
-                    # Otherwise we download the sources
-                    else:
-                        print("-- External target " + target.name + ": downloading to "+downloaddir)
-                        mkpath(downloaddir)
-                        subprocess.call(["git", "clone", node["url"], downloaddir])
-                        print("-- External target " + target.name + ": downloaded")
-                    target.includeDirectories.append(downloaddir)
-
-            # Parse the Targets sources
-            sources = []
-            headers = []
-            if "sources" in node:
-                sourcenode = node["sources"]
-
-                # Target root directory
-                sourceroot = ""
-                if "root" in sourcenode:
-                    target.root = sourcenode["root"]
-                    target.includeDirectories.append(target.targetDirectory+"/"+target.root)
-
-                # Add include directories
-                if "include_directories" in sourcenode:
-                    for dir in sourcenode["include_directories"]:
-                        if dir not in target.includeDirectories:
-                            target.includeDirectories.append(target.targetDirectory+"/"+target.root+"/"+dir)
-
-                    # Search for header files
-                    for ext in ('*.hpp', '*.hxx', '*.h'):
-                        for dir in sourcenode["include_directories"]:
-                            headers += glob(os.path.join(target.targetDirectory+"/"+target.root+"/"+dir, ext))
-
-                # Search for source files
-                if "source_directories" in sourcenode:
-                    for ext in ('*.cpp', '*.cxx', '*.c'):
-                        for dir in sourcenode["source_directories"]:
-                            sources += glob(os.path.join(target.targetDirectory+"/"+target.root+"/"+dir, ext))
-
-            # If sources were not specified we try to glob them
-            else:
-                # Search for header files
-                for ext in ('*.hpp', '*.hxx'):
-                    headers += glob(os.path.join(target.targetDirectory, ext))
-                # Search for source files
-                for ext in ('*.cpp', '*.cxx'):
-                    sources += glob(os.path.join(target.targetDirectory, ext))
-
-            # Set target sources
-            target.headerFiles = headers
-            target.sourceFiles = sources
-
-            # Flags
-            if "flags" in node:
-                flagsnode = node["flags"]
-                if "compile" in flagsnode:
-                    for flag in flagsnode["compile"]:
-                        target.compileFlags.append(flag)
-                if "compileRelease" in flagsnode:
-                    for flag in flagsnode["compileRelease"]:
-                        target.compileFlagsRelease.append(flag)
-                if "compileDebug" in flagsnode:
-                    for flag in flagsnode["compileDebug"]:
-                        target.compileFlagsDebug.append(flag)
-                if "link" in flagsnode:
-                    for flag in flagsnode["link"]:
-                        target.linkFlags.append(flag)
-
-            # Dependencies
-            if "link" in node:
-                if "dependencies" in node["link"]:
-                    deps = node["link"]["dependencies"]
-                    for dep in deps:
-                        if dep not in target.dependencies:
-                            target.dependencies.append(str(dep))
-                            if args.verbose: print("-- Dependency added: "+target.name+" -> "+dep)
-
-            # List of targets
-            targets.append(target)
-
-        # Check if all dependencies are resolved in terms of defined targets, check for circular dependencies...
-        # Add all valid dependencies to the targets as Target instead of just string
-        for target in targets:
-            for dep in target.dependencies:
-                valid = False
-                for depTarget in targets:
-                    if dep == depTarget.name:
-                        valid = True
-                        if depTarget not in target.dependencyTargets:
-                            target.dependencyTargets.append(depTarget)
-                            depTarget.dependencyParents.append(target)
-                            print("-- Dependency resolved: "+target.name+" -> "+dep)
-                        else:
-                            print("-- WARNING: you may have a double dependency: "+target.name+" -> "+dep)
-                if not valid:
-                    print("-- WARNING: could not resolve dependency "+target.name+" -> "+dep)
-
-        # Determine leafs on dependency graph
-        leafs = []
-        for target in targets:
-            if not target.dependencyTargets:
-                leafs.append(target)
-        if not leafs:
-            print("-- WARNING: did not find any leafs in dependency graph!")
-
-    # Otherwise we try to build it as a simple hello world or mwe project
-    else:
+    # Parse targets from toml file
+    targets = []
+    for nodename, node in config.items():
         # Create target
-        target = Target()
-        target.targetDirectory = workingdir
-        target.buildType       = buildType
-        target.verbose         = args.verbose
-        target.name            = ""
+        target = Target(environment, nodename)
 
-        # Set output directories
-        target.binaryDirectory     = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/bin"
-        target.libraryDirectory    = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/lib"
-        target.objectDirectory     = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/obj"
-        target.depfileDirectory    = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/deps"
-        target.testBinaryDirectory = target.buildDirectory + "/" + target.name + "/" + target.buildType.name.lower() + "/test"
+        # Parse Targets type (Executable, Library, Test)
+        target.targetType      = TargetType.Executable
+        if "target_type" in node:
+            target.targetType  = TargetType[node["target_type"].lower().title()]
 
-        # Search for header files
-        headers = []
-        for ext in ('*.hpp', '*.hxx', '*.h'):
-            headers += glob(os.path.join(workingdir, ext))
+        # Parse output name for the compiled target
+        if "output_name" in node:
+            target.outname     = node["output_name"]
+        else:
+            target.outname     = target.name
 
-        # Search for source files
+        # If we have multiple targets, each gets its own sub-builddirectory
+        if subbuilddirs:
+            target.buildDirectory += "/"+target.name
+
+        # Handle the case that the target is an external project
+        if "external" in node:
+            target.external        = node["external"]
+            if target.external:
+                downloaddir = target.buildDirectory + "/external_sources"
+                # Check if directory is already present and non-empty
+                if os.path.exists(downloaddir) and os.listdir(downloaddir):
+                    print("-- External target " + target.name + ": sources found in "+downloaddir)
+                # Otherwise we download the sources
+                else:
+                    print("-- External target " + target.name + ": downloading to "+downloaddir)
+                    mkpath(downloaddir)
+                    subprocess.call(["git", "clone", node["url"], downloaddir])
+                    print("-- External target " + target.name + ": downloaded")
+                target.includeDirectories.append(downloaddir)
+
+        # Parse the Targets sources
         sources = []
-        for ext in ('*.cpp', '*.cxx', '*.c'):
-            sources += glob(os.path.join(workingdir, ext))
+        headers = []
+        if "sources" in node:
+            sourcenode = node["sources"]
 
-        # Set target
+            # Target root directory
+            sourceroot = ""
+            if "root" in sourcenode:
+                target.root = sourcenode["root"]
+                target.includeDirectories.append(target.targetDirectory+"/"+target.root)
+
+            # Add include directories
+            if "include_directories" in sourcenode:
+                for dir in sourcenode["include_directories"]:
+                    if dir not in target.includeDirectories:
+                        target.includeDirectories.append(target.targetDirectory+"/"+target.root+"/"+dir)
+
+                # Search for header files
+                for ext in ('*.hpp', '*.hxx', '*.h'):
+                    for dir in sourcenode["include_directories"]:
+                        headers += glob(os.path.join(target.targetDirectory+"/"+target.root+"/"+dir, ext))
+
+            # Search for source files
+            if "source_directories" in sourcenode:
+                for ext in ('*.cpp', '*.cxx', '*.c'):
+                    for dir in sourcenode["source_directories"]:
+                        sources += glob(os.path.join(target.targetDirectory+"/"+target.root+"/"+dir, ext))
+
+        # If sources were not specified we try to glob them
+        else:
+            # Search for header files
+            for ext in ('*.hpp', '*.hxx'):
+                headers += glob(os.path.join(target.targetDirectory, ext))
+            # Search for source files
+            for ext in ('*.cpp', '*.cxx'):
+                sources += glob(os.path.join(target.targetDirectory, ext))
+
+        # Set target sources
         target.headerFiles = headers
         target.sourceFiles = sources
 
-        # Only one target -> root and leaf of dependency graph
-        targets = [target]
-        leafs   = [target]
+        # Flags
+        if "flags" in node:
+            flagsnode = node["flags"]
+            if "compile" in flagsnode:
+                for flag in flagsnode["compile"]:
+                    target.compileFlags.append(flag)
+            if "compileRelease" in flagsnode:
+                for flag in flagsnode["compileRelease"]:
+                    target.compileFlagsRelease.append(flag)
+            if "compileDebug" in flagsnode:
+                for flag in flagsnode["compileDebug"]:
+                    target.compileFlagsDebug.append(flag)
+            if "link" in flagsnode:
+                for flag in flagsnode["link"]:
+                    target.linkFlags.append(flag)
+
+        # Dependencies
+        if "link" in node:
+            if "dependencies" in node["link"]:
+                deps = node["link"]["dependencies"]
+                for dep in deps:
+                    if dep not in target.dependencies:
+                        target.dependencies.append(str(dep))
+                        if environment.verbose: print("-- Dependency added: "+target.name+" -> "+dep)
+
+        if "scripts" in node:
+            if "before_compile" in node["scripts"]:
+                target.beforeCompileScript = target.targetDirectory + "/" + node["scripts"]["before_compile"]
+
+        # List of targets
+        targets.append(target)
+
+    # Check if all dependencies are resolved in terms of defined targets, check for circular dependencies...
+    # Add all valid dependencies to the targets as Target instead of just string
+    for target in targets:
+        for dep in target.dependencies:
+            valid = False
+            for depTarget in targets:
+                if dep == depTarget.name:
+                    valid = True
+                    if depTarget not in target.dependencyTargets:
+                        target.dependencyTargets.append(depTarget)
+                        depTarget.dependencyParents.append(target)
+                        print("-- Dependency resolved: "+target.name+" -> "+dep)
+                    else:
+                        print("-- WARNING: you may have a double dependency: "+target.name+" -> "+dep)
+            if not valid:
+                print("-- WARNING: could not resolve dependency "+target.name+" -> "+dep)
+
+    # Determine leafs on dependency graph
+    leafs = []
+    for target in targets:
+        if not target.dependencyTargets:
+            leafs.append(target)
+    if not leafs:
+        print("-- WARNING: did not find any leafs in dependency graph!")
+
+    # Done
+    return targets, leafs
+
+
+
+def getDefaultTarget(environment):
+    # Create target
+    target = Target(environment)
+
+    # Search for header files
+    headers = []
+    for ext in ('*.hpp', '*.hxx', '*.h'):
+        headers += glob(os.path.join(environment.workingDirectory, ext))
+
+    # Search for source files
+    sources = []
+    for ext in ('*.cpp', '*.cxx', '*.c'):
+        sources += glob(os.path.join(environment.workingDirectory, ext))
+
+    # Set target
+    target.headerFiles = headers
+    target.sourceFiles = sources
+
+    # Done
+    return target
+
+
+
+def main():
+    print("---- clang-build v0.0.0")
+
+    # Parse command line arguments, check for presence of build config file, etc.
+    environment = Environment()
+
+    # If build configuration toml file exists, parse lists of targets and leaf nodes of the dependency graph
+    if environment.config:
+        targets, leafs = parseBuildConfig(environment)
+    # Otherwise we try to build it as a simple hello world or mwe project
+    else:
+        defaultTarget = getDefaultTarget(environment)
+        targets = [defaultTarget]
+        leafs   = [defaultTarget]
 
     # Generate flags of all targets, propagating up the dependency graph
     for target in leafs:
