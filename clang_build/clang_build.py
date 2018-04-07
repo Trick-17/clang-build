@@ -79,33 +79,32 @@ def _get_source_files(folder):
 def _get_sources_and_headers(project, target_directory):
     output = {'headers': [], 'include_directories': [], 'sourcefiles': []}
     root = _Path('')
+    relative_includes = []
+    relative_source_directories = []
     if 'sources' in project:
         sourcenode = project['sources']
 
-        # Target root directory
         if 'root' in sourcenode:
             root = _Path(sourcenode['root'])
 
-        # Add include directories
         if 'include_directories' in sourcenode:
             relative_includes = [_Path(file) for file in sourcenode['include_directories']]
-        else:
-            relative_includes = [_Path('include'), _Path('thirdparty')]
 
         if 'source_directories' in sourcenode:
             relative_source_directories = [_Path(file) for file in sourcenode['source_directories']]
-        else:
-            relative_source_directories = [_Path('src')]
 
-    # If sources were not specified we try to glob them
-    else:
-        relative_includes = [_Path('')]
-        relative_source_directories = [_Path('')]
+
+    # Some defaults if nothing was specified
+    if not relative_includes:
+        relative_includes = [_Path(''), _Path('include'), _Path('thirdparty')]
+
+    if not relative_source_directories:
+        relative_source_directories = [_Path(''), _Path('src')]
 
     # Find headers
     output['include_directories'] = list(set(target_directory.joinpath(root, file) for file in relative_includes))
 
-    for directory in output['include_directorie']:
+    for directory in output['include_directories']:
         output['headers'] += _get_header_files(directory)
 
     # Find source files
@@ -116,14 +115,14 @@ def _get_sources_and_headers(project, target_directory):
 
     return output
 
-def _setup_logger(loglevel):
-    logger = _logging.getLogger('clang-build')
+def _setup_logger(log_level):
+    logger = _logging.getLogger(__name__)
     logger.setLevel(_logging.DEBUG)
     fh = _logging.FileHandler('clang-build.log', mode='w')
     fh.setLevel(_logging.DEBUG)
     # create console ha_ndler with a higher log level
     ch = _logging.StreamHandler()
-    ch.setLevel(loglevel)
+    ch.setLevel(log_level)
     # create formatter _and add it to the handlers
     formatter = _logging.Formatter('%(message)s')
     fh.setFormatter(formatter)
@@ -134,14 +133,14 @@ def _setup_logger(loglevel):
 
 
 
+
 _command_line_description = (
 '`clang-build` is a build system to build your C++ projects. It uses the clang '
 'compiler/toolchain in the background and python as the build-system\'s scripting '
 'language.\n'
 'For more information please visit: https://github.com/trick-17/clang-build')
 
-def main():
-    # Parse command line arguments
+def parse_args(args):
     parser = argparse.ArgumentParser(description=_command_line_description)
     parser.add_argument('-V', '--verbose',
                         help='activate more detailed output',
@@ -153,8 +152,11 @@ def main():
     parser.add_argument('-j', '--jobs', type=int, default=1,
                         help='set the number of concurrent build jobs')
     parser.add_argument('--debug', help='activates additional debug output, overrides verbosity option.', action='store_true')
-    args = parser.parse_args()
+    return parser.parse_args(args=args)
 
+
+def main():
+    args = parse_args(sys.argv[1:])
     loglevel = _logging.DEBUG
     # Verbosity
     if not args.debug:
@@ -163,8 +165,10 @@ def main():
         else:
             loglevel = _logging.WARNING
     _setup_logger(loglevel)
+    build(args)
 
-    logger = _logging.getLogger('clang-build')
+def build(args):
+    logger = _logging.getLogger(__name__)
     logger.info(f'clang-build {__version__}')
     # Check for clang++ executable
     clangpp = _which('clang++')
@@ -324,7 +328,7 @@ def main():
                             workingdir,
                             files['headers'],
                             files['include_directories'],
-                            files['source_files'],
+                            files['sourcefiles'],
                             buildType,
                             clangpp,
                             target_build_dir,
@@ -334,19 +338,18 @@ def main():
 
     # Otherwise we try to build it as a simple hello world or mwe project
     else:
-        headers = _get_header_files(workingdir)
-        sources = _get_source_files(workingdir)
+        files = _get_sources_and_headers({}, workingdir)
 
-        if not sources:
+        if not files['sourcefiles']:
             logger.error(f'Error, no sources and no [clang-build.toml] found in folder: {workingdir}')
         # Create target
         target_list.append(
             _Executable(
                 'main',
                 workingdir,
-                headers,
-                [],
-                sources,
+                files['headers'],
+                files['include_directories'],
+                files['sourcefiles'],
                 buildType,
                 clangpp,
                 build_directory))

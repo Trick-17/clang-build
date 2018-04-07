@@ -53,7 +53,7 @@ class SingleSource:
             for line in depStr[colonPos + 1:].splitlines():
                 depline = line.replace(' \\', '').strip().split()
                 for header in depline:
-                    depfileHeaders.append(header)
+                    depfileHeaders.append(_Path(header))
         return depfileHeaders
 
     def needs_rebuild(self):
@@ -73,7 +73,7 @@ class SingleSource:
 
     def generate_dependency_file(self):
         self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
-        flags = self.compileFlags + ['-I' + dir for dir in self.includeDirectories]
+        flags = self.compileFlags + [f'-I{dir}' for dir in self.includeDirectories]
         command = [self.clangpp, '-E', '-MMD', self.sourceFile, '-MF', self.depfile]
         command += flags
 
@@ -84,7 +84,7 @@ class SingleSource:
 
     def compile(self):
         self.objectFile.parents[0].mkdir(parents=True, exist_ok=True)
-        flags = self.compileFlags + ['-I' + dir for dir in self.includeDirectories]
+        flags = self.compileFlags + [f'-I{dir}' for dir in self.includeDirectories]
         flags += self.platformFlags
         command = ['clang++', '-c', self.sourceFile, '-o', self.objectFile]
         command += flags

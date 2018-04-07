@@ -14,7 +14,7 @@ from .dialect_check import get_max_supported_compiler_dialect as _get_max_suppor
 from .build_type import BuildType as _BuildType
 from .single_source import SingleSource as _SingleSource
 
-_LOGGER = _logging.getLogger('clang-build')
+_LOGGER = _logging.getLogger('clang_build')
 
 
 class Target:
@@ -89,7 +89,7 @@ class Target:
         self.headers = list(set(self.headers))
 
     def get_include_directory_command(self):
-        return ['-I'+dir for dir in self.includeDirectories]
+        return [f'-I{dir}' for dir in self.includeDirectories]
 
     def link(self):
         # Subclasses must implement
