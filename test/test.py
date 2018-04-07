@@ -10,7 +10,7 @@ from clang_build import clang_build
 
 class TestClangBuild(unittest.TestCase):
     def test_hello_world_mwe(self):
-        clang_build.build(clang_build.parse_args(['-d', 'test/hello', '-V']))
+        clang_build.build(clang_build.parse_args(['-d', 'test/hello']))
 
         try:
             output = subprocess.check_output(['./main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
@@ -21,7 +21,7 @@ class TestClangBuild(unittest.TestCase):
 
     def test_script_call(self):
         try:
-            subprocess.check_call(['clang-build', '-d', 'test/hello', '-V'])
+            subprocess.check_output(['clang-build', '-d', 'test/hello', '-V'], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError:
             self.fail('Compilation failed')
         try:
@@ -33,7 +33,7 @@ class TestClangBuild(unittest.TestCase):
 
 
     def test_hello_world_rebuild(self):
-        clang_build.build(clang_build.parse_args(['-d', 'test/hello', '-V']))
+        clang_build.build(clang_build.parse_args(['-d', 'test/hello']))
         logger = logging.getLogger('clang_build')
         logger.setLevel(logging.DEBUG)
         stream_capture = io.StringIO()
@@ -61,6 +61,26 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Calculated Integer: 1253643\nCalculated Vector:  0 0 1')
 
+    def test_toml_mwe(self):
+        clang_build.build(clang_build.parse_args(['-d', 'test/mwe-toml']))
+
+        try:
+            output = subprocess.check_output(['./runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run compiled program')
+
+        self.assertEqual(output, 'Hello!')
+
+    def test_toml_custom_folder(self):
+        clang_build.build(clang_build.parse_args(['-d', 'test/toml_custom_folder']))
+
+        try:
+            output = subprocess.check_output(['./runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run compiled program')
+
+        self.assertEqual(output, 'Hello!')
+
 
     def tearDown(self):
         if pathlib2.Path('build').exists():
@@ -68,6 +88,9 @@ class TestClangBuild(unittest.TestCase):
 
         if pathlib2.Path('main').exists():
             pathlib2.Path('main').unlink()
+
+        if pathlib2.Path('runHello').exists():
+            pathlib2.Path('runHello').unlink()
 
 
 if __name__ == '__main__':

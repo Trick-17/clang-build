@@ -57,8 +57,12 @@ def _find_circular_dependencies(project):
 def _get_dependency_walk(project):
     graph = _nx.DiGraph()
     for nodename, node in project.items():
-        for dependency in node.get('dependencies', []):
-            graph.add_edge(str(nodename), str(dependency))
+        dependencies = node.get('dependencies', [])
+        if not dependencies:
+            graph.add_node(str(nodename))
+        else:
+            for dependency in dependencies:
+                graph.add_edge(str(nodename), str(dependency))
 
     return list(reversed(list(_nx.topological_sort(graph))))
 
@@ -221,7 +225,7 @@ def build(args):
     toml_file = _Path(workingdir, 'clang-build.toml')
     if toml_file.exists():
         logger.info('Found config file')
-        config = toml.load(toml_file)
+        config = toml.load(str(toml_file))
 
         # Use sub-build directories if multiple targets
         subbuilddirs = False
