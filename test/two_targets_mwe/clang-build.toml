@@ -1,18 +1,12 @@
 [myexe]
 output_name = "runLib"
-target_type = "executable"
-[myexe.sources]
-source_directories = ["myexe"]
-[myexe.link]
 dependencies = ["mylib"]
+root = "myexe"
 
 [mylib]
 version = "0.0.0"
 target_type = "sharedlibrary"
-[mylib.sources]
-include_directories = ["mylib/include"]
-source_directories = ["mylib/src"]
-[mylib.link]
+root = "mylib"
 dependencies = ["Eigen"]
 
 [Eigen]

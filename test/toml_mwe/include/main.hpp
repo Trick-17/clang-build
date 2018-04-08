@@ -2,7 +2,7 @@
 
 #include <string>
 
-std::string main_print()
+inline std::string main_print()
 {
     return "Hello!";
 }

@@ -1,94 +1,101 @@
 import os as _os
+import re as _re
 from pathlib2 import Path as _Path
 import subprocess as _subprocess
 
-class SingleSource:
-    def __init__(
-            self,
-            sourceFile,
-            platformFlags,
-            buildType,
-            targetDirectory,
-            depfileDirectory,
-            objectDirectory,
-            buildDirectory,
-            root,
-            includeDirectories,
-            compileFlags,
-            linkFlags,
-            clangpp):
-        self.sourceFile         = sourceFile
-        self.buildType          = buildType
-        self.targetDirectory    = targetDirectory
-        self.buildDirectory     = buildDirectory
-        self.objectDirectory    = objectDirectory
-        self.depfileDirectory   = depfileDirectory
-        self.root               = root
-        self.includeDirectories = includeDirectories
-        self.compileFlags       = compileFlags
-        self.linkFlags          = linkFlags
-        self.clangpp            = clangpp
+# Find and parse the dependency file, return list of headers this file depends on
+# TODO: Can this be simplified?
+def _get_depfile_headers(depfile):
+    depfileHeaders = []
+    with open(depfile, 'r') as the_file:
+        depStr = the_file.read()
+        colonPos = depStr.find(':')
+        for line in depStr[colonPos + 1:].splitlines():
+            depline = line.replace(' \\', '').strip().split()
+            for header in depline:
+                depfileHeaders.append(_Path(header))
+    return depfileHeaders
 
-        self.platformFlags = platformFlags
-
-        # Get the relative file path
-        current_root = self.targetDirectory.joinpath(self.root)
-        relpath = _os.path.relpath(sourceFile.parents[0], current_root)
-        if  current_root.joinpath('src').exists():
-            relpath = _os.path.relpath(relpath, 'src')
-
-        # Set name, extension and potentially produced output files
-        self.name          = sourceFile.name
-        self.fileExtension = sourceFile.suffix
-        self.objectFile    = _Path(self.objectDirectory, relpath, self.name + '.o')
-        self.depfile       = _Path(self.depfileDirectory, relpath, self.name + '.d')
-
-    # Find and parse the dependency file, return list of headers this file depends on
-    # Replace as soon as we know how the dependency file looks like
-    def getDepfileHeaders(self):
-        depfileHeaders = []
-        with open(self.depfile, 'r') as the_file:
-            depStr = the_file.read()
-            colonPos = depStr.find(':')
-            for line in depStr[colonPos + 1:].splitlines():
-                depline = line.replace(' \\', '').strip().split()
-                for header in depline:
-                    depfileHeaders.append(_Path(header))
-        return depfileHeaders
-
-    def needs_rebuild(self):
-        if self.objectFile.exists():
+def _needs_rebuild(object_file, source_file, depfile):
+        if object_file.exists():
             # If object file is found, check if it is up to date
-            if self.sourceFile.stat().st_mtime > self.objectFile.stat().st_mtime:
+            if source_file.stat().st_mtime > object_file.stat().st_mtime:
                 return True
             # If object file is up to date, we check the headers it depends on
             else:
-                for depHeaderFile in self.getDepfileHeaders():
-                    if depHeaderFile.stat().st_mtime > self.objectFile.stat().st_mtime:
+                for depHeaderFile in _get_depfile_headers(depfile):
+                    if depHeaderFile.stat().st_mtime > object_file.stat().st_mtime:
                         return True
 
                 return False
         else:
             return True
 
-    def generate_dependency_file(self):
-        self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
-        flags = self.compileFlags + [f'-I{dir}' for dir in self.includeDirectories]
-        command = [self.clangpp, '-E', '-MMD', self.sourceFile, '-MF', self.depfile]
-        command += flags
+class SingleSource:
+    def __init__(
+            self,
+            sourceFile,
+            platformFlags,
+            current_target_root_path,
+            depfileDirectory,
+            objectDirectory,
+            include_strings,
+            compileFlags,
+            clangpp):
 
-        # TODO: should be logged to debug instead of just outputting nothing!
-        # TODO: also check_call should be used!
-        devnull = open(_os.devnull, 'w')
-        _subprocess.call(command, stdout=devnull, stderr=devnull)
+        # Get the relative file path
+        self.name          = sourceFile.name
+        self.sourceFile    = sourceFile
+
+        relpath = _os.path.relpath(sourceFile.parents[0], current_target_root_path)
+
+        # TODO: I'm not sure I understand the necessity/function of this part
+        if  current_target_root_path.joinpath('src').exists():
+            relpath = _os.path.relpath(relpath, 'src')
+
+        # Set name, extension and potentially produced output files
+
+        self.objectFile    = _Path(objectDirectory, relpath, sourceFile.stem + '.o')
+        depfile       = _Path(depfileDirectory, relpath, sourceFile.stem + '.d')
+
+        self.needs_rebuild = _needs_rebuild(self.objectFile, sourceFile, depfile)
+
+        # Create dependency file
+        depfile.parents[0].mkdir(parents=True, exist_ok=True)
+
+        flags = compileFlags + include_strings
+        dependency_command = [clangpp, '-E', '-MMD', sourceFile, '-MF', depfile] + flags
+
+        try:
+            _subprocess.check_output(dependency_command)
+        except _subprocess.CalledProcessError as error:
+            raise RuntimeError(f'Creating dependency file for source {sourceFile} '
+                               f'raised an error: \'{error}\' with output \'{error.output}\'')
+
+        self.compilation_failed = False
+
+        # prepare everything for compilation
+        self.objectFile.parents[0].mkdir(parents=True, exist_ok=True)
+        self.compile_command = ['clang++', '-c', sourceFile, '-o', self.objectFile] + flags + platformFlags
+
+        self.output_messages = []
 
     def compile(self):
-        self.objectFile.parents[0].mkdir(parents=True, exist_ok=True)
-        flags = self.compileFlags + [f'-I{dir}' for dir in self.includeDirectories]
-        flags += self.platformFlags
-        command = ['clang++', '-c', self.sourceFile, '-o', self.objectFile]
-        command += flags
+        try:
+            self.compile_report = _subprocess.check_output(self.compile_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
+        except _subprocess.CalledProcessError as error:
+            self.compilation_failed = True
+            self.compile_report = error.output.decode('utf-8').strip()
 
-        # TODO: check_call shoud be used!
-        self.compile_command = command
-        _subprocess.call(command)
+        self.parse_output()
+
+    def parse_output(self):
+        # Remove last line
+        output_text = _re.split(r'(.*)\n.*generated\.$', self.compile_report)[0]
+
+        # Find all the indivdual messages
+        message_list = _re.split(_re.escape(str(self.sourceFile)), output_text)[1:]
+
+        # Get type, row, column and content of each message
+        message_parser = _re.compile(r':(?P<row>\d+):(?P<column>\d+):\s*(?P<type>error|warning):\s*(?P<message>[\s\S.]*)')
+        self.output_messages = [message_parser.search(message).groupdict() for message in message_list]

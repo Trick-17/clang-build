@@ -165,41 +165,37 @@ class Compilable(Target):
         self.buildables = [_SingleSource(
             sourceFile=sourceFile,
             platformFlags=platform_flags,
-            buildType=self.buildType,
+            current_target_root_path=self.targetDirectory.joinpath(self.root),
             depfileDirectory=self.depfileDirectory,
             objectDirectory=self.objectDirectory,
-            targetDirectory=self.targetDirectory,
-            buildDirectory=self.buildDirectory,
-            root=self.root,
-            includeDirectories=self.includeDirectories,
+            include_strings=self.get_include_directory_command(),
             compileFlags=self.compileFlags,
-            linkFlags=self.linkFlags,
             clangpp=self.clangpp) for sourceFile in self.sourceFiles]
+
+        # If compilation of buildables fail, they will be stored here later
+        self.unsuccesful_builds = []
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool):
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        self.neededBuildables = [buildable for buildable in self.buildables if buildable.needs_rebuild()]
+        neededBuildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
 
         # If the target was not modified, it may not need to compile
-        if not self.neededBuildables:
+        if not neededBuildables:
             _LOGGER.info(f'Target [{self.outname}] is already compiled')
             return
 
-        _LOGGER.info(f'Target [{self.outname}] needs to rebuild sources %s', [b.name for b in self.neededBuildables])
+        _LOGGER.info(f'Target [{self.outname}] needs to rebuild sources %s', [b.name for b in neededBuildables])
 
         # Compile
         # Create base directory for build
         self.buildDirectory.mkdir(parents=True, exist_ok=True)
-
-        # Create header dependency graph
-        _LOGGER.info(f'Scanning dependencies of target [{self.outname}]')
-        process_pool.map(generateDepfile, self.neededBuildables)
-
+        
         # Execute compile command
         _LOGGER.info(f'Compile target [{self.outname}]')
-        process_pool.map(compile_single_source, self.neededBuildables)
+        process_pool.map(compile_single_source, neededBuildables)
 
+        self.unsuccesful_builds = [buildable for buildable in neededBuildables if buildable.compilation_failed]
 
 
 class Executable(Compilable):

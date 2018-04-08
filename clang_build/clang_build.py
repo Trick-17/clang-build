@@ -69,14 +69,14 @@ def _get_dependency_walk(project):
 def _get_header_files(folder):
     headers = []
     for ext in ('*.hpp', '*.hxx'):
-        headers += [_Path(f) for f in _iglob(str(folder) + '**/'+ext, recursive=True)]
+        headers += [_Path(f) for f in _iglob(str(folder) + '/**/'+ext, recursive=True)]
 
     return headers
 
 def _get_source_files(folder):
     sources = []
     for ext in ('*.cpp', '*.cxx'):
-        sources += [_Path(f) for f in _iglob(str(folder) + '**/'+ext, recursive=True)]
+        sources += [_Path(f) for f in _iglob(str(folder) + '/**/'+ext, recursive=True)]
 
     return sources
 
@@ -111,11 +111,14 @@ def _get_sources_and_headers(project, target_directory):
     for directory in output['include_directories']:
         output['headers'] += _get_header_files(directory)
 
+    output['headers'] = list(set(output['headers']))
     # Find source files
     source_directories = list(set(target_directory.joinpath(root, file) for file in relative_source_directories))
 
     for directory in set(source_directories):
         output['sourcefiles'] += _get_source_files(directory)
+
+    output['sourcefiles'] = list(set(output['sourcefiles']))
 
     return output
 
@@ -371,7 +374,14 @@ def build(args):
 
     logger.info('Link')
     for target in target_list:
-        target.link()
+        if not target.unsuccesful_builds:
+            target.link()
+        else:
+            logger.error(f'Target {target} did not compile. Errors:\n%s',
+                [f'{file}: {output}' for file, output in zip(
+                    [t.name for t in target.unsuccesful_builds],
+                    [t.output_messages for t in target.unsuccesful_builds])])
+            break
 
     logger.info('clang-build finished.')
 
