@@ -2,3 +2,4 @@ toml
 pbr
 enum34; python_version < '3'
 pathlib2
+networkx
