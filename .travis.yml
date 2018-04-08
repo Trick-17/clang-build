@@ -52,20 +52,22 @@ script:
   - clang --version
   - python --version
   - pip --version
+  - python setup.py test
+
   # test/hello
-  - clang-build -d"test/hello" -V
-  - ./build/main
+  #- clang-build -d"test/hello" -V
+  #- ./build/main
   # test/mini-project
-  - clang-build -d"test/mini-project" -V
-  - ./build/main
+  #- clang-build -d"test/mini-project" -V
+  #- ./build/main
   # test/mwe-toml
-  - clang-build -d"test/mwe-toml" -V
-  - ./build/runHello
+  #- clang-build -d"test/mwe-toml" -V
+  #- ./build/runHello
   # test/external-project
-  - clang-build -d"test/external-project" -V
-  - ./build/myexe/runHello
+  #- clang-build -d"test/external-project" -V
+  #- ./build/myexe/runHello
   # test/lib-and-exe
-  - clang-build -d"test/lib-and-exe" -V
+  #- clang-build -d"test/lib-and-exe" -V
   # TODO: need to copy build/mylib/mylib.so into exe's directory on linux
   # - ./build/myexe/runLib
 
