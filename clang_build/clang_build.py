@@ -10,14 +10,11 @@ import logging as _logging
 from pathlib2 import Path as _Path
 import textwrap as _textwrap
 import sys
-from sys import platform as _platform
 import subprocess
 from multiprocessing import Pool
-import getopt
 import argparse
 from shutil import which as _which
 from glob import iglob as _iglob
-import tempfile
 import toml
 import networkx as _nx
 from pbr.version import VersionInfo as _VersionInfo
