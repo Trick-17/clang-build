@@ -11,7 +11,9 @@ def _get_depfile_headers(depfile):
         depStr = the_file.read()
         colonPos = depStr.find(':')
         for line in depStr[colonPos + 1:].splitlines():
-            depline = line[:-1].strip().split()
+            if line.endswith('\\'):
+                line = line[:-1]
+            depline = line.strip().split()
             for header in depline:
                 depfileHeaders.append(_Path(header))
     return depfileHeaders
