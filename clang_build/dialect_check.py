@@ -10,10 +10,8 @@ def get_dialect_string(year):
 def _check_dialect(year, clangpp):
     std_opt = get_dialect_string(year)
     try:
-        _subprocess.run([clangpp,std_opt,'-x','c++','-E','-'],\
-            check=True,input=b'',stdout=_subprocess.PIPE,stderr=_subprocess.PIPE)
-        #_subprocess.check_call([clangpp,std_opt,'-x','c++','-E','-'],
-        #    stdout=_subprocess.PIPE,stderr=_subprocess.PIPE)
+        _subprocess.run([clangpp, std_opt, '-x', 'c++', '-E', '-'],\
+           check=True,input=b'',stdout=_subprocess.PIPE,stderr=_subprocess.PIPE)
     except _subprocess.CalledProcessError as e:
         error_message = _UNSUPPORTED_DIALECT_MESSAGE.format(year)
         strerr = e.stderr.decode('utf8','strict')

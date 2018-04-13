@@ -64,7 +64,7 @@ class SingleSource:
         depfile.parents[0].mkdir(parents=True, exist_ok=True)
 
         flags = compileFlags + include_strings
-        dependency_command = [clangpp, '-E', '-MMD', sourceFile, '-MF', depfile] + flags
+        dependency_command = [clangpp, '-E', '-MMD', str(sourceFile), '-MF', str(depfile)] + flags
 
         try:
             _subprocess.check_output(dependency_command)
@@ -76,7 +76,7 @@ class SingleSource:
 
         # prepare everything for compilation
         self.objectFile.parents[0].mkdir(parents=True, exist_ok=True)
-        self.compile_command = ['clang++', '-c', sourceFile, '-o', self.objectFile] + flags + platformFlags
+        self.compile_command = ['clang++', '-c', str(sourceFile), '-o', str(self.objectFile)] + flags + platformFlags
 
         self.output_messages = []
 

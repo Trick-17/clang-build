@@ -58,8 +58,9 @@ class TestClangBuild(unittest.TestCase):
             output = subprocess.check_output(['./main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
-
-        self.assertEqual(output, 'Calculated Integer: 1253643\nCalculated Vector:  0 0 1')
+        calculated_integer, calculated_vector = output.splitlines()
+        self.assertEqual(calculated_integer, 'Calculated Integer: 1253643')
+        self.assertEqual(calculated_vector, 'Calculated Vector:  0 0 1')
 
     def test_toml_mwe(self):
         clang_build.build(clang_build.parse_args(['-d', 'test/toml_mwe']))

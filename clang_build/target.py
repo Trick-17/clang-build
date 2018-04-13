@@ -190,7 +190,7 @@ class Compilable(Target):
         # Compile
         # Create base directory for build
         self.buildDirectory.mkdir(parents=True, exist_ok=True)
-        
+
         # Execute compile command
         _LOGGER.info(f'Compile target [{self.outname}]')
         process_pool.map(compile_single_source, neededBuildables)
@@ -229,7 +229,7 @@ class Executable(Compilable):
         self.binaryDirectory = self.outputFolder.joinpath('bin')
 
     def link(self):
-        linkCommand = [self.clangpp, '-o', self.outfile]
+        linkCommand = [self.clangpp, '-o', str(self.outfile)]
 
         self.binaryDirectory.mkdir(parents=True, exist_ok=True)
 
@@ -242,7 +242,7 @@ class Executable(Compilable):
         linkCommand += self.get_include_directory_command()
 
         ### Link self
-        linkCommand += [buildable.objectFile for buildable in self.buildables]
+        linkCommand += [str(buildable.objectFile) for buildable in self.buildables]
 
         ### Link dependencies
         for target in self.dependencyTargets:

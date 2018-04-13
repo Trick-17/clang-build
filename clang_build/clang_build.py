@@ -169,6 +169,9 @@ def main():
         else:
             loglevel = _logging.WARNING
     _setup_logger(loglevel)
+    #
+    # TODO: create try except around build and deal with it.
+    #
     build(args)
 
 def build(args):
@@ -178,22 +181,19 @@ def build(args):
     clangpp = _which('clang++')
     clang_ar = _which('llvm-ar')
     if clangpp:
-        clangpp = _Path(clangpp)
+        llvm_root = _Path(clangpp).parents[0]
     else:
         logger.error('Couldn\'t find clang++ executable')
         sys.exit(1)
-    if clang_ar:
-        clang_ar = _Path(clang_ar)
-    else:
+    if not clang_ar:
         logger.error('Couldn\'t find llvm-ar executable')
         sys.exit(1)
-
-    llvm_root = clangpp.parents[0]
 
     logger.info(f'llvm root directory: {llvm_root}')
     logger.info(f'clang++ executable: {clangpp}')
     logger.info(f'llvm-ar executable: {clang_ar}')
     logger.info(f'Newest supported C++ dialect: {_get_max_supported_compiler_dialect(clangpp)}')
+
 
     # Directory this was called from
     callingdir = _Path().resolve()
