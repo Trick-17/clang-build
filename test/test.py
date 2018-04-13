@@ -82,6 +82,15 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Hello!')
 
+    def test_mwe_two_targets(self):
+        clang_build.build(clang_build.parse_args(['-d', 'test/multi_target_external']))
+
+        try:
+            output = subprocess.check_output(['./runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run compiled program')
+
+        self.assertEqual(output, 'Hello!')
 
     def tearDown(self):
         if pathlib2.Path('build').exists():

@@ -68,10 +68,10 @@ class Target:
         self.linkFlags = []
 
         if 'flags' in options:
-            compileFlags += options['flags'].get(['compile'], [])
-            compileFlagsRelease += options['flags'].get(['compileRelease'], [])
-            compileFlagsDebug += options['flags'].get(['compileDebug'], [])
-            self.linkFlags += options['flags'].get(['link'], [])
+            compileFlags += options['flags'].get('compile', [])
+            compileFlagsRelease += options['flags'].get('compileRelease', [])
+            compileFlagsDebug += options['flags'].get('compileDebug', [])
+            self.linkFlags += options['flags'].get('link', [])
 
         self.compileFlags = compileFlags
         if self.buildType == _BuildType.Release:
