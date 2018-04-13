@@ -145,7 +145,7 @@ _command_line_description = (
 'For more information please visit: https://github.com/trick-17/clang-build')
 
 def parse_args(args):
-    parser = argparse.ArgumentParser(description=_command_line_description)
+    parser = argparse.ArgumentParser(description=_command_line_description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-V', '--verbose',
                         help='activate more detailed output',
                         action='store_true')
