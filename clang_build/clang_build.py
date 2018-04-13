@@ -102,7 +102,7 @@ supported_dialect_newest = supported_dialects[-1]
 
 
 class Target(object):
-    DEFAULT_COMPILE_FLAGS          = ['-Wall', '-Werror']
+    DEFAULT_COMPILE_FLAGS          = ["-std=c++"+supported_dialect_newest, "-Wall", "-Werror"]
     DEFAULT_RELEASE_COMPILE_FLAGS  = ['-O3', '-DNDEBUG']
     DEFAULT_DEBUG_COMPILE_FLAGS    = ['-O0', '-g3', '-DDEBUG']
     DEFAULT_COVERAGE_COMPILE_FLAGS = (
@@ -111,11 +111,13 @@ class Target(object):
             '-fno-inline',
             '-fno-inline-small-functions',
             '-fno-default-inline'])
-    defaultIncludeDirectories = ['include']
+    defaultIncludeDirectories = ['.', 'include']
 
-    def __init__(self, name, rootDirectory, includeDirectories, headerFiles, config, dependencyNames, parentNames):
+    def __init__(self, name, external, rootDirectory, includeDirectories, headerFiles, config, dependencyNames, parentNames):
         # Identifier name
         self.name          = name
+        # If this target is not directly contained in the project
+        self.external      = external
         # Root source directory
         self.rootDirectory = rootDirectory
 
@@ -164,20 +166,37 @@ class Target(object):
         self.compileFlags        = self.DEFAULT_COMPILE_FLAGS
         self.compileFlagsRelease = self.DEFAULT_RELEASE_COMPILE_FLAGS
         self.compileFlagsDebug   = self.DEFAULT_DEBUG_COMPILE_FLAGS
+        # TODO: where should defaultIncludeDirectories be specified?
+        # if not self.external:
+        self.includeDirectories = [os.path.abspath(os.path.join(self.rootDirectory, dir)) for dir in self.defaultIncludeDirectories]
+        # else:
+        #     self.includeDirectories = [os.path.abspath(os.path.join(self.rootDirectory, 'external_sources', dir)) for dir in self.defaultIncludeDirectories]
+
         # User-specified flags #TODO
         # if 'flags' in config:
         #     self.compileFlags        += config['flags'].get(['compile'],         [])
         #     self.compileFlagsRelease += config['flags'].get(['compile_release'], [])
         #     self.compileFlagsDebug   += config['flags'].get(['compile_debug'],   [])
         #     self.linkFlags           += config['flags'].get(['link'],            [])
-        # Only unique flags
-        self.compileFlags = list(set(self.compileFlags))
-        self.compileFlagsRelease = list(set(self.compileFlagsRelease))
-        self.compileFlagsDebug = list(set(self.compileFlagsDebug))
-        self.linkFlags = list(set(self.linkFlags))
 
-        # TODO: where should defaultIncludeDirectories be specified?
-        self.includeDirectories = [os.path.abspath(os.path.join(self.rootDirectory, dir)) for dir in self.defaultIncludeDirectories]
+        # User-specified include directories
+        if 'sources' in config:
+            if 'include_directories' in config['sources']:
+                self.includeDirectories += [os.path.abspath(os.path.join(self.rootDirectory, dir)) for dir in config['sources']['include_directories']]
+
+
+        # Only unique flags
+        for targetName in self.dependencyNames:
+            self.compileFlags       += environment.targets[targetName].compileFlags
+            self.linkFlags          += environment.targets[targetName].linkFlags
+            self.includeDirectories += environment.targets[targetName].includeDirectories
+
+        # Remove redundant flags
+        self.compileFlags        = list(set(self.compileFlags))
+        self.compileFlagsRelease = list(set(self.compileFlagsRelease))
+        self.compileFlagsDebug   = list(set(self.compileFlagsDebug))
+        self.linkFlags           = list(set(self.linkFlags))
+
 
     def compile(self):
         # Needs to be implemented by subclass
@@ -189,10 +208,9 @@ class Target(object):
 
 
 
-
 class HeaderOnly(Target):
-    def __init__(self, name, rootDirectory, includeDirectories, headerFiles, config, dependencyNames, parentNames):
-        super(HeaderOnly, self).__init__(name, rootDirectory, includeDirectories, headerFiles, config, dependencyNames, parentNames)
+    def __init__(self, name, external, rootDirectory, includeDirectories, headerFiles, config, dependencyNames, parentNames):
+        super(HeaderOnly, self).__init__(name, external, rootDirectory, includeDirectories, headerFiles, config, dependencyNames, parentNames)
 
     def compile(self):
         # All dependencies need to be compiled before the target can be compiled
@@ -207,57 +225,123 @@ class HeaderOnly(Target):
             environment.targets[name].compile()
 
     def link(self):
+        # print(" link "+self.name)
         # All dependencies need to be linked before the target can be linked
         for targetName in self.dependencyNames:
             if not environment.targets[targetName].__class__ is HeaderOnly:
                 if not environment.targets[targetName].compiled:
+                    # print("not yet built: ", environment.targets[targetName])
                     return
 
-        print("-- Target "+self.name+" is header-only")
+        print("-- Target "+self.name+" is header-only", self.parentNames)
         # Trigger linking of parents in the dependency graph
         for name in self.parentNames:
             environment.targets[name].link()
 
 
 class BuildableFile():
-    def __init__(self):
+    def __init__(self, sourceFile, targetDirectory, depfileDirectory, objectDirectory, includeDirectories, compileFlags):
         #TODO
-        # self.sourceFile         = sourceFile
+        self.sourceFile         = sourceFile
         # self.targetType         = targetType
         # self.buildType          = buildType
-        # environment.verbose            = verbose
-        # self.targetDirectory    = targetDirectory
+        self.targetDirectory    = targetDirectory
         # self.buildDirectory     = buildDirectory
         # self.directory          = directory
-        # self.depfileDirectory   = depfileDirectory
+        self.depfileDirectory   = depfileDirectory
+        self.objectDirectory    = objectDirectory
         # # self.root               = root
-        # self.includeDirectories = includeDirectories
-        # self.compileFlags       = compileFlags
+
+        self.includeDirectories = includeDirectories
+        self.compileFlags       = compileFlags
         # self.linkFlags          = linkFlags
 
-        # # Get the relative file path
-        # path, file = os.path.split(sourceFile)
-        # relpath = os.path.relpath(path, self.targetDirectory+"/"+self.root)
-        # if  os.path.exists(self.targetDirectory+"/"+self.root+'/src'):
-        #     relpath = os.path.relpath(relpath, 'src')
-        # # Get file name and extension
-        # name, extension = os.path.splitext(file)
+        # Get the relative file path
+        path, file = os.path.split(sourceFile)
+        relpath = os.path.relpath(path, self.targetDirectory)
+        if  os.path.exists(os.path.join(self.targetDirectory, 'src')):
+            relpath = os.path.relpath(relpath, 'src')
+        # Get file name and extension
+        name, extension = os.path.splitext(file)
 
         # # Set name, extension and potentially produced output files
-        # self.name          = name
+        self.name          = name
         # self.fileExtension = extension
-        # self.objectFile    = self.objectDirectory + "/" + relpath + "/" + self.name + ".o"
-        # self.depfile       = self.depfileDirectory + "/" + relpath + "/" + self.name + ".d"
-        pass
+        self.fileName      = name + extension
+        self.objectFile    = os.path.join(self.objectDirectory,  relpath, self.name + ".o")
+        self.depfile       = os.path.join(self.depfileDirectory, relpath, self.name + ".d")
 
-    def generateDepFile(self):
-        raise NotImplementedError()
+    # Find and parse the dependency file, return list of headers this file depends on
+    def getDepfileHeaders(self):
+        depfileHeaders = []
+        with open(self.depfile, "r") as the_file:
+            depStr = the_file.read()
+            colonPos = depStr.find(":")
+            for line in depStr[colonPos + 1:].splitlines():
+                depline = line.replace(' \\', '').strip().split()
+                for header in depline:
+                    depfileHeaders.append(header)
+        return depfileHeaders
 
-    def compile(self):
-        raise NotImplementedError()
 
-    def link(self):
-        raise NotImplementedError()
+
+"""
+Scan the dependencies of a BuildableFile and write them into a depfile
+This is not a class method, so that it can be called from multiprocessing
+"""
+def generateDepfile(buildableFile):
+    sourceFile = buildableFile.sourceFile
+    depfile    = os.path.abspath(buildableFile.depfile)
+
+    path, _ = os.path.split(depfile)
+    mkpath(path)
+
+    flags = []
+
+    for flag in buildableFile.compileFlags:
+        flags.append(flag)
+
+    for dir in buildableFile.includeDirectories:
+        flags.append("-I" + dir)
+
+    command = ["clang++", "-E", "-MMD", sourceFile, "-MF", depfile]
+    command += flags
+
+    # if environment.verbose:
+    #     print("--   " + ' '.join(command))
+    print("--   " + ' '.join(command))
+
+    devnull = open(os.devnull, 'w')
+    subprocess.call(command, stdout=devnull, stderr=devnull)
+
+
+
+"""
+Compile a BuildableFile...
+"""
+def compile(buildableFile):
+    objectFile = buildableFile.objectFile
+
+    path, _ = os.path.split(objectFile)
+    mkpath(path)
+
+    flags = []
+
+    for flag in buildableFile.compileFlags:
+        flags.append(flag)
+
+    for dir in buildableFile.includeDirectories:
+        flags.append("-I" + dir)
+
+    command = ["clang++", "-c", buildableFile.sourceFile, "-o", objectFile]
+    command += flags
+
+    # if environment.verbose:
+    #     print("--   " + ' '.join(command))
+    print("--   " + ' '.join(command))
+
+    subprocess.call(command)
+
 
 
 class BuildableTarget(Target):
@@ -268,11 +352,11 @@ class BuildableTarget(Target):
     SUFFIX          = ""
     OUT_DIR         = ""
 
-    def __init__(self, name, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames):
-        super(BuildableTarget, self).__init__(name, rootDirectory, includeDirectories, headerFiles, config, dependencyNames, parentNames)
+    def __init__(self, name, external, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames):
+        super(BuildableTarget, self).__init__(name, external, rootDirectory, includeDirectories, headerFiles, config, dependencyNames, parentNames)
 
         # User-defined compile flags
-        self.compileFlags = {
+        self.compileFlagsDict = {
             BuildType.Default        : [],
             BuildType.Release        : [],
             BuildType.MinSizeRel     : [],
@@ -282,7 +366,7 @@ class BuildableTarget(Target):
         }
 
         # User-defined link flags
-        self.linkFlags = {
+        self.linkFlagsDict = {
             BuildType.Default        : [],
             BuildType.Release        : [],
             BuildType.MinSizeRel     : [],
@@ -299,7 +383,9 @@ class BuildableTarget(Target):
         self.buildableFiles = []
 
         # Build dirs
-        self.buildDirectory = "" #TODO
+        self.buildDirectory   = "build" #TODO
+        self.depfileDirectory = "build/deps" #TODO
+        self.objectDirectory  = "build/obj" #TODO
 
         # Parse the config
         # Output name
@@ -307,6 +393,14 @@ class BuildableTarget(Target):
             self.outname     = config["output_name"]
         else:
             self.outname     = self.name
+        # # Dependencies
+        # if "link" in config:
+        #     if "dependencies" in config["link"]:
+        #         deps = config["link"]["dependencies"]
+        #         for dep in deps:
+        #             if dep not in target.dependencies:
+        #                 target.dependencies.append(str(dep))
+        #                 if environment.verbose: print("-- Dependency added: "+target.name+" -> "+dep)
 
         self.outfile = self.PREFIX + self.outname + self.SUFFIX
         self.outdir  = self.buildDirectory + "/" + self.OUT_DIR
@@ -317,12 +411,16 @@ class BuildableTarget(Target):
         self.beforeLinkScript    = ""
         self.afterBuildScript    = ""
 
-    def generateBuildableFiles(self):
-        #TODO
-        # for sourceFile in self.sourceFiles:
-        #     buildableFile = ObjectFile(sourceFile, self.targetType, buildType=self.buildType, verbose=environment.verbose, depfileDirectory=self.depfileDirectory, objectDirectory=self.objectDirectory, targetDirectory=self.targetDirectory, buildDirectory=self.buildDirectory, root=self.root, includeDirectories=self.includeDirectories, compileFlags=self.compileFlags, linkFlags=self.linkFlags)
-        #     self.buildableFiles.append(buildableFile)
-        pass
+        # Create set of buildables
+        for sourceFile in self.sourceFiles:
+            buildableFile = BuildableFile(
+                sourceFile,
+                targetDirectory    = self.rootDirectory,
+                depfileDirectory   = self.depfileDirectory,
+                objectDirectory    = self.objectDirectory,
+                includeDirectories = self.includeDirectories,
+                compileFlags       = self.compileFlags)#, linkFlags=self.linkFlags)
+            self.buildableFiles.append(buildableFile)
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self):
@@ -354,23 +452,23 @@ class BuildableTarget(Target):
         # If the target was not modified, it may not need to compile
         if not buildList:
             if environment.verbose:
-                print("-- Target " + self.outname + " is already compiled")
+                print("-- Target " + self.name + " is already compiled")
             self.compiled = True
 
         if environment.verbose and buildList:
-            print("-- Target " + self.outname + ": need to rebuild sources ", [b.name for b in buildList])
+            print("-- Target " + self.name + ": need to build sources " + ', '.join([b.fileName for b in buildList]))
 
         # Before-compile step
         if self.beforeCompileScript and not self.compiled:
             if environment.verbose:
-                print("-- Pre-compile step of target " + self.outname)
+                print("-- Pre-compile step of target " + self.name)
             originalDir = os.getcwd()
             newDir, _ = os.path.split(self.beforeCompileScript)
             os.chdir(newDir)
             execfile(self.beforeCompileScript)
             os.chdir(originalDir)
             if environment.verbose:
-                print("-- Finished pre-compile step of target " + self.outname)
+                print("-- Finished pre-compile step of target " + self.name)
 
         # Compile
         if not self.compiled:
@@ -378,11 +476,11 @@ class BuildableTarget(Target):
             mkpath(self.buildDirectory)
 
             # Create header dependency graph
-            print("-- Scanning dependencies of target " + self.outname)
-            # processpool.map(generateDepfile, buildList) #TODO
+            print("-- Scanning dependencies of target " + self.name)
+            processpool.map(generateDepfile, buildList)
 
             # Execute compile command
-            print("-- Compile target " + self.outname)
+            print("-- Compile target " + self.name)
             processpool.map(compile, buildList)
 
         # Done
@@ -395,7 +493,7 @@ class BuildableTarget(Target):
     # Link the compiled object files
     def link(self):
         # All dependencies need to be finished before the target can be linked
-        for targetName in self.parentNames:
+        for targetName in self.dependencyNames:
             if not environment.targets[targetName].__class__ is HeaderOnly:
                 if not environment.targets[targetName].linked:
                     return
@@ -403,14 +501,14 @@ class BuildableTarget(Target):
         # Before-link step
         if self.beforeLinkScript:
             if environment.verbose:
-                print("-- Pre-link step of target " + self.outname)
+                print("-- Pre-link step of target " + self.name)
             originalDir = os.getcwd()
             newDir, _ = os.path.split(self.beforeCompileScript)
             os.chdir(newDir)
             execfile(self.beforeLinkScript)
             os.chdir(originalDir)
             if environment.verbose:
-                print("-- Finished pre-link step of target " + self.outname)
+                print("-- Finished pre-link step of target " + self.name)
 
         # Link
         mkpath(self.outdir)
@@ -418,25 +516,20 @@ class BuildableTarget(Target):
 
         ### Library dependency search paths
         for targetName in self.dependencyNames:
-            if not environment.targets[targetName].header_only:
+            if not environment.targets[targetName].__class__ == HeaderOnly:
                 linkCommand += ["-L"+os.path.abspath(environment.targets[targetName].libraryDirectory)]
 
         ### Include directories
         for dir in self.includeDirectories:
             linkCommand.append("-I"+dir)
 
-        ### Link self #TODO
-        # for buildable in self.buildables:
-        #     objectFile = buildable.objectFile
-        #     linkCommand.append(objectFile)
-
         ### Link dependencies
         for targetName in self.dependencyNames:
-            if not environment.targets[targetName].header_only:
+            if not environment.targets[targetName].__class__ == HeaderOnly:
                 linkCommand += ["-l"+environment.targets[targetName].outname]
 
         # Execute link command
-        print("-- Link target " + self.outname)
+        print("-- Link target " + self.name)
         if environment.verbose:
             print("--   " + ' '.join(linkCommand))
         subprocess.call(linkCommand)
@@ -447,19 +540,18 @@ class BuildableTarget(Target):
         # After-build step
         if self.afterBuildScript:
             if environment.verbose:
-                print("-- After-build step of target " + self.outname)
+                print("-- After-build step of target " + self.name)
             originalDir = os.getcwd()
             newDir, _ = os.path.split(self.beforeCompileScript)
             os.chdir(newDir)
             execfile(self.afterBuildScript)
             os.chdir(originalDir)
             if environment.verbose:
-                print("-- Finished after-build step of target " + self.outname)
+                print("-- Finished after-build step of target " + self.name)
 
         # Spawn compilation of dependency parents
         for parentName in self.parentNames:
             environment.targets[parentName].link()
-
 
 
 
@@ -474,8 +566,8 @@ class Executable(BuildableTarget):
         SUFFIX     = '.exe'
         platform_extra_flags_executable = ['-Xclang', '-flto-visibility-public-std']
 
-    def __init__(self, name, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames):
-        super(Executable, self).__init__(name, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames)
+    def __init__(self, name, external, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames):
+        super(Executable, self).__init__(name, external, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames)
         pass
 
 
@@ -502,9 +594,10 @@ class SharedLibrary(BuildableTarget):
         SUFFIX = '.dll'
         platform_extra_flags_shared = ['-Xclang', '-flto-visibility-public-std']
 
-    def __init__(self, name, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames):
-        super(SharedLibrary, self).__init__(name, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames)
+    def __init__(self, name, external, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames):
+        super(SharedLibrary, self).__init__(name, external, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames)
         pass
+
 
 
 class StaticLibrary(BuildableTarget):
@@ -521,18 +614,19 @@ class StaticLibrary(BuildableTarget):
         SUFFIX = '.lib'
         platform_extra_flags_static     = ['-Xclang', '-flto-visibility-public-std']
         
-    def __init__(self, name, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames):
-        super(StaticLibrary, self).__init__(name, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames)
+    def __init__(self, name, external, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames):
+        super(StaticLibrary, self).__init__(name, external, rootDirectory, includeDirectories, headerFiles, sourceFiles, config, dependencyNames, parentNames)
         pass
-
-
-
-
 
 
 
 class Environment():
     def __init__(self):
+        # Pool for multiprocessing
+        global processpool
+        self.nJobs = 1
+        processpool = Pool(processes=self.nJobs)
+
         # Default include directories
         self.defaultIncludeDirectories = ["include", "thirdparty"]
 
@@ -626,8 +720,6 @@ class Environment():
 
 
 
-
-
 def parseSources(relativeDirectory, sourceConfig):
     output = {
         'includeDirectories': [],
@@ -666,24 +758,113 @@ def parseSources(relativeDirectory, sourceConfig):
     return output
 
 
+class DummyTarget():
+    def __init__(self, name, config):
+        self.name          = name
+        self.dependencies  = []
+        self.parents       = []
+        self.visited       = False
+        self.config        = config
+        self.createdTarget = False
+
+    def visit(self):
+        # All dependencies need to have been visited
+        for target in self.dependencies:
+            if not target.visited:
+                return
+        self.visited = True
+        # Move visitation up the dependency graph
+        for parent in self.parents:
+            parent.visit()
+
+    def createTarget(self):
+        # All dependencies need to have been visited
+        for target in self.dependencies:
+            if not target.createdTarget:
+                return
+
+        # Create Target
+        headerOnly = True
+        external = False
+        includeDirectories = []
+        headerFiles = []
+        sourceFiles = []
+        
+        # Dependencies
+        dependencyNames = [dependency.name for dependency in self.dependencies]
+        # Parents
+        parentNames = [parent.name for parent in self.parents]
+        # Target root directory
+        targetDirectory = environment.workingDirectory
+        relativeTargetDirectory = self.name
+        if 'directory' in self.config:
+            relativeTargetDirectory = self.config['directory']
+        targetDirectory = os.path.abspath(os.path.join(targetDirectory, relativeTargetDirectory))
+        # Handle the case that the target is an external project
+        if "external" in self.config:
+            external        = self.config["external"]
+            if external:
+                downloaddir = os.path.join("build", relativeTargetDirectory, "external_sources")
+                # Check if directory is already present and non-empty
+                if os.path.exists(downloaddir) and os.listdir(downloaddir):
+                    print("-- External target " + self.name + ": sources found in "+downloaddir)
+                # Otherwise we download the sources
+                else:
+                    print("-- External target " + self.name + ": downloading to "+downloaddir)
+                    mkpath(downloaddir)
+                    subprocess.call(["git", "clone", self.config["url"], downloaddir])
+                    print("-- External target " + self.name + ": downloaded")
+                includeDirectories.append(downloaddir)
+                targetDirectory = downloaddir
+        # Sources
+        if 'sources' in self.config:
+            sources            = parseSources(relativeTargetDirectory, self.config['sources'])
+            sourceFiles        = sources['sourceFiles']
+            headerFiles        = sources['headerFiles']
+            includeDirectories = sources['includeDirectories']
+            if sourceFiles:
+                headerOnly = False
+        # Create target corresponding to specified type
+        if "target_type" in self.config:
+            targetType = self.config["target_type"].lower()
+            if not headerOnly:
+                # Executable
+                if   targetType == "executable":
+                    environment.targets[self.name] = Executable(self.name, external, targetDirectory, includeDirectories, headerFiles, sourceFiles, self.config, dependencyNames, parentNames)
+                # Shared library
+                elif targetType == "shared_library":
+                    environment.targets[self.name] = SharedLibrary(self.name, external, targetDirectory, includeDirectories, headerFiles, sourceFiles, self.config, dependencyNames, parentNames)
+                # Static library
+                elif targetType == "static_library":
+                    environment.targets[self.name] = StaticLibrary(self.name, external, targetDirectory, includeDirectories, headerFiles, sourceFiles, self.config, dependencyNames, parentNames)
+                # Header only
+                elif targetType == "header_only":
+                    print("-- Error: target type \"header_only\" was specified, but sources were specified, too!")
+                # Unknown
+                else:
+                    print("-- Error: target type \"" + targetType + "\" unknown!")
+            else:
+                # Header only
+                if targetType == "header_only":
+                    environment.targets[self.name] = HeaderOnly(self.name, external, targetDirectory, includeDirectories, headerFiles, self.config, dependencyNames, parentNames)
+                # Other
+                else:
+                    print("-- Error: target type \"" + targetType + "\" was specified, but no sources were found! Maybe you wanted to use \"header_only\"?")
+        # If the type was not specified, we assume it's an executable unless it's header-only
+        else:
+            if headerOnly:
+                environment.targets[self.name] = HeaderOnly(self.name, external, targetDirectory, includeDirectories, headerFiles, self.config, dependencyNames, parentNames)
+            else:
+                environment.targets[self.name] = Executable(self.name, external, targetDirectory, includeDirectories, headerFiles, sourceFiles, self.config, dependencyNames, parentNames)
+
+        self.createdTarget = True
+
+        # Move creation up the dependency graph
+        for parent in self.parents:
+            parent.createTarget()
+
 
 def parseDependencyGraph():
-    class DummyTarget():
-        def __init__(self, name, config):
-            self.name         = name
-            self.dependencies = []
-            self.parents      = []
-            self.visited      = False
-            self.config       = config
-        def visit(self):
-            # All dependencies need to have been visited
-            for target in self.dependencies:
-                if not target.visited:
-                    return
-            self.visited = True
-            # Move visitation up the dependency graph
-            for parent in self.parents:
-                parent.visit()
 
     # Read the project configuration file
     project = toml.load(environment.configFile)
@@ -733,99 +914,14 @@ def parseDependencyGraph():
             print("-- ERROR: circular dependency!")
             exit(1)
 
-    # # Done
-    # print("DONE")
-    # return dummyTargets
+    environment.leafs   = leafs
+    environment.targets = {}
 
     # Generate targets from dummies
-    targets = {}
-    for name, dummyTarget in dummyTargets.items():
-        # Dependencies
-        dependencyNames = [dependency.name for dependency in dummyTarget.dependencies]
-        # Parents
-        parentNames = [parent.name for parent in dummyTarget.parents]
-        # Target root directory
-        targetDirectory = environment.workingDirectory
-        relativeTargetDirectory = name
-        if 'directory' in dummyTarget.config:
-            relativeTargetDirectory = dummyTarget.config['directory']
-        targetDirectory = os.path.abspath(os.path.join(targetDirectory, relativeTargetDirectory))
-        # Sources
-        headerOnly = True
-        includeDirectories = []
-        headerFiles = []
-        sourceFiles = []
-        if 'sources' in dummyTarget.config:
-            sources            = parseSources(relativeTargetDirectory, dummyTarget.config['sources'])
-            sourceFiles        = sources['sourceFiles']
-            headerFiles        = sources['headerFiles']
-            includeDirectories = sources['includeDirectories']
-            if sourceFiles:
-                headerOnly = False
-        # Create target corresponding to specified type
-        if "target_type" in dummyTarget.config:
-            targetType = dummyTarget.config["target_type"].lower()
-            if not headerOnly:
-                # Executable
-                if   targetType == "executable":
-                    targets[name] = Executable(name, targetDirectory, includeDirectories, headerFiles, sourceFiles, dummyTarget.config, dependencyNames, parentNames)
-                # Shared library
-                elif targetType == "shared_library":
-                    targets[name] = SharedLibrary(name, targetDirectory, includeDirectories, headerFiles, sourceFiles, dummyTarget.config, dependencyNames, parentNames)
-                # Static library
-                elif targetType == "static_library":
-                    targets[name] = StaticLibrary(name, targetDirectory, includeDirectories, headerFiles, sourceFiles, dummyTarget.config, dependencyNames, parentNames)
-                # Header only
-                elif targetType == "header_only":
-                    print("-- Error: target type \"header_only\" was specified, but sources were specified, too!")
-                # Unknown
-                else:
-                    print("-- Error: target type \"" + targetType + "\" unknown!")
-            else:
-                # Header only
-                if targetType == "header_only":
-                    targets[name] = HeaderOnly(name, targetDirectory, includeDirectories, headerFiles, dummyTarget.config, dependencyNames, parentNames)
-                # Other
-                else:
-                    print("-- Error: target type \"" + targetType + "\" was specified, but no sources were found! Maybe you wanted to use \"header_only\"?")
-        # If the type was not specified, we assume it's an executable unless it's header-only
-        else:
-            if headerOnly:
-                targets[name] = HeaderOnly(name, targetDirectory, includeDirectories, headerFiles, dummyTarget.config, dependencyNames, parentNames)
-            else:
-                targets[name] = Executable(name, targetDirectory, includeDirectories, headerFiles, sourceFiles, dummyTarget.config, dependencyNames, parentNames)
-
-
-        # # Create target corresponding to specified type
-        # if "build" in dummyTarget.config:
-        #     build_types = [x.lower() for x in dummyTarget.config["build"]]
-        #     # Executable
-        #     if   dummyTarget.config["build"].lower() == "executable":
-        #         targets[name] = Executable(name, includeDirectories, headerFiles, sourceFiles, dummyTarget.config, dependencyNames, parentNames)
-        #     elif dummyTarget.config["target_type"].lower() == "library":
-        #         targets[name] = Library(name, includeDirectories, headerFiles, sourceFiles, dummyTarget.config, dependencyNames, parentNames)
-        #     else:
-        #         targets[name] = HeaderOnly(name, includeDirectories, headerFiles, dummyTarget.config, dependencyNames, parentNames)
-        # # If the type was not specified, we assume it's an executable unless it's header-only
-        # else:
-        #     if headerOnly:
-        #         targets[name] = HeaderOnly(name, includeDirectories, headerFiles, dummyTarget.config, dependencyNames, parentNames)
-        #     else:
-        #         targets[name] = Executable(name, includeDirectories, headerFiles, sourceFiles, dummyTarget.config, dependencyNames, parentNames)
-
-
-    return targets, leafs
-
-
-
-
-
-
-
-
-
-
-
+    # for name, dummyTarget in dummyTargets.items():
+    for name in leafs:
+        dummyTarget = dummyTargets[name]
+        dummyTarget.createTarget()
 
 
 
@@ -841,7 +937,9 @@ def main():
     # Check dependencies
     if environment.configFile:
         print("---- Parsing dependencies")
-        targets, leafs = parseDependencyGraph()
+        parseDependencyGraph()
+        targets = environment.targets
+        leafs   = environment.leafs
 
     # If build configuration toml file exists, parse lists of targets and leaf nodes of the dependency graph
     # if environment.configFile:
@@ -851,18 +949,6 @@ def main():
         defaultTarget = getDefaultTarget()
         targets = { 'main': defaultTarget }
         leafs   = [ 'main' ]
-
-    environment.targets = targets
-    environment.leafs   = leafs
-
-    # # Generate flags of all targets, propagating up the dependency graph
-    # print(targets)
-    # for targetName in leafs:
-    #     targets[targetName].generateFlags()
-
-    # # Generate the buildables of all targets
-    # for targetName in targets:
-    #     targets[targetName].generateBuildables()
 
     # Build the targets, moving successively up the dependency graph
     print("---- Compile step")
