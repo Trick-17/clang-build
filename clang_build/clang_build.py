@@ -12,6 +12,7 @@ import textwrap as _textwrap
 import sys
 import subprocess
 from multiprocessing import Pool
+from multiprocessing import freeze_support as _freeze_support
 import argparse
 from shutil import which as _which
 from glob import iglob as _iglob
@@ -384,4 +385,5 @@ def build(args):
 
 
 if __name__ == '__main__':
+    _freeze_support()
     main()
