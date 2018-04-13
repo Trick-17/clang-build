@@ -2,6 +2,7 @@ import os as _os
 import re as _re
 from pathlib2 import Path as _Path
 import subprocess as _subprocess
+from multiprocessing import freeze_support as _freeze_support
 
 # Find and parse the dependency file, return list of headers this file depends on
 # TODO: Can this be simplified?
@@ -101,3 +102,6 @@ class SingleSource:
         # Get type, row, column and content of each message
         message_parser = _re.compile(r':(?P<row>\d+):(?P<column>\d+):\s*(?P<type>error|warning):\s*(?P<message>[\s\S.]*)')
         self.output_messages = [message_parser.search(message).groupdict() for message in message_list]
+
+if __name__ == '__name__':
+    _freeze_support()

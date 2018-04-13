@@ -6,6 +6,7 @@ a list of buildables that comprise it's compile and link steps.
 from glob import iglob as _iglob
 from pathlib2 import Path as _Path
 import subprocess as _subprocess
+from multiprocessing import freeze_support as _freeze_support
 import logging as _logging
 
 from . import platform as _platform
@@ -368,3 +369,6 @@ class StaticLibrary(Compilable):
         self.linkCommand = linkCommand
         # TODO: Capture output
         _subprocess.call(linkCommand)
+
+if __name__ == '__main__':
+    _freeze_support()
