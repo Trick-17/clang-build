@@ -5,6 +5,7 @@ import shutil
 import pathlib2
 import logging
 import io
+from multiprocessing import freeze_support
 
 from clang_build import clang_build
 
@@ -104,4 +105,5 @@ class TestClangBuild(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    freeze_support()
     unittest.main()
