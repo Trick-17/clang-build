@@ -3,6 +3,9 @@ import re as _re
 from pathlib2 import Path as _Path
 import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
+import logging as _logging
+
+_LOGGER = _logging.getLogger('clang_build.clang_build')
 
 # Find and parse the dependency file, return list of headers this file depends on
 # TODO: Can this be simplified?
@@ -59,7 +62,7 @@ class SingleSource:
         # Set name, extension and potentially produced output files
 
         self.objectFile    = _Path(objectDirectory, relpath, sourceFile.stem + '.o')
-        depfile       = _Path(depfileDirectory, relpath, sourceFile.stem + '.d')
+        depfile            = _Path(depfileDirectory, relpath, sourceFile.stem + '.d')
 
         self.needs_rebuild = _needs_rebuild(self.objectFile, sourceFile, depfile)
 
@@ -68,7 +71,7 @@ class SingleSource:
 
         flags = compileFlags + include_strings
         dependency_command = [clangpp, '-E', '-MMD', str(sourceFile), '-MF', str(depfile)] + flags
-
+        _LOGGER.debug('    ' + ' '.join(dependency_command))
         try:
             _subprocess.check_output(dependency_command)
         except _subprocess.CalledProcessError as error:
@@ -84,6 +87,8 @@ class SingleSource:
         self.output_messages = []
 
     def compile(self):
+        # TODO: logging in multiprocess
+        # _LOGGER.debug('    ' + ' '.join(self.compile_command))
         try:
             self.compile_report = _subprocess.check_output(self.compile_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
         except _subprocess.CalledProcessError as error:

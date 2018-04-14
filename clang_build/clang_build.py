@@ -103,7 +103,7 @@ def build(args, progress=False):
     logger.info(f'clang-build {__version__}')
 
     # Check for clang++ executable
-    clangpp = _which('clang++')
+    clangpp  = _which('clang++')
     clang_ar = _which('llvm-ar')
     if clangpp:
         llvm_root = _Path(clangpp).parents[0]
@@ -170,13 +170,21 @@ def build(args, progress=False):
 
         for target_name in target_names:
             project_node = config[target_name]
-            files = _get_sources_and_headers(project_node, workingdir)
+            # Directories
+            targetDirectory = workingdir
+            relativeTargetDirectory = _Path(target_name)
+            if 'directory' in project_node:
+                relativeTargetDirectory = project_node['directory']
+            targetDirectory = targetDirectory.joinpath(relativeTargetDirectory)
+            target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(target_name)
+            # Sources
+            files = _get_sources_and_headers(project_node, targetDirectory)
+            # Dependencies
             dependencies = [target_list[target_names.index(name)] for name in project_node.get('dependencies', [])]
             executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
             if executable_dependencies:
                 logger.error(f'Error: The following targets are linking dependencies but were identified as executables: {executable_dependencies}')
 
-            target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(target_name)
 
             #
             # TODO: Consider if some of the error handling should be done by the classes themselves
@@ -235,8 +243,8 @@ def build(args, progress=False):
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
-                            clangpp,
                             buildType,
+                            clangpp,
                             project_node,
                             dependencies))
                 else:

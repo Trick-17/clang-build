@@ -53,10 +53,14 @@ class Target:
         self.root          = _Path('')
         self.buildType     = buildType
 
-        self.buildDirectory = buildDirectory.joinpath(self.name, self.buildType.name.lower())
+        self.buildDirectory = buildDirectory.joinpath(buildType.name.lower())
 
         self.headers = headers
-        self.includeDirectories = include_directories
+
+        self.includeDirectories = []
+        if rootDirectory.joinpath('include').exists():
+            self.includeDirectories.append(rootDirectory.joinpath('include'))
+        self.includeDirectories += include_directories
 
         if 'properties' in options and 'cpp_version' in options['properties']:
             self.dialect = _get_dialect_string(options['properties']['cpp_version'])
@@ -78,7 +82,7 @@ class Target:
                 downloaddir.mkdir(parents=True, exist_ok=True)
                 _subprocess.call(["git", "clone", options["url"], str(downloaddir)])
                 _LOGGER.info(f'External target {self.name}: downloaded')
-            # TODO: includeDirectories.append(downloaddir)
+            self.includeDirectories.append(downloaddir)
             self.rootDirectory = downloaddir
 
         compileFlags        = Target.DEFAULT_COMPILE_FLAGS
@@ -118,13 +122,19 @@ class Target:
         # Subclasses must implement
         raise NotImplementedError()
 
+    def check_for_unsuccesful_builds(self):
+        # Subclasses must implement
+        raise NotImplementedError()
 
 class HeaderOnly(Target):
     def link(self):
         _LOGGER.info(f'Header-only target {self.name} does not require linking.')
 
-    def compile(self):
+    def compile(self, process_pool):
         _LOGGER.info(f'Header-only target {self.name} does not require compiling.')
+
+    def check_for_unsuccesful_builds(self):
+        return False
 
 def generateDepfile(buildable):
     buildable.generate_dependency_file()
@@ -152,7 +162,7 @@ class Compilable(Target):
             dependencies=None):
 
         if not source_files:
-            error_message = f'ERROR: Targt {name} was defined as a {self._class__} but no source files were found'
+            error_message = f'ERROR: Targt {name} was defined as a {self.__class__} but no source files were found'
             _LOGGER.error(error_message)
             raise RuntimeError(error_message)
 
@@ -214,7 +224,7 @@ class Compilable(Target):
         ### Library dependency search paths
         for target in self.dependencyTargets:
             if not target.__class__ is HeaderOnly:
-                self.linkCommand += ['-L'+target.libraryDirectory.resolve()]
+                self.linkCommand += ['-L'+str(target.outputFolder.resolve())]
 
         ### Include directories
         #linkCommand += self.get_include_directory_command()
@@ -349,7 +359,7 @@ class SharedLibrary(Compilable):
             source_files=source_files,
             buildType=buildType,
             clangpp=clangpp,
-            link_command=[clangpp, '-shared' '-o'],
+            link_command=[clangpp, '-shared', '-o'],
             output_folder = _platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
