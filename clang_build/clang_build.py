@@ -3,9 +3,6 @@ clang-build:
   TODO: module docstring...
 '''
 
-
-
-import os as _os
 import logging as _logging
 from pathlib2 import Path as _Path
 import textwrap as _textwrap
@@ -22,8 +19,7 @@ from pbr.version import VersionInfo as _VersionInfo
 
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
-from .target import Target as _Target,\
-                    Executable as _Executable,\
+from .target import Executable as _Executable,\
                     SharedLibrary as _SharedLibrary,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly

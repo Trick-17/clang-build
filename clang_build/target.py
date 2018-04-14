@@ -3,7 +3,6 @@ Target describes a single build or dependency target with all needed paths and
 a list of buildables that comprise it's compile and link steps.
 '''
 
-from glob import iglob as _iglob
 from pathlib2 import Path as _Path
 import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
