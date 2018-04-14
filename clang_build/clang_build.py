@@ -22,114 +22,35 @@ from .target import Executable as _Executable,\
                     SharedLibrary as _SharedLibrary,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
-
+from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
+                              find_non_existent_dependencies as _find_non_existent_dependencies,\
+                              get_dependency_walk as _get_dependency_walk
+from .io_tools import get_sources_and_headers as _get_sources_and_headers
 
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
 version_info = _v.version_tuple
 
 
-def _find_non_existent_dependencies(project):
-    illegal_dependencies = []
-    keys = [str(key) for key in project.keys()]
-    for nodename, node in project.items():
-        for dependency in node.get('dependencies', []):
-            if not str(dependency) in keys:
-                illegal_dependencies.append((nodename, dependency))
 
-    return illegal_dependencies
-
-def _find_circular_dependencies(project):
-    graph = _nx.DiGraph()
-    for nodename, node in project.items():
-        for dependency in node.get('dependencies', []):
-            graph.add_edge(str(nodename), str(dependency))
-
-    return list(_nx.simple_cycles(graph))
-
-def _get_dependency_walk(project):
-    graph = _nx.DiGraph()
-    for nodename, node in project.items():
-        dependencies = node.get('dependencies', [])
-        if not dependencies:
-            graph.add_node(str(nodename))
-        else:
-            for dependency in dependencies:
-                graph.add_edge(str(nodename), str(dependency))
-
-    return list(reversed(list(_nx.topological_sort(graph))))
-
-def _get_header_files(folder):
-    headers = []
-    for ext in ('*.hpp', '*.hxx'):
-        headers += [_Path(f) for f in _iglob(str(folder) + '/**/'+ext, recursive=True)]
-
-    return headers
-
-def _get_source_files(folder):
-    sources = []
-    for ext in ('*.cpp', '*.cxx'):
-        sources += [_Path(f) for f in _iglob(str(folder) + '/**/'+ext, recursive=True)]
-
-    return sources
-
-def _get_sources_and_headers(project, target_directory):
-    output = {'headers': [], 'include_directories': [], 'sourcefiles': []}
-    root = _Path('')
-    relative_includes = []
-    relative_source_directories = []
-    if 'sources' in project:
-        sourcenode = project['sources']
-
-        if 'root' in sourcenode:
-            root = _Path(sourcenode['root'])
-
-        if 'include_directories' in sourcenode:
-            relative_includes = [_Path(file) for file in sourcenode['include_directories']]
-
-        if 'source_directories' in sourcenode:
-            relative_source_directories = [_Path(file) for file in sourcenode['source_directories']]
-
-
-    # Some defaults if nothing was specified
-    if not relative_includes:
-        relative_includes = [_Path(''), _Path('include'), _Path('thirdparty')]
-
-    if not relative_source_directories:
-        relative_source_directories = [_Path(''), _Path('src')]
-
-    # Find headers
-    output['include_directories'] = list(set(target_directory.joinpath(root, file) for file in relative_includes))
-
-    for directory in output['include_directories']:
-        output['headers'] += _get_header_files(directory)
-
-    output['headers'] = list(set(output['headers']))
-    # Find source files
-    source_directories = list(set(target_directory.joinpath(root, file) for file in relative_source_directories))
-
-    for directory in set(source_directories):
-        output['sourcefiles'] += _get_source_files(directory)
-
-    output['sourcefiles'] = list(set(output['sourcefiles']))
-
-    return output
-
-def _setup_logger(log_level):
+def _setup_logger(log_level=None):
     logger = _logging.getLogger(__name__)
     logger.setLevel(_logging.DEBUG)
-    fh = _logging.FileHandler('clang-build.log', mode='w')
-    fh.setLevel(_logging.DEBUG)
-    # create console ha_ndler with a higher log level
-    ch = _logging.StreamHandler()
-    ch.setLevel(log_level)
+
     # create formatter _and add it to the handlers
     formatter = _logging.Formatter('%(message)s')
+
+    # add log file handler
+    fh = _logging.FileHandler('clang-build.log', mode='w')
+    fh.setLevel(_logging.DEBUG)
     fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-    # add the handlers to the logger
     logger.addHandler(fh)
-    logger.addHandler(ch)
+
+    if log_level is not None:
+        ch = _logging.StreamHandler()
+        ch.setLevel(log_level)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
 
 
 
@@ -145,6 +66,7 @@ def parse_args(args):
     parser.add_argument('-V', '--verbose',
                         help='activate more detailed output',
                         action='store_true')
+    parser.add_argument('-p', '--progress', help='activates a progress bar output. is overruled by -V and --debug', action='store_true')
     parser.add_argument('-d', '--directory', type=_Path,
                         help='set the root source directory')
     parser.add_argument('-b', '--build-type', choices=list(_BuildType), type=_BuildType, default=_BuildType.Default,
@@ -157,20 +79,26 @@ def parse_args(args):
 
 def main():
     args = parse_args(sys.argv[1:])
-    loglevel = _logging.DEBUG
+
+    progress = False
     # Verbosity
     if not args.debug:
         if args.verbose:
-            loglevel = _logging.INFO
+            _setup_logger(_logging.INFO)
         else:
-            loglevel = _logging.WARNING
-    _setup_logger(loglevel)
+            # Only file log
+            _setup_logger(None)
+            if args.progress:
+                progress = True
+    else:
+        _setup_logger(_logging.DEBUG)
+
     #
     # TODO: create try except around build and deal with it.
     #
-    build(args)
+    build(args, progress)
 
-def build(args):
+def build(args, progress=False):
     logger = _logging.getLogger(__name__)
     logger.info(f'clang-build {__version__}')
     # Check for clang++ executable
@@ -240,7 +168,6 @@ def build(args):
 
         target_names = _get_dependency_walk(config)
 
-        no_source_error_message = 'ERROR: Targt {nodename} was defined as a {type} but no source files were found'
 
         for nodename in target_names:
             node = config[nodename]
@@ -261,44 +188,36 @@ def build(args):
                 # Add a shared library
                 #
                 if node['target_type'].lower() == 'sharedlibrary':
-                    if not files['sourcefiles']:
-                        logger.error(no_source_error_message.format(type='shared library'))
-                        sys.exit(1)
-                    else:
-                        target_list.append(
-                            _SharedLibrary(
-                                nodename,
-                                workingdir,
-                                files['headers'],
-                                files['include_directories'],
-                                files['sourcefiles'],
-                                buildType,
-                                clangpp,
-                                target_build_dir,
-                                node,
-                                dependencies))
+                    target_list.append(
+                        _SharedLibrary(
+                            nodename,
+                            workingdir,
+                            files['headers'],
+                            files['include_directories'],
+                            files['sourcefiles'],
+                            buildType,
+                            clangpp,
+                            target_build_dir,
+                            node,
+                            dependencies))
 
                 #
                 # Add a static library
                 #
                 elif node['target_type'].lower() == 'staticlibrary':
-                    if not files['sourcefiles']:
-                        logger.error(no_source_error_message.format(type='static library'))
-                        sys.exit(1)
-                    else:
-                        target_list.append(
-                            _StaticLibrary(
-                                nodename,
-                                workingdir,
-                                files['headers'],
-                                files['include_directories'],
-                                files['sourcefiles'],
-                                buildType,
-                                clangpp,
-                                clang_ar,
-                                target_build_dir,
-                                node,
-                                dependencies))
+                    target_list.append(
+                        _StaticLibrary(
+                            nodename,
+                            workingdir,
+                            files['headers'],
+                            files['include_directories'],
+                            files['sourcefiles'],
+                            buildType,
+                            clangpp,
+                            clang_ar,
+                            target_build_dir,
+                            node,
+                            dependencies))
 
                 #
                 # Here we could allow other custom defined targets?
@@ -341,7 +260,9 @@ def build(args):
         files = _get_sources_and_headers({}, workingdir)
 
         if not files['sourcefiles']:
-            logger.error(f'Error, no sources and no [clang-build.toml] found in folder: {workingdir}')
+            error_message = f'Error, no sources and no [clang-build.toml] found in folder: {workingdir}'
+            logger.error(error_message)
+            raise RuntimeError(error_message)
         # Create target
         target_list.append(
             _Executable(
@@ -367,7 +288,7 @@ def build(args):
 
     logger.info('Link')
     for target in target_list:
-        if not target.unsuccesful_builds:
+        if not target.check_for_unsuccesful_builds():
             target.link()
         else:
             logger.error(f'Target {target} did not compile. Errors:\n%s',

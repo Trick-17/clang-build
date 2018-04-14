@@ -34,8 +34,8 @@ class Target:
             targetDirectory,
             headers,
             include_directories,
-            clangpp,
             buildType,
+            clangpp,
             options=None,
             dependencies=None):
 
@@ -101,7 +101,11 @@ class Target:
 
 
 class HeaderOnly(Target):
-    pass
+    def link(self):
+        _LOGGER.info(f'Header-only target {self.name} does not require linking.')
+
+    def compile(self):
+        _LOGGER.info(f'Header-only target {self.name} does not require compiling.')
 
 def generateDepfile(buildable):
     buildable.generate_dependency_file()
@@ -128,13 +132,18 @@ class Compilable(Target):
             options=None,
             dependencies=None):
 
+        if not source_files:
+            error_message = f'ERROR: Targt {name} was defined as a {self._class__} but no source files were found'
+            _LOGGER.error(error_message)
+            raise RuntimeError(error_message)
+
         super().__init__(
             name=name,
             targetDirectory=targetDirectory,
             headers=headers,
             include_directories=include_directories,
-            clangpp=clangpp,
             buildType=buildType,
+            clangpp=clangpp,
             options=options,
             dependencies=dependencies)
 
@@ -203,22 +212,25 @@ class Compilable(Target):
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool):
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        neededBuildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
+        self.neededBuildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
 
         # If the target was not modified, it may not need to compile
-        if not neededBuildables:
+        if not self.neededBuildables:
             _LOGGER.info(f'Target [{self.outname}] is already compiled')
             return
 
-        _LOGGER.info(f'Target [{self.outname}] needs to rebuild sources %s', [b.name for b in neededBuildables])
+        _LOGGER.info(f'Target [{self.outname}] needs to rebuild sources %s', [b.name for b in self.neededBuildables])
 
         # Compile
 
         # Execute compile command
         _LOGGER.info(f'Compile target [{self.outname}]')
-        process_pool.map(compile_single_source, neededBuildables)
+        process_pool.map_async(compile_single_source, self.neededBuildables)
 
-        self.unsuccesful_builds = [buildable for buildable in neededBuildables if buildable.compilation_failed]
+
+    def check_for_unsuccesful_builds(self):
+        self.unsuccesful_builds = [buildable for buildable in self.neededBuildables if buildable.compilation_failed]
+        return len(self.unsuccesful_builds) > 0
 
     def link(self):
         # Execute link command
