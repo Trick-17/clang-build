@@ -14,7 +14,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build.build(clang_build.parse_args(['-d', 'test/mwe']))
 
         try:
-            output = subprocess.check_output(['./build/default/main/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
@@ -26,7 +26,7 @@ class TestClangBuild(unittest.TestCase):
         except subprocess.CalledProcessError:
             self.fail('Compilation failed')
         try:
-            output = subprocess.check_output(['./build/default/main/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
@@ -43,7 +43,7 @@ class TestClangBuild(unittest.TestCase):
         logger.addHandler(ch)
         clang_build.build(clang_build.parse_args(['-d', 'test/mwe', '-V']))
         try:
-            output = subprocess.check_output(['./build/default/main/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
@@ -56,7 +56,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build.build(clang_build.parse_args(['-d', 'test/mwe_with_default_folders', '-V']))
 
         try:
-            output = subprocess.check_output(['./build/default/main/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
         calculated_integer, calculated_vector = output.splitlines()
@@ -67,7 +67,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build.build(clang_build.parse_args(['-d', 'test/toml_mwe']))
 
         try:
-            output = subprocess.check_output(['./build/default/myexe/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
@@ -77,7 +77,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build.build(clang_build.parse_args(['-d', 'test/toml_with_custom_folder']))
 
         try:
-            output = subprocess.check_output(['./build/default/myexe/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
@@ -87,7 +87,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build.build(clang_build.parse_args(['-d', 'test/multi_target_external']))
 
         try:
-            output = subprocess.check_output(['./runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
