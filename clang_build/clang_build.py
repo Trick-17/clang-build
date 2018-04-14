@@ -7,7 +7,6 @@ import logging as _logging
 from pathlib2 import Path as _Path
 import textwrap as _textwrap
 import sys
-import subprocess
 from multiprocessing import Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
