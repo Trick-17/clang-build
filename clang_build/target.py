@@ -3,6 +3,7 @@ Target describes a single build or dependency target with all needed paths and
 a list of buildables that comprise it's compile and link steps.
 '''
 
+import os as _os
 from pathlib2 import Path as _Path
 import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
@@ -14,8 +15,7 @@ from .dialect_check import get_max_supported_compiler_dialect as _get_max_suppor
 from .build_type import BuildType as _BuildType
 from .single_source import SingleSource as _SingleSource
 
-_LOGGER = _logging.getLogger('clang_build')
-
+_LOGGER = _logging.getLogger('clang_build.clang_build')
 
 class Target:
     DEFAULT_COMPILE_FLAGS = ['-Wall', '-Werror']
@@ -31,7 +31,8 @@ class Target:
 
     def __init__(self,
             name,
-            targetDirectory,
+            rootDirectory,
+            buildDirectory,
             headers,
             include_directories,
             buildType,
@@ -47,10 +48,12 @@ class Target:
         self.dependencyTargets = dependencies
 
         # Basics
-        self.name            = name
-        self.targetDirectory = targetDirectory
-        self.root            = _Path('')
-        self.buildType = buildType
+        self.name          = name
+        self.rootDirectory = rootDirectory
+        self.root          = _Path('')
+        self.buildType     = buildType
+
+        self.buildDirectory = buildDirectory.joinpath(self.name, self.buildType.name.lower())
 
         self.headers = headers
         self.includeDirectories = include_directories
@@ -60,7 +63,23 @@ class Target:
         else:
             self.dialect = _get_max_supported_compiler_dialect(clangpp)
 
-        self.external = options.get('extern', False)
+        # TODO: parse user-specified target version
+
+        # If target is marked as external, try to fetch the sources
+        self.external = options.get('external', False)
+        if self.external:
+            downloaddir = buildDirectory.joinpath('external_sources')
+            # Check if directory is already present and non-empty
+            if downloaddir.exists() and _os.listdir(str(downloaddir)):
+                _LOGGER.info(f'External target {self.name}: sources found in {str(downloaddir)}')
+            # Otherwise we download the sources
+            else:
+                _LOGGER.info(f'External target {self.name}: downloading to {str(downloaddir)}')
+                downloaddir.mkdir(parents=True, exist_ok=True)
+                _subprocess.call(["git", "clone", options["url"], str(downloaddir)])
+                _LOGGER.info(f'External target {self.name}: downloaded')
+            # TODO: includeDirectories.append(downloaddir)
+            self.rootDirectory = downloaddir
 
         compileFlags        = Target.DEFAULT_COMPILE_FLAGS
         compileFlagsDebug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
@@ -117,14 +136,14 @@ class Compilable(Target):
 
     def __init__(self,
             name,
-            targetDirectory,
+            rootDirectory,
+            buildDirectory,
             headers,
             include_directories,
             source_files,
             buildType,
             clangpp,
             link_command,
-            buildDirectory,
             output_folder,
             platform_flags,
             prefix,
@@ -139,7 +158,8 @@ class Compilable(Target):
 
         super().__init__(
             name=name,
-            targetDirectory=targetDirectory,
+            rootDirectory=rootDirectory,
+            buildDirectory=buildDirectory,
             headers=headers,
             include_directories=include_directories,
             buildType=buildType,
@@ -151,8 +171,6 @@ class Compilable(Target):
             options = {}
         if dependencies is None:
             dependencies = []
-
-        self.buildDirectory      = buildDirectory.joinpath(self.buildType.name.lower(), self.name)
 
         self.objectDirectory     = self.buildDirectory.joinpath('obj')
         self.depfileDirectory    = self.buildDirectory.joinpath('dep')
@@ -180,7 +198,7 @@ class Compilable(Target):
         self.buildables = [_SingleSource(
             sourceFile=sourceFile,
             platformFlags=platform_flags,
-            current_target_root_path=self.targetDirectory.joinpath(self.root),
+            current_target_root_path=self.rootDirectory.joinpath(self.root),
             depfileDirectory=self.depfileDirectory,
             objectDirectory=self.objectDirectory,
             include_strings=self.get_include_directory_command(),
@@ -209,6 +227,16 @@ class Compilable(Target):
             if not target.__class__ is HeaderOnly:
                 self.linkCommand += ['-l'+target.outname]
 
+        ### Additional scripts
+        self.beforeCompileScript = ""
+        self.beforeLinkScript    = ""
+        self.afterBuildScript    = ""
+        if 'scripts' in options: ### TODO: maybe the scripts should be named differently
+            if 'before_compile' in config['scripts']:
+                self.beforeCompileScript = _Path(self.rootDirectory, "/", config['scripts']['before_compile'])
+                self.beforeLinkScript    = _Path(self.rootDirectory, "/", config['scripts']['before_link'])
+                self.afterBuildScript    = _Path(self.rootDirectory, "/", config['scripts']['after_build'])
+
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool):
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
@@ -216,15 +244,25 @@ class Compilable(Target):
 
         # If the target was not modified, it may not need to compile
         if not self.neededBuildables:
-            _LOGGER.info(f'Target [{self.outname}] is already compiled')
+            _LOGGER.info(f'Target [{self.name}] is already compiled')
             return
 
-        _LOGGER.info(f'Target [{self.outname}] needs to rebuild sources %s', [b.name for b in self.neededBuildables])
+        _LOGGER.info(f'Target [{self.name}] needs to rebuild sources %s', [b.name for b in self.neededBuildables])
+
+        # Before-compile step
+        if self.beforeCompileScript and not self.compiled:
+            _LOGGER.info(f'Pre-compile step of target [{self.name}]')
+            originalDir = os.getcwd()
+            newDir, _ = os.path.split(self.beforeCompileScript)
+            os.chdir(newDir)
+            execfile(self.beforeCompileScript)
+            os.chdir(originalDir)
+            _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
 
         # Compile
 
         # Execute compile command
-        _LOGGER.info(f'Compile target [{self.outname}]')
+        _LOGGER.info(f'Compile target [{self.name}]')
         process_pool.map_async(compile_single_source, self.neededBuildables)
 
 
@@ -233,35 +271,54 @@ class Compilable(Target):
         return len(self.unsuccesful_builds) > 0
 
     def link(self):
+        # Before-link step
+        if self.beforeLinkScript:
+            _LOGGER.info(f'Pre-link step of target [{self.name}]')
+            originalDir = os.getcwd()
+            newDir, _ = os.path.split(self.beforeCompileScript)
+            os.chdir(newDir)
+            execfile(self.beforeLinkScript)
+            os.chdir(originalDir)
+            _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
         # Execute link command
-        _LOGGER.info(f'Link target [{self.outname}]')
+        _LOGGER.info(f'Link target [{self.name}]')
         # TODO: Capture output
+        _LOGGER.debug('    ' + ' '.join(self.linkCommand))
         _subprocess.call(self.linkCommand)
+        # After-build step
+        if self.afterBuildScript:
+            _LOGGER.info(f'After-build step of target [{self.name}]')
+            originalDir = os.getcwd()
+            newDir, _ = os.path.split(self.beforeCompileScript)
+            os.chdir(newDir)
+            execfile(self.afterBuildScript)
+            os.chdir(originalDir)
+            _LOGGER.info(f'Finished after-build step of target [{self.name}]')
 
 
 class Executable(Compilable):
     def __init__(self,
             name,
-            targetDirectory,
+            rootDirectory,
+            buildDirectory,
             headers,
             include_directories,
             source_files,
             buildType,
             clangpp,
-            buildDirectory,
             options=None,
             dependencies=None):
 
         super().__init__(
             name=name,
-            targetDirectory=targetDirectory,
+            rootDirectory=rootDirectory,
+            buildDirectory=buildDirectory,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
             buildType=buildType,
             clangpp=clangpp,
             link_command=[clangpp, '-o'],
-            buildDirectory=buildDirectory,
             output_folder = _platform.EXECUTABLE_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
             prefix=_platform.EXECUTABLE_PREFIX,
@@ -273,26 +330,26 @@ class Executable(Compilable):
 class SharedLibrary(Compilable):
     def __init__(self,
             name,
-            targetDirectory,
+            rootDirectory,
+            buildDirectory,
             headers,
             include_directories,
             source_files,
             buildType,
             clangpp,
-            buildDirectory,
             options=None,
             dependencies=None):
 
         super().__init__(
             name=name,
-            targetDirectory=targetDirectory,
+            rootDirectory=rootDirectory,
+            buildDirectory=buildDirectory,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
             buildType=buildType,
             clangpp=clangpp,
             link_command=[clangpp, '-shared' '-o'],
-            buildDirectory=buildDirectory,
             output_folder = _platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
@@ -304,27 +361,27 @@ class SharedLibrary(Compilable):
 class StaticLibrary(Compilable):
     def __init__(self,
             name,
-            targetDirectory,
+            rootDirectory,
+            buildDirectory,
             headers,
             include_directories,
             source_files,
             buildType,
             clangpp,
             clang_ar,
-            buildDirectory,
             options=None,
             dependencies=None):
 
         super().__init__(
             name=name,
-            targetDirectory=targetDirectory,
+            rootDirectory=rootDirectory,
+            buildDirectory=buildDirectory,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
             buildType=buildType,
             clangpp=clangpp,
             link_command=[clang_ar, 'rc'],
-            buildDirectory=buildDirectory,
             output_folder = _platform.STATIC_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,

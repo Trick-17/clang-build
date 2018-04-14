@@ -101,6 +101,7 @@ def main():
 def build(args, progress=False):
     logger = _logging.getLogger(__name__)
     logger.info(f'clang-build {__version__}')
+
     # Check for clang++ executable
     clangpp = _which('clang++')
     clang_ar = _which('llvm-ar')
@@ -114,10 +115,9 @@ def build(args, progress=False):
         sys.exit(1)
 
     logger.info(f'llvm root directory: {llvm_root}')
-    logger.info(f'clang++ executable: {clangpp}')
-    logger.info(f'llvm-ar executable: {clang_ar}')
+    logger.info(f'clang++ executable:  {clangpp}')
+    logger.info(f'llvm-ar executable:  {clang_ar}')
     logger.info(f'Newest supported C++ dialect: {_get_max_supported_compiler_dialect(clangpp)}')
-
 
     # Directory this was called from
     callingdir = _Path().resolve()
@@ -168,90 +168,90 @@ def build(args, progress=False):
 
         target_names = _get_dependency_walk(config)
 
-
-        for nodename in target_names:
-            node = config[nodename]
-            files = _get_sources_and_headers(node, workingdir)
-            dependencies = [target_list[target_names.index(name)] for name in node.get('dependencies', [])]
+        for target_name in target_names:
+            project_node = config[target_name]
+            files = _get_sources_and_headers(project_node, workingdir)
+            dependencies = [target_list[target_names.index(name)] for name in project_node.get('dependencies', [])]
             executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
             if executable_dependencies:
                 logger.error(f'Error: The following targets are linking dependencies but were identified as executables: {executable_dependencies}')
 
-            target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(nodename)
+            target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(target_name)
 
             #
             # TODO: Consider if some of the error handling should be done by the classes themselves
             #
 
-            if 'target_type' in node:
+            if 'target_type' in project_node:
                 #
                 # Add a shared library
                 #
-                if node['target_type'].lower() == 'sharedlibrary':
+                if project_node['target_type'].lower() == 'sharedlibrary':
                     target_list.append(
                         _SharedLibrary(
-                            nodename,
+                            target_name,
                             workingdir,
+                            target_build_dir,
                             files['headers'],
                             files['include_directories'],
                             files['sourcefiles'],
                             buildType,
                             clangpp,
-                            target_build_dir,
-                            node,
+                            project_node,
                             dependencies))
 
                 #
                 # Add a static library
                 #
-                elif node['target_type'].lower() == 'staticlibrary':
+                elif project_node['target_type'].lower() == 'staticlibrary':
                     target_list.append(
                         _StaticLibrary(
-                            nodename,
+                            target_name,
                             workingdir,
+                            target_build_dir,
                             files['headers'],
                             files['include_directories'],
                             files['sourcefiles'],
                             buildType,
                             clangpp,
                             clang_ar,
-                            target_build_dir,
-                            node,
+                            project_node,
                             dependencies))
 
                 #
                 # Here we could allow other custom defined targets?
                 #
                 else:
-                    logger.error(f'ERROR: Unsupported target type: {node["target_type"]}')
+                    logger.error(f'ERROR: Unsupported target type: {project_node["target_type"]}')
 
             # No target specified so must be executable or header only
             else:
                 if not files['sourcefiles']:
-                    logger.info(f'No source files found for target {nodename}. Creating header-only target.')
+                    logger.info(f'No source files found for target {target_name}. Creating header-only target.')
                     target_list.append(
                         _HeaderOnly(
-                            nodename,
+                            target_name,
                             workingdir,
+                            target_build_dir,
                             files['headers'],
                             files['include_directories'],
                             clangpp,
                             buildType,
-                            node,
+                            project_node,
                             dependencies))
                 else:
-                    logger.info(f'{len(files["sourcefiles"])} source files found for target {nodename}. Creating executable target.')
+                    logger.info(f'{len(files["sourcefiles"])} source files found for target {target_name}. Creating executable target.')
                     target_list.append(
                         _Executable(
-                            nodename,
+                            target_name,
                             workingdir,
+                            target_build_dir,
                             files['headers'],
                             files['include_directories'],
                             files['sourcefiles'],
                             buildType,
                             clangpp,
-                            target_build_dir,
-                            node,
+                            project_node,
                             dependencies))
 
 
@@ -268,12 +268,12 @@ def build(args, progress=False):
             _Executable(
                 'main',
                 workingdir,
+                build_directory,
                 files['headers'],
                 files['include_directories'],
                 files['sourcefiles'],
                 buildType,
-                clangpp,
-                build_directory))
+                clangpp))
 
     # Build the targets
     logger.info('Compile')
