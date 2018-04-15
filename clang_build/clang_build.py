@@ -171,20 +171,14 @@ def build(args, progress=False):
         for target_name in target_names:
             project_node = config[target_name]
             # Directories
-            targetDirectory = workingdir
-            relativeTargetDirectory = _Path(target_name)
-            if 'directory' in project_node:
-                relativeTargetDirectory = project_node['directory']
-            targetDirectory = targetDirectory.joinpath(relativeTargetDirectory)
             target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(target_name)
             # Sources
-            files = _get_sources_and_headers(project_node, targetDirectory)
+            files = _get_sources_and_headers(project_node, workingdir, target_build_dir)
             # Dependencies
             dependencies = [target_list[target_names.index(name)] for name in project_node.get('dependencies', [])]
             executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
             if executable_dependencies:
                 logger.error(f'Error: The following targets are linking dependencies but were identified as executables: {executable_dependencies}')
-
 
             #
             # TODO: Consider if some of the error handling should be done by the classes themselves
@@ -265,7 +259,7 @@ def build(args, progress=False):
 
     # Otherwise we try to build it as a simple hello world or mwe project
     else:
-        files = _get_sources_and_headers({}, workingdir)
+        files = _get_sources_and_headers({}, workingdir, build_directory)
 
         if not files['sourcefiles']:
             error_message = f'Error, no sources and no [clang-build.toml] found in folder: {workingdir}'

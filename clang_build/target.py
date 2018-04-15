@@ -31,7 +31,7 @@ class Target:
 
     def __init__(self,
             name,
-            rootDirectory,
+            working_directory,
             buildDirectory,
             headers,
             include_directories,
@@ -48,18 +48,20 @@ class Target:
         self.dependencyTargets = dependencies
 
         # Basics
-        self.name          = name
-        self.rootDirectory = rootDirectory
-        self.root          = _Path('')
-        self.buildType     = buildType
+        self.name           = name
+        self.root_directory = _Path(working_directory)
+        self.buildType      = buildType
 
         self.buildDirectory = buildDirectory.joinpath(buildType.name.lower())
 
         self.headers = headers
 
+        if 'directory' in options:
+            self.root_directory = self.root_directory.joinpath(options['directory'])
+
         self.includeDirectories = []
-        if rootDirectory.joinpath('include').exists():
-            self.includeDirectories.append(rootDirectory.joinpath('include'))
+        if self.root_directory.joinpath('include').exists():
+            self.includeDirectories.append(self.root_directory.joinpath('include'))
         self.includeDirectories += include_directories
 
         if 'properties' in options and 'cpp_version' in options['properties']:
@@ -70,6 +72,7 @@ class Target:
         # TODO: parse user-specified target version
 
         # If target is marked as external, try to fetch the sources
+        ### TODO: external sources should be fetched before any sources are read in, i.e. even before targets are created
         self.external = options.get('external', False)
         if self.external:
             downloaddir = buildDirectory.joinpath('external_sources')
@@ -83,7 +86,7 @@ class Target:
                 _subprocess.call(["git", "clone", options["url"], str(downloaddir)])
                 _LOGGER.info(f'External target {self.name}: downloaded')
             self.includeDirectories.append(downloaddir)
-            self.rootDirectory = downloaddir
+            self.root_directory = downloaddir
 
         compileFlags        = Target.DEFAULT_COMPILE_FLAGS
         compileFlagsDebug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
@@ -146,7 +149,7 @@ class Compilable(Target):
 
     def __init__(self,
             name,
-            rootDirectory,
+            working_directory,
             buildDirectory,
             headers,
             include_directories,
@@ -168,7 +171,7 @@ class Compilable(Target):
 
         super().__init__(
             name=name,
-            rootDirectory=rootDirectory,
+            working_directory=working_directory,
             buildDirectory=buildDirectory,
             headers=headers,
             include_directories=include_directories,
@@ -208,7 +211,7 @@ class Compilable(Target):
         self.buildables = [_SingleSource(
             sourceFile=sourceFile,
             platformFlags=platform_flags,
-            current_target_root_path=self.rootDirectory.joinpath(self.root),
+            current_target_root_path=self.root_directory,
             depfileDirectory=self.depfileDirectory,
             objectDirectory=self.objectDirectory,
             include_strings=self.get_include_directory_command(),
@@ -243,9 +246,9 @@ class Compilable(Target):
         self.afterBuildScript    = ""
         if 'scripts' in options: ### TODO: maybe the scripts should be named differently
             if 'before_compile' in config['scripts']:
-                self.beforeCompileScript = _Path(self.rootDirectory, "/", config['scripts']['before_compile'])
-                self.beforeLinkScript    = _Path(self.rootDirectory, "/", config['scripts']['before_link'])
-                self.afterBuildScript    = _Path(self.rootDirectory, "/", config['scripts']['after_build'])
+                self.beforeCompileScript = _Path(self.root_directory, config['scripts']['before_compile'])
+                self.beforeLinkScript    = _Path(self.root_directory, config['scripts']['before_link'])
+                self.afterBuildScript    = _Path(self.root_directory, config['scripts']['after_build'])
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool):
@@ -309,7 +312,7 @@ class Compilable(Target):
 class Executable(Compilable):
     def __init__(self,
             name,
-            rootDirectory,
+            working_directory,
             buildDirectory,
             headers,
             include_directories,
@@ -321,7 +324,7 @@ class Executable(Compilable):
 
         super().__init__(
             name=name,
-            rootDirectory=rootDirectory,
+            working_directory=working_directory,
             buildDirectory=buildDirectory,
             headers=headers,
             include_directories=include_directories,
@@ -340,7 +343,7 @@ class Executable(Compilable):
 class SharedLibrary(Compilable):
     def __init__(self,
             name,
-            rootDirectory,
+            working_directory,
             buildDirectory,
             headers,
             include_directories,
@@ -352,7 +355,7 @@ class SharedLibrary(Compilable):
 
         super().__init__(
             name=name,
-            rootDirectory=rootDirectory,
+            working_directory=working_directory,
             buildDirectory=buildDirectory,
             headers=headers,
             include_directories=include_directories,
@@ -371,7 +374,7 @@ class SharedLibrary(Compilable):
 class StaticLibrary(Compilable):
     def __init__(self,
             name,
-            rootDirectory,
+            working_directory,
             buildDirectory,
             headers,
             include_directories,
@@ -384,7 +387,7 @@ class StaticLibrary(Compilable):
 
         super().__init__(
             name=name,
-            rootDirectory=rootDirectory,
+            working_directory=working_directory,
             buildDirectory=buildDirectory,
             headers=headers,
             include_directories=include_directories,

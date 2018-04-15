@@ -9,6 +9,14 @@ from multiprocessing import freeze_support
 
 from clang_build import clang_build
 
+
+def on_rm_error( func, path, exc_info):
+    # path contains the path of the file that couldn't be removed
+    # let's just assume that it's read-only and unlink it.
+    os.chmod( path, stat.S_IWRITE )
+    os.unlink( path )
+
+
 class TestClangBuild(unittest.TestCase):
     def test_hello_world_mwe(self):
         clang_build.build(clang_build.parse_args(['-d', 'test/mwe']))
@@ -31,7 +39,6 @@ class TestClangBuild(unittest.TestCase):
             self.fail('Could not run compiled program')
 
         self.assertEqual(output, 'Hello!')
-
 
     def test_hello_world_rebuild(self):
         clang_build.build(clang_build.parse_args(['-d', 'test/mwe']))
@@ -67,7 +74,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build.build(clang_build.parse_args(['-d', 'test/toml_mwe']))
 
         try:
-            output = subprocess.check_output(['./build/myexe/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
@@ -77,7 +84,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build.build(clang_build.parse_args(['-d', 'test/toml_with_custom_folder']))
 
         try:
-            output = subprocess.check_output(['./build/myexe/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
@@ -95,16 +102,7 @@ class TestClangBuild(unittest.TestCase):
 
     def tearDown(self):
         if pathlib2.Path('build').exists():
-            shutil.rmtree('build')
-
-        if pathlib2.Path('main').exists():
-            pathlib2.Path('main').unlink()
-
-        if pathlib2.Path('runHello').exists():
-            pathlib2.Path('runHello').unlink()
-
-        if pathlib2.Path('clang-build.log').exists():
-            pathlib2.Path('clang-build.log').unlink()
+            shutil.rmtree('build', onerror = on_rm_error)
 
 
 if __name__ == '__main__':

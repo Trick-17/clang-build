@@ -15,16 +15,24 @@ def _get_source_files(folder):
 
     return sources
 
-def get_sources_and_headers(project, target_directory):
+def get_sources_and_headers(target_options, working_directory, target_build_directory):
     output = {'headers': [], 'include_directories': [], 'sourcefiles': []}
-    root = _Path('')
     relative_includes = []
     relative_source_directories = []
-    if 'sources' in project:
-        sourcenode = project['sources']
 
-        if 'root' in sourcenode:
-            root = _Path(sourcenode['root'])
+    # TODO: maybe the output should also include the root dir, build dir and potentially download dir?
+
+    # Root directory of target source tree
+    target_root = _Path(working_directory)
+
+    if target_options.get('external', False):
+        target_root = target_root.joinpath(target_build_directory, 'external_sources')
+
+    if 'directory' in target_options:
+        target_root = target_root.joinpath(target_options['directory'])
+
+    if 'sources' in target_options:
+        sourcenode = target_options['sources']
 
         if 'include_directories' in sourcenode:
             relative_includes = [_Path(file) for file in sourcenode['include_directories']]
@@ -41,14 +49,14 @@ def get_sources_and_headers(project, target_directory):
         relative_source_directories = [_Path(''), _Path('src')]
 
     # Find headers
-    output['include_directories'] = list(set(target_directory.joinpath(root, file) for file in relative_includes))
+    output['include_directories'] = list(set(working_directory.joinpath(target_root, file) for file in relative_includes))
 
     for directory in output['include_directories']:
         output['headers'] += _get_header_files(directory)
 
     output['headers'] = list(set(output['headers']))
     # Find source files
-    source_directories = list(set(target_directory.joinpath(root, file) for file in relative_source_directories))
+    source_directories = list(set(working_directory.joinpath(target_root, file) for file in relative_source_directories))
 
     for directory in set(source_directories):
         output['sourcefiles'] += _get_source_files(directory)
