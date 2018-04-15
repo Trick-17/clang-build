@@ -21,7 +21,7 @@ install:
 test_script:
   # test/hello
   - "%PYTHON%/python setup.py develop"
-  - "%PYTHON%/python setup.py test"
+  - "%PYTHON%/python -m unittest"
   #- "%PYTHON%/python setup.py develop"
   #- "clang-build -d\"test/hello\" -V"
   #- 'build\main.exe'
