@@ -144,8 +144,10 @@ def build(args, progress_disabled=True):
             workingdir = callingdir
 
         if not workingdir.exists():
+            error_message(f'ERROR: specified non-existent directory [{workingdir}]')
             logger.error(f'ERROR: specified non-existent directory [{workingdir}]')
-            sys.exit(1)
+            raise RuntimeError(f'ERROR: specified non-existent directory [{workingdir}]')
+
 
         logger.info(f'Working directory: {workingdir}')
 

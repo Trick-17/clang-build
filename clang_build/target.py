@@ -84,7 +84,12 @@ class Target:
             else:
                 _LOGGER.info(f'External target {self.name}: downloading to {str(downloaddir)}')
                 downloaddir.mkdir(parents=True, exist_ok=True)
-                _subprocess.call(["git", "clone", options["url"], str(downloaddir)])
+                try:
+                    _subprocess.run(["git", "clone", options["url"], str(downloaddir)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                except _subprocess.CalledProcessError as e:
+                    error_message = f"Error trying to download external target {self.name}. Message " + e.output
+                    _LOGGER.exception(error_message)
+                    raise RuntimeError(error_message)
                 _LOGGER.info(f'External target {self.name}: downloaded')
             self.includeDirectories.append(downloaddir)
             self.root_directory = downloaddir
