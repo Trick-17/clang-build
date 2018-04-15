@@ -14,6 +14,7 @@ from .dialect_check import get_dialect_string as _get_dialect_string
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .single_source import SingleSource as _SingleSource
+from .progress_bar import BuildProgressBar as _BuildProgressBar
 
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
@@ -114,6 +115,8 @@ class Target:
         self.includeDirectories = list(set(self.includeDirectories))
         self.headers = list(set(self.headers))
 
+        self.unsuccesful_builds = []
+
     def get_include_directory_command(self):
         return [f'-I{dir}' for dir in self.includeDirectories]
 
@@ -121,7 +124,7 @@ class Target:
         # Subclasses must implement
         raise NotImplementedError()
 
-    def compile(self, process_pool):
+    def compile(self, process_pool, progress):
         # Subclasses must implement
         raise NotImplementedError()
 
@@ -133,7 +136,7 @@ class HeaderOnly(Target):
     def link(self):
         _LOGGER.info(f'Header-only target {self.name} does not require linking.')
 
-    def compile(self, process_pool):
+    def compile(self, process_pool, progress):
         _LOGGER.info(f'Header-only target {self.name} does not require compiling.')
 
     def check_for_unsuccesful_builds(self):
@@ -241,17 +244,20 @@ class Compilable(Target):
                 self.linkCommand += ['-l'+target.outname]
 
         ### Additional scripts
-        self.beforeCompileScript = ""
-        self.beforeLinkScript    = ""
-        self.afterBuildScript    = ""
-        if 'scripts' in options: ### TODO: maybe the scripts should be named differently
-            if 'before_compile' in config['scripts']:
-                self.beforeCompileScript = _Path(self.root_directory, config['scripts']['before_compile'])
-                self.beforeLinkScript    = _Path(self.root_directory, config['scripts']['before_link'])
-                self.afterBuildScript    = _Path(self.root_directory, config['scripts']['after_build'])
+        #self.beforeCompileScript = ""
+        #self.beforeLinkScript    = ""
+        #self.afterBuildScript    = ""
+        #if 'scripts' in options: ### TODO: maybe the scripts should be named differently
+        #    if 'before_compile' in config['scripts']:
+        #        self.beforeCompileScript = _Path(self.root_directory, config['scripts']['before_compile'])
+        #        self.beforeLinkScript    = _Path(self.root_directory, config['scripts']['before_link'])
+        #        self.afterBuildScript    = _Path(self.root_directory, config['scripts']['after_build'])
+
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
-    def compile(self, process_pool):
+    def compile(self, process_pool, progress):
+
+
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
         self.neededBuildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
 
@@ -263,50 +269,55 @@ class Compilable(Target):
         _LOGGER.info(f'Target [{self.name}] needs to rebuild sources %s', [b.name for b in self.neededBuildables])
 
         # Before-compile step
-        if self.beforeCompileScript and not self.compiled:
-            _LOGGER.info(f'Pre-compile step of target [{self.name}]')
-            originalDir = os.getcwd()
-            newDir, _ = os.path.split(self.beforeCompileScript)
-            os.chdir(newDir)
-            execfile(self.beforeCompileScript)
-            os.chdir(originalDir)
-            _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
+        #if self.beforeCompileScript and not self.compiled:
+        #    _LOGGER.info(f'Pre-compile step of target [{self.name}]')
+        #    originalDir = os.getcwd()
+        #    newDir, _ = os.path.split(self.beforeCompileScript)
+        #    os.chdir(newDir)
+        #    execfile(self.beforeCompileScript)
+        #    os.chdir(originalDir)
+        #    _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
 
         # Compile
 
         # Execute compile command
-        _LOGGER.info(f'Compile target [{self.name}]')
-        process_pool.map_async(compile_single_source, self.neededBuildables)
+        _LOGGER.info(f'Compile target [{self.outname}]')
+        list(
+            _BuildProgressBar(
+                progress,
+                process_pool.imap(
+                    compile_single_source,
+                    self.neededBuildables),
+                total=len(self.neededBuildables)))
 
 
-    def check_for_unsuccesful_builds(self):
         self.unsuccesful_builds = [buildable for buildable in self.neededBuildables if buildable.compilation_failed]
-        return len(self.unsuccesful_builds) > 0
+
 
     def link(self):
         # Before-link step
-        if self.beforeLinkScript:
-            _LOGGER.info(f'Pre-link step of target [{self.name}]')
-            originalDir = os.getcwd()
-            newDir, _ = os.path.split(self.beforeCompileScript)
-            os.chdir(newDir)
-            execfile(self.beforeLinkScript)
-            os.chdir(originalDir)
-            _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
+        #if self.beforeLinkScript:
+        #    _LOGGER.info(f'Pre-link step of target [{self.name}]')
+        #    originalDir = os.getcwd()
+        #    newDir, _ = os.path.split(self.beforeCompileScript)
+        #    os.chdir(newDir)
+        #    execfile(self.beforeLinkScript)
+        #    os.chdir(originalDir)
+        #    _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
         # Execute link command
         _LOGGER.info(f'Link target [{self.name}]')
         # TODO: Capture output
         _LOGGER.debug('    ' + ' '.join(self.linkCommand))
         _subprocess.call(self.linkCommand)
-        # After-build step
-        if self.afterBuildScript:
-            _LOGGER.info(f'After-build step of target [{self.name}]')
-            originalDir = os.getcwd()
-            newDir, _ = os.path.split(self.beforeCompileScript)
-            os.chdir(newDir)
-            execfile(self.afterBuildScript)
-            os.chdir(originalDir)
-            _LOGGER.info(f'Finished after-build step of target [{self.name}]')
+        ## After-build step
+        #if self.afterBuildScript:
+        #    _LOGGER.info(f'After-build step of target [{self.name}]')
+        #    originalDir = os.getcwd()
+        #    newDir, _ = os.path.split(self.beforeCompileScript)
+        #    os.chdir(newDir)
+        #    execfile(self.afterBuildScript)
+        #    os.chdir(originalDir)
+        #    _LOGGER.info(f'Finished after-build step of target [{self.name}]')
 
 
 class Executable(Compilable):

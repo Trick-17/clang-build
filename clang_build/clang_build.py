@@ -7,7 +7,7 @@ import logging as _logging
 from pathlib2 import Path as _Path
 import textwrap as _textwrap
 import sys
-from multiprocessing import Pool
+from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
 from shutil import which as _which
@@ -26,6 +26,8 @@ from .dependency_tools import find_circular_dependencies as _find_circular_depen
                               find_non_existent_dependencies as _find_non_existent_dependencies,\
                               get_dependency_walk as _get_dependency_walk
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
+from .progress_bar import CategoryProgressBar as _CategoryProgressBar
+from .logging_stream_handler import TqdmHandler as _TqdmHandler
 
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
@@ -47,7 +49,7 @@ def _setup_logger(log_level=None):
     logger.addHandler(fh)
 
     if log_level is not None:
-        ch = _logging.StreamHandler()
+        ch = _TqdmHandler()
         ch.setLevel(log_level)
         ch.setFormatter(formatter)
         logger.addHandler(ch)
@@ -77,33 +79,8 @@ def parse_args(args):
     return parser.parse_args(args=args)
 
 
-def main():
-    args = parse_args(sys.argv[1:])
-
-    progress = False
-    # Verbosity
-    if not args.debug:
-        if args.verbose:
-            _setup_logger(_logging.INFO)
-        else:
-            # Only file log
-            _setup_logger(None)
-            if args.progress:
-                progress = True
-    else:
-        _setup_logger(_logging.DEBUG)
-
-    #
-    # TODO: create try except around build and deal with it.
-    #
-    build(args, progress)
-
-def build(args, progress=False):
-    logger = _logging.getLogger(__name__)
-    logger.info(f'clang-build {__version__}')
-
-    # Check for clang++ executable
-    clangpp  = _which('clang++')
+def _find_clang(logger):
+    clangpp = _which('clang++')
     clang_ar = _which('llvm-ar')
     if clangpp:
         llvm_root = _Path(clangpp).parents[0]
@@ -115,191 +92,228 @@ def build(args, progress=False):
         sys.exit(1)
 
     logger.info(f'llvm root directory: {llvm_root}')
-    logger.info(f'clang++ executable:  {clangpp}')
-    logger.info(f'llvm-ar executable:  {clang_ar}')
+    logger.info(f'clang++ executable: {clangpp}')
+    logger.info(f'llvm-ar executable: {clang_ar}')
     logger.info(f'Newest supported C++ dialect: {_get_max_supported_compiler_dialect(clangpp)}')
 
-    # Directory this was called from
-    callingdir = _Path().resolve()
+    return clangpp, clang_ar
 
-    # Working directory is where the project root should be - this is searched for 'clang-build.toml'
-    if args.directory:
-        workingdir = args.directory.resolve()
+
+def main():
+    args = parse_args(sys.argv[1:])
+
+    progress_disabled = True
+    # Verbosity
+    if not args.debug:
+        if args.verbose:
+            _setup_logger(_logging.INFO)
+        else:
+            # Only file log
+            _setup_logger(None)
     else:
-        workingdir = callingdir
+        _setup_logger(_logging.DEBUG)
 
-    if not workingdir.exists():
-        logger.error(f'ERROR: specified non-existent directory [{workingdir}]')
-        sys.exit(1)
+    if args.progress:
+        progress_disabled = False
 
-    logger.info(f'Working directory: {workingdir}')
+    #
+    # TODO: create try except around build and deal with it.
+    #
+    build(args, progress_disabled)
 
-    # Build type (Default, Release, Debug)
-    buildType = args.build_type
-    logger.info(f'Build type: {buildType.name}')
+def build(args, progress_disabled=True):
+    logger = _logging.getLogger(__name__)
+    logger.info(f'clang-build {__version__}')
 
-    # Multiprocessing pool
-    processpool = Pool(processes = args.jobs)
-    logger.info(f'Running up to {args.jobs} concurrent build jobs')
+    messages = ['Configure', 'Compile', 'Link']
 
-    build_directory = _Path('build')
-    target_list = []
+    with _CategoryProgressBar(messages, progress_disabled) as progress_bar:
+        logger = _logging.getLogger(__name__)
+        logger.info(f'clang-build {__version__}')
 
-    # Check for build configuration toml file
-    toml_file = _Path(workingdir, 'clang-build.toml')
-    if toml_file.exists():
-        logger.info('Found config file')
-        config = toml.load(str(toml_file))
+        # Check for clang++ executable
+        clangpp, clang_ar = _find_clang(logger)
 
-        # Use sub-build directories if multiple targets
-        subbuilddirs = False
-        if len(config.items()) > 1:
-            subbuilddirs = True
+        # Directory this was called from
+        callingdir = _Path().resolve()
 
-        # Parse targets from toml file
-        non_existent_dependencies = _find_non_existent_dependencies(config)
-        if non_existent_dependencies:
-            error_messages = [f'In {target}: the dependency {dependency} does not point to a valid target' for\
-                              target, dependency in non_existent_dependencies]
+        # Working directory is where the project root should be - this is searched for 'clang-build.toml'
+        if args.directory:
+            workingdir = args.directory.resolve()
+        else:
+            workingdir = callingdir
 
-            error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
-            logger.error(error_message)
+        if not workingdir.exists():
+            logger.error(f'ERROR: specified non-existent directory [{workingdir}]')
             sys.exit(1)
 
-        target_names = _get_dependency_walk(config)
+        logger.info(f'Working directory: {workingdir}')
 
-        for target_name in target_names:
-            project_node = config[target_name]
-            # Directories
-            target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(target_name)
-            # Sources
-            files = _get_sources_and_headers(project_node, workingdir, target_build_dir)
-            # Dependencies
-            dependencies = [target_list[target_names.index(name)] for name in project_node.get('dependencies', [])]
-            executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
-            if executable_dependencies:
-                logger.error(f'Error: The following targets are linking dependencies but were identified as executables: {executable_dependencies}')
+        # Build type (Default, Release, Debug)
+        buildType = args.build_type
+        logger.info(f'Build type: {buildType.name}')
 
-            #
-            # TODO: Consider if some of the error handling should be done by the classes themselves
-            #
+        # Multiprocessing pool
+        processpool = _Pool(processes = args.jobs)
+        logger.info(f'Running up to {args.jobs} concurrent build jobs')
 
-            if 'target_type' in project_node:
-                #
-                # Add a shared library
-                #
-                if project_node['target_type'].lower() == 'sharedlibrary':
-                    target_list.append(
-                        _SharedLibrary(
-                            target_name,
-                            workingdir,
-                            target_build_dir,
-                            files['headers'],
-                            files['include_directories'],
-                            files['sourcefiles'],
-                            buildType,
-                            clangpp,
-                            project_node,
-                            dependencies))
+        build_directory = _Path('build')
+        target_list = []
 
-                #
-                # Add a static library
-                #
-                elif project_node['target_type'].lower() == 'staticlibrary':
-                    target_list.append(
-                        _StaticLibrary(
-                            target_name,
-                            workingdir,
-                            target_build_dir,
-                            files['headers'],
-                            files['include_directories'],
-                            files['sourcefiles'],
-                            buildType,
-                            clangpp,
-                            clang_ar,
-                            project_node,
-                            dependencies))
+        # Check for build configuration toml file
+        toml_file = _Path(workingdir, 'clang-build.toml')
+        if toml_file.exists():
+            logger.info('Found config file')
+            config = toml.load(str(toml_file))
 
-                #
-                # Here we could allow other custom defined targets?
-                #
+            # Use sub-build directories if multiple targets
+            subbuilddirs = False
+            if len(config.items()) > 1:
+                subbuilddirs = True
+
+            # Parse targets from toml file
+            non_existent_dependencies = _find_non_existent_dependencies(config)
+            if non_existent_dependencies:
+                error_messages = [f'In {target}: the dependency {dependency} does not point to a valid target' for\
+                                target, dependency in non_existent_dependencies]
+
+                error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+                logger.error(error_message)
+                sys.exit(1)
+
+            target_names = _get_dependency_walk(config)
+
+            for target_name in _CategoryProgressBar(target_names, progress_disabled):
+                project_node = config[target_name]
+                # Directories
+                target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(target_name)
+                # Sources
+                files = _get_sources_and_headers(project_node, workingdir, target_build_dir)
+                # Dependencies
+                dependencies = [target_list[target_names.index(name)] for name in project_node.get('dependencies', [])]
+                executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
+
+                if executable_dependencies:
+                    logger.error(f'Error: The following targets are linking dependencies but were identified as executables: {executable_dependencies}')
+
+
+                if 'target_type' in project_node:
+                    #
+                    # Add a shared library
+                    #
+                    if project_node['target_type'].lower() == 'sharedlibrary':
+                        target_list.append(
+                            _SharedLibrary(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                files['sourcefiles'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
+
+                    #
+                    # Add a static library
+                    #
+                    elif project_node['target_type'].lower() == 'staticlibrary':
+                        target_list.append(
+                            _StaticLibrary(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                files['sourcefiles'],
+                                buildType,
+                                clangpp,
+                                clang_ar,
+                                project_node,
+                                dependencies))
+
+                    else:
+                        logger.error(f'ERROR: Unsupported target type: {project_node["target_type"]}')
+
+                # No target specified so must be executable or header only
                 else:
-                    logger.error(f'ERROR: Unsupported target type: {project_node["target_type"]}')
-
-            # No target specified so must be executable or header only
-            else:
-                if not files['sourcefiles']:
-                    logger.info(f'No source files found for target {target_name}. Creating header-only target.')
-                    target_list.append(
-                        _HeaderOnly(
-                            target_name,
-                            workingdir,
-                            target_build_dir,
-                            files['headers'],
-                            files['include_directories'],
-                            buildType,
-                            clangpp,
-                            project_node,
-                            dependencies))
-                else:
-                    logger.info(f'{len(files["sourcefiles"])} source files found for target {target_name}. Creating executable target.')
-                    target_list.append(
-                        _Executable(
-                            target_name,
-                            workingdir,
-                            target_build_dir,
-                            files['headers'],
-                            files['include_directories'],
-                            files['sourcefiles'],
-                            buildType,
-                            clangpp,
-                            project_node,
-                            dependencies))
+                    if not files['sourcefiles']:
+                        logger.info(f'No source files found for target {target_name}. Creating header-only target.')
+                        target_list.append(
+                            _HeaderOnly(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
+                    else:
+                        logger.info(f'{len(files["sourcefiles"])} source files found for target {target_name}. Creating executable target.')
+                        target_list.append(
+                            _Executable(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                files['sourcefiles'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
 
 
-    # Otherwise we try to build it as a simple hello world or mwe project
-    else:
-        files = _get_sources_and_headers({}, workingdir, build_directory)
-
-        if not files['sourcefiles']:
-            error_message = f'Error, no sources and no [clang-build.toml] found in folder: {workingdir}'
-            logger.error(error_message)
-            raise RuntimeError(error_message)
-        # Create target
-        target_list.append(
-            _Executable(
-                'main',
-                workingdir,
-                build_directory,
-                files['headers'],
-                files['include_directories'],
-                files['sourcefiles'],
-                buildType,
-                clangpp))
-
-    # Build the targets
-    logger.info('Compile')
-    for target in target_list:
-        target.compile(processpool)
-
-    # No parallel linking atm, could be added via
-    # https://stackoverflow.com/a/5288547/2305545
-    #
-    processpool.close()
-    processpool.join()
-
-    logger.info('Link')
-    for target in target_list:
-        if not target.check_for_unsuccesful_builds():
-            target.link()
+        # Otherwise we try to build it as a simple hello world or mwe project
         else:
-            logger.error(f'Target {target} did not compile. Errors:\n%s',
-                [f'{file}: {output}' for file, output in zip(
-                    [t.name for t in target.unsuccesful_builds],
-                    [t.output_messages for t in target.unsuccesful_builds])])
-            break
+            files = _get_sources_and_headers({}, workingdir, build_directory)
 
-    logger.info('clang-build finished.')
+            if not files['sourcefiles']:
+                error_message = f'Error, no sources and no [clang-build.toml] found in folder: {workingdir}'
+                logger.error(error_message)
+                raise RuntimeError(error_message)
+            # Create target
+            target_list.append(
+                _Executable(
+                    'main',
+                    workingdir,
+                    build_directory,
+                    files['headers'],
+                    files['include_directories'],
+                    files['sourcefiles'],
+                    buildType,
+                    clangpp))
+
+        # Build the targets
+        progress_bar.update()
+        logger.info('Compile')
+        for target in _CategoryProgressBar(target_list, progress_disabled, lambda x: x.name):
+            target.compile(processpool, progress_disabled)
+
+        # No parallel linking atm, could be added via
+        # https://stackoverflow.com/a/5288547/2305545
+        #
+
+        processpool.close()
+        processpool.join()
+
+        progress_bar.update()
+        logger.info('Link')
+        for target in target_list:
+            if not target.unsuccesful_builds:
+                target.link()
+            else:
+                logger.error(f'Target {target} did not compile. Errors:\n%s',
+                    [f'{file}: {output}' for file, output in zip(
+                        [t.name for t in target.unsuccesful_builds],
+                        [t.output_messages for t in target.unsuccesful_builds])])
+                break
+
+        progress_bar.update()
+        logger.info('clang-build finished.')
 
 
 if __name__ == '__main__':
