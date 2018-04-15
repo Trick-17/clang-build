@@ -92,6 +92,7 @@ class TestClangBuild(unittest.TestCase):
         self.assertEqual(output, 'Hello!')
 
     def test_mwe_two_targets(self):
+        logging.getLogger().setLevel(logging.DEBUG)
         clang_build.build(clang_build.parse_args(['-d', 'test/multi_target_external']), False)
 
         try:

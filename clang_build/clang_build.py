@@ -26,7 +26,8 @@ from .dependency_tools import find_circular_dependencies as _find_circular_depen
                               find_non_existent_dependencies as _find_non_existent_dependencies,\
                               get_dependency_walk as _get_dependency_walk
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
-from .progress_bar import CategoryProgressBar as _CategoryProgressBar
+from .progress_bar import CategoryProgress as _CategoryProgress,\
+                          IteratorProgress as _IteratorProgress
 from .logging_stream_handler import TqdmHandler as _TqdmHandler
 
 _v = _VersionInfo('clang-build').semantic_version()
@@ -127,7 +128,8 @@ def build(args, progress_disabled=True):
 
     messages = ['Configure', 'Compile', 'Link']
 
-    with _CategoryProgressBar(messages, progress_disabled) as progress_bar:
+    with _CategoryProgress(messages, progress_disabled) as progress_bar:
+
         logger = _logging.getLogger(__name__)
         logger.info(f'clang-build {__version__}')
 
@@ -144,7 +146,7 @@ def build(args, progress_disabled=True):
             workingdir = callingdir
 
         if not workingdir.exists():
-            error_message(f'ERROR: specified non-existent directory [{workingdir}]')
+            error_message = f'ERROR: specified non-existent directory [{workingdir}]'
             logger.error(f'ERROR: specified non-existent directory [{workingdir}]')
             raise RuntimeError(f'ERROR: specified non-existent directory [{workingdir}]')
 
@@ -185,7 +187,7 @@ def build(args, progress_disabled=True):
 
             target_names = _get_dependency_walk(config)
 
-            for target_name in _CategoryProgressBar(target_names, progress_disabled):
+            for target_name in _IteratorProgress(target_names, progress_disabled, len(target_names)):
                 project_node = config[target_name]
                 # Directories
                 target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(target_name)
@@ -291,8 +293,10 @@ def build(args, progress_disabled=True):
 
         # Build the targets
         progress_bar.update()
+
         logger.info('Compile')
-        for target in _CategoryProgressBar(target_list, progress_disabled, lambda x: x.name):
+
+        for target in _IteratorProgress(target_list, progress_disabled, len(target_list), lambda x: x.name):
             target.compile(processpool, progress_disabled)
 
         # No parallel linking atm, could be added via

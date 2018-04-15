@@ -3,62 +3,59 @@ from colorama import Fore as _Fore
 
 _MAX_DESCRIPTION_WIDTH = 16
 _ELLIPSIS_WIDTH = 2
+_BAR_FORMAT = "{desc: <%s}: {percentage:3.0f}%% |%s{bar}%s| {n_fmt: >5}/{total_fmt: >5} [{elapsed: >8}]" % (_MAX_DESCRIPTION_WIDTH, _Fore.BLUE, _Fore.RESET)
 
 
-def _format_lenghty_string(text, max_width, ellipsis_width):
-    if len(text) > max_width:
-        return ((text[:-(max_width-ellipsis_width)] and '.' * ellipsis_width)
-                + text[-(max_width-ellipsis_width):])
+def _format_lenghty_string(text):
+    if len(text) > _MAX_DESCRIPTION_WIDTH:
+        return ((text[:-(_MAX_DESCRIPTION_WIDTH-_ELLIPSIS_WIDTH)] and '.' * _ELLIPSIS_WIDTH)
+                + text[-(_MAX_DESCRIPTION_WIDTH-_ELLIPSIS_WIDTH):])
     else:
         return text
 
-class CategoryIterator:
-    '''
-    Simple wrapper to change the description of the progress bar,
-    whenever the next item is requested.
-    '''
-    def __init__(self, iterator, bar):
-        self.iter = iterator
-        self.bar = bar
 
-    def __next__(self):
-        self.bar._update_iter()
-        return self.iter.__next__()
+def _get_clang_build_progress_bar(iterable, disable, total):
+    return _tqdm(iterable, bar_format=_BAR_FORMAT, leave=False, disable=disable, total=total)
 
-class BuildProgressBar(_tqdm):
-    def __init__(self, disable, *args, **kwargs):
-        super().__init__(
-            *args,
-            bar_format="{desc: <%s}: {percentage:3.0f}%% |%s{bar}%s| {n_fmt: >5}/{total_fmt: >5} [{elapsed: >8}]" % (_MAX_DESCRIPTION_WIDTH, _Fore.BLUE, _Fore.RESET),
-            leave=False,
-            disable=disable,
-            **kwargs)
 
-class CategoryProgressBar(BuildProgressBar):
-    def __init__(self, categories, disable, access=lambda x: x):
-        self.categories = [_format_lenghty_string(access(category), _MAX_DESCRIPTION_WIDTH, _ELLIPSIS_WIDTH) for category in categories]
-        self.current_category = 0
-        super().__init__(
-            disable,
-            categories)
-        self._set_category()
+class CategoryProgress:
+    def __init__(self, categories, disable, total=None):
+        self.pbar = _get_clang_build_progress_bar(categories, disable, total)
+        self.current_catgeory = 0
+        self.pbar.set_description_str(categories[self.current_catgeory])
+        self.categories = categories
+        self.index_limit = len(self.categories)
 
-    def _update_iter(self):
-        self.current_category += 1
-        self._set_category()
+    def __enter__(self):
+        self.entered_pbar = self.pbar.__enter__()
+        return self
 
-    def update(self, n=1):
-        _tqdm.update(self, n)
-        self._update_iter()
+    def __exit__(self, type, value, traceback):
+        self.entered_pbar.__exit__(type, value, traceback)
+
+    def update(self):
+        self.entered_pbar.update()
+        self.current_catgeory += 1
+        if self.current_catgeory >= self.index_limit:
+            self.entered_pbar.set_description_str('Finished')
+        else:
+            self.entered_pbar.set_description_str(_format_lenghty_string(self.categories[self.current_catgeory]))
+
+class IteratorProgress:
+    def __init__(self, iterable, disable, total, access=lambda x: x):
+        self.pbar = _get_clang_build_progress_bar(iterable, disable, total)
+        self.access = access
 
     def __iter__(self):
-        self.current_category -= 1
-        return CategoryIterator(_tqdm.__iter__(self), self)
+        self.pbar_iter = self.pbar.__iter__()
+        return self
 
-    def _set_category(self):
-        if self.current_category < len(self.categories):
-            self.set_description_str(self.categories[self.current_category])
-        else:
-            self.set_description_str('finished.')
+    def __next__(self):
+        val = self.pbar_iter.__next__()
+        self.pbar.set_description_str(_format_lenghty_string(self.access(val)))
+        return val
 
-
+def get_build_progress_bar(iterable, disable, total, name):
+    pbar = _get_clang_build_progress_bar(iterable, disable, total)
+    pbar.set_description_str(_format_lenghty_string(name))
+    return pbar

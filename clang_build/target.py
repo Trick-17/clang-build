@@ -14,7 +14,7 @@ from .dialect_check import get_dialect_string as _get_dialect_string
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .single_source import SingleSource as _SingleSource
-from .progress_bar import BuildProgressBar as _BuildProgressBar
+from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
@@ -79,18 +79,18 @@ class Target:
             downloaddir = buildDirectory.joinpath('external_sources')
             # Check if directory is already present and non-empty
             if downloaddir.exists() and _os.listdir(str(downloaddir)):
-                _LOGGER.info(f'External target {self.name}: sources found in {str(downloaddir)}')
+                _LOGGER.info(f'External target [{self.name}]: sources found in {str(downloaddir)}')
             # Otherwise we download the sources
             else:
-                _LOGGER.info(f'External target {self.name}: downloading to {str(downloaddir)}')
+                _LOGGER.info(f'External target [{self.name}]: downloading to {str(downloaddir)}')
                 downloaddir.mkdir(parents=True, exist_ok=True)
                 try:
                     _subprocess.run(["git", "clone", options["url"], str(downloaddir)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                 except _subprocess.CalledProcessError as e:
-                    error_message = f"Error trying to download external target {self.name}. Message " + e.output
+                    error_message = f"Error trying to download external target [{self.name}]. Message " + e.output
                     _LOGGER.exception(error_message)
                     raise RuntimeError(error_message)
-                _LOGGER.info(f'External target {self.name}: downloaded')
+                _LOGGER.info(f'External target [{self.name}]: downloaded')
             self.includeDirectories.append(downloaddir)
             self.root_directory = downloaddir
 
@@ -129,23 +129,16 @@ class Target:
         # Subclasses must implement
         raise NotImplementedError()
 
-    def compile(self, process_pool, progress):
-        # Subclasses must implement
-        raise NotImplementedError()
-
-    def check_for_unsuccesful_builds(self):
+    def compile(self, process_pool, progress_disabled):
         # Subclasses must implement
         raise NotImplementedError()
 
 class HeaderOnly(Target):
     def link(self):
-        _LOGGER.info(f'Header-only target {self.name} does not require linking.')
+        _LOGGER.info(f'Header-only target [{self.name}] does not require linking.')
 
-    def compile(self, process_pool, progress):
-        _LOGGER.info(f'Header-only target {self.name} does not require compiling.')
-
-    def check_for_unsuccesful_builds(self):
-        return False
+    def compile(self, process_pool, progress_disabled):
+        _LOGGER.info(f'Header-only target [{self.name}] does not require compiling.')
 
 def generateDepfile(buildable):
     buildable.generate_dependency_file()
@@ -173,7 +166,7 @@ class Compilable(Target):
             dependencies=None):
 
         if not source_files:
-            error_message = f'ERROR: Targt {name} was defined as a {self.__class__} but no source files were found'
+            error_message = f'ERROR: Targt [{name}] was defined as a {self.__class__} but no source files were found'
             _LOGGER.error(error_message)
             raise RuntimeError(error_message)
 
@@ -260,7 +253,7 @@ class Compilable(Target):
 
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
-    def compile(self, process_pool, progress):
+    def compile(self, process_pool, progress_disabled):
 
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
@@ -287,13 +280,13 @@ class Compilable(Target):
 
         # Execute compile command
         _LOGGER.info(f'Compile target [{self.outname}]')
-        list(
-            _BuildProgressBar(
-                progress,
+        list(_get_build_progress_bar(
                 process_pool.imap(
                     compile_single_source,
                     self.neededBuildables),
-                total=len(self.neededBuildables)))
+                progress_disabled,
+                total=len(self.neededBuildables),
+                name=self.name))
 
 
         self.unsuccesful_builds = [buildable for buildable in self.neededBuildables if buildable.compilation_failed]
@@ -313,7 +306,14 @@ class Compilable(Target):
         _LOGGER.info(f'Link target [{self.name}]')
         # TODO: Capture output
         _LOGGER.debug('    ' + ' '.join(self.linkCommand))
-        _subprocess.call(self.linkCommand)
+
+        self.linker_error = None
+        try:
+            _subprocess.check_output(self.linkCommand)
+        except _subprocess.CalledProcessError as e:
+            error_message = f'Error linking target [{self.name}] with message: {e}'
+            _LOGGER.error(error_message)
+            raise RuntimeError(error_message)
         ## After-build step
         #if self.afterBuildScript:
         #    _LOGGER.info(f'After-build step of target [{self.name}]')
