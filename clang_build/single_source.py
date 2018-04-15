@@ -1,6 +1,6 @@
 import os as _os
 import re as _re
-from pathlib2 import Path as _Path
+from pathlib import Path as _Path
 import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
 import logging as _logging

@@ -2,10 +2,10 @@ import os, sys
 import unittest
 import subprocess
 import shutil
-import pathlib2
 import logging
 import io
 import stat
+from pathlib import Path as _Path
 from multiprocessing import freeze_support
 
 from clang_build import clang_build
@@ -103,7 +103,7 @@ class TestClangBuild(unittest.TestCase):
         self.assertEqual(output, 'Hello!')
 
     def tearDown(self):
-        if pathlib2.Path('build').exists():
+        if _Path('build').exists():
             shutil.rmtree('build', onerror = on_rm_error)
 
 

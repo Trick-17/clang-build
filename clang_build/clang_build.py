@@ -4,7 +4,7 @@ clang-build:
 '''
 
 import logging as _logging
-from pathlib2 import Path as _Path
+from pathlib import Path as _Path
 import textwrap as _textwrap
 import sys
 from multiprocessing import Pool as _Pool

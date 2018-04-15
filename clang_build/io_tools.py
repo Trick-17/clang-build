@@ -1,5 +1,5 @@
 from glob import iglob as _iglob
-from pathlib2 import Path as _Path
+from pathlib import Path as _Path
 
 def _get_header_files(folder):
     headers = []
