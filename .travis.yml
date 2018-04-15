@@ -48,6 +48,7 @@ deploy:
   provider: pypi
   user:     "$PYPIUSER"
   password: "$PYPIPASSWORD"
+  skip_cleanup: true
   on:
     all_branches: true
     condition: $DEPLOY = true
