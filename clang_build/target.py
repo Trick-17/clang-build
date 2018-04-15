@@ -19,9 +19,9 @@ from .progress_bar import BuildProgressBar as _BuildProgressBar
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 class Target:
-    DEFAULT_COMPILE_FLAGS = ['-Wall', '-Werror']
-    DEFAULT_RELEASE_COMPILE_FLAGS = ['-O3', '-DNDEBUG']
-    DEFAULT_DEBUG_COMPILE_FLAGS = ['-O0', '-g3', '-DDEBUG']
+    DEFAULT_COMPILE_FLAGS          = ['-Wall', '-Werror']
+    DEFAULT_RELEASE_COMPILE_FLAGS  = ['-O3', '-DNDEBUG']
+    DEFAULT_DEBUG_COMPILE_FLAGS    = ['-O0', '-g3', '-DDEBUG']
     DEFAULT_COVERAGE_COMPILE_FLAGS = (
         DEFAULT_DEBUG_COMPILE_FLAGS +
         ['--coverage',
@@ -94,7 +94,7 @@ class Target:
             self.includeDirectories.append(downloaddir)
             self.root_directory = downloaddir
 
-        compileFlags        = Target.DEFAULT_COMPILE_FLAGS
+        compileFlags        = [self.dialect] + Target.DEFAULT_COMPILE_FLAGS
         compileFlagsDebug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
         compileFlagsRelease = Target.DEFAULT_RELEASE_COMPILE_FLAGS
         self.linkFlags = []
@@ -193,9 +193,9 @@ class Compilable(Target):
         if dependencies is None:
             dependencies = []
 
-        self.objectDirectory     = self.buildDirectory.joinpath('obj')
-        self.depfileDirectory    = self.buildDirectory.joinpath('dep')
-        self.outputFolder        = self.buildDirectory.joinpath(output_folder)
+        self.objectDirectory     = self.buildDirectory.joinpath('obj').resolve()
+        self.depfileDirectory    = self.buildDirectory.joinpath('dep').resolve()
+        self.outputFolder        = self.buildDirectory.joinpath(output_folder).resolve()
 
         self.objectDirectory.mkdir(parents=True, exist_ok=True)
         self.depfileDirectory.mkdir(parents=True, exist_ok=True)
@@ -206,7 +206,7 @@ class Compilable(Target):
         else:
             self.outname = self.name
 
-        self.outfile = _Path(self.outputFolder, prefix + self.outname + suffix)
+        self.outfile = _Path(self.outputFolder, prefix + self.outname + suffix).resolve()
 
 
         # Clang
