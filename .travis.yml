@@ -21,22 +21,6 @@ matrix:
           - sourceline: 'ppa:jonathonf/gcc-7.1'
           - sourceline: 'ppa:deadsnakes/ppa'
       dist: trusty
-    - language: python
-      os: linux
-      env: DEPLOY=false
-      python: 2.7
-      addons:
-        apt:
-          packages:
-          - ca-certificates
-          - libc++-dev
-          - g++-7
-          - clang
-          sources:
-          - sourceline: 'ppa:ubuntu-toolchain-r/test'
-          - sourceline: 'ppa:jonathonf/gcc-7.1'
-          - sourceline: 'ppa:deadsnakes/ppa'
-      dist: trusty
     - language: cpp
       os: osx
       env: DEPLOY=true
