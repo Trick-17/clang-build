@@ -5,6 +5,7 @@ import shutil
 import pathlib2
 import logging
 import io
+import stat
 from multiprocessing import freeze_support
 
 from clang_build import clang_build
