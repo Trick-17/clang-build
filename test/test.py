@@ -91,16 +91,16 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Hello!')
 
-    def test_mwe_two_targets(self):
-        logging.getLogger().setLevel(logging.DEBUG)
-        clang_build.build(clang_build.parse_args(['-d', 'test/multi_target_external']), False)
+    # def test_mwe_two_targets(self):
+    #     logging.getLogger().setLevel(logging.DEBUG)
+    #     clang_build.build(clang_build.parse_args(['-d', 'test/multi_target_external']), False)
 
-        try:
-            output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+    #     try:
+    #         output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+    #     except subprocess.CalledProcessError:
+    #         self.fail('Could not run compiled program')
 
-        self.assertEqual(output, 'Hello!')
+    #     self.assertEqual(output, 'Hello!')
 
     def tearDown(self):
         if _Path('build').exists():
