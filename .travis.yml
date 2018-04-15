@@ -42,7 +42,7 @@ script:
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coverage report -m; fi
 
 after_success:
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; coveralls; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coveralls; fi
 
 deploy:
   provider: pypi
