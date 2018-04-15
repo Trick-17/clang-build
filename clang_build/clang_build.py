@@ -199,9 +199,26 @@ def build(args, progress_disabled=True):
 
                 if 'target_type' in project_node:
                     #
+                    # Add an executable
+                    #
+                    if project_node['target_type'].lower() == 'executable':
+                        target_list.append(
+                            _Executable(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                files['sourcefiles'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
+
+                    #
                     # Add a shared library
                     #
-                    if project_node['target_type'].lower() == 'sharedlibrary':
+                    if project_node['target_type'].lower() == 'shared library':
                         target_list.append(
                             _SharedLibrary(
                                 target_name,
@@ -218,7 +235,7 @@ def build(args, progress_disabled=True):
                     #
                     # Add a static library
                     #
-                    elif project_node['target_type'].lower() == 'staticlibrary':
+                    elif project_node['target_type'].lower() == 'static library':
                         target_list.append(
                             _StaticLibrary(
                                 target_name,
@@ -230,6 +247,24 @@ def build(args, progress_disabled=True):
                                 buildType,
                                 clangpp,
                                 clang_ar,
+                                project_node,
+                                dependencies))
+
+                    #
+                    # Add a header-only
+                    #
+                    elif project_node['target_type'].lower() == 'header only':
+                        if files['sourcefiles']:
+                            logger.info(f'Source files found for header-only target {target_name}. You may want to check your build configuration.')
+                        target_list.append(
+                            _HeaderOnly(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                buildType,
+                                clangpp,
                                 project_node,
                                 dependencies))
 
