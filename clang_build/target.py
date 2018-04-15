@@ -94,7 +94,7 @@ class Target:
             self.includeDirectories.append(downloaddir)
             self.root_directory = downloaddir
 
-        compileFlags        = [self.dialect] + Target.DEFAULT_COMPILE_FLAGS
+        compileFlags        = []
         compileFlagsDebug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
         compileFlagsRelease = Target.DEFAULT_RELEASE_COMPILE_FLAGS
         self.linkFlags = []
@@ -216,7 +216,7 @@ class Compilable(Target):
             depfileDirectory=self.depfileDirectory,
             objectDirectory=self.objectDirectory,
             include_strings=self.get_include_directory_command(),
-            compileFlags=self.compileFlags,
+            compileFlags=[self.dialect] + Target.DEFAULT_COMPILE_FLAGS + self.compileFlags,
             clangpp=self.clangpp) for sourceFile in self.sourceFiles]
 
         # If compilation of buildables fail, they will be stored here later
@@ -264,7 +264,7 @@ class Compilable(Target):
             _LOGGER.info(f'Target [{self.name}] is already compiled')
             return
 
-        _LOGGER.info(f'Target [{self.name}] needs to rebuild sources %s', [b.name for b in self.neededBuildables])
+        _LOGGER.info(f'Target [{self.name}] needs to build sources %s', [b.name for b in self.neededBuildables])
 
         # Before-compile step
         #if self.beforeCompileScript and not self.compiled:
@@ -280,6 +280,8 @@ class Compilable(Target):
 
         # Execute compile command
         _LOGGER.info(f'Compile target [{self.outname}]')
+        for b in self.neededBuildables:
+            _LOGGER.debug(' '.join(b.compile_command))
         list(_get_build_progress_bar(
                 process_pool.imap(
                     compile_single_source,
@@ -412,9 +414,9 @@ class StaticLibrary(Compilable):
             clangpp=clangpp,
             link_command=[clang_ar, 'rc'],
             output_folder = _platform.STATIC_LIBRARY_OUTPUT,
-            platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
-            prefix=_platform.SHARED_LIBRARY_PREFIX,
-            suffix=_platform.SHARED_LIBRARY_SUFFIX,
+            platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
+            prefix=_platform.STATIC_LIBRARY_PREFIX,
+            suffix=_platform.STATIC_LIBRARY_SUFFIX,
             options=options,
             dependencies=dependencies)
 

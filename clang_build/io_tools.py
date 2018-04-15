@@ -3,14 +3,14 @@ from pathlib2 import Path as _Path
 
 def _get_header_files(folder):
     headers = []
-    for ext in ('*.hpp', '*.hxx'):
+    for ext in ('*.hpp', '*.hxx', '*.h'):
         headers += [_Path(f) for f in _iglob(str(folder) + '/**/'+ext, recursive=True)]
 
     return headers
 
 def _get_source_files(folder):
     sources = []
-    for ext in ('*.cpp', '*.cxx'):
+    for ext in ('*.cpp', '*.cxx', '*.c'):
         sources += [_Path(f) for f in _iglob(str(folder) + '/**/'+ext, recursive=True)]
 
     return sources
@@ -21,6 +21,7 @@ def get_sources_and_headers(target_options, working_directory, target_build_dire
     relative_source_directories = []
 
     # TODO: maybe the output should also include the root dir, build dir and potentially download dir?
+    # TODO: should warn when a specified directory does not exist!
 
     # Root directory of target source tree
     target_root = _Path(working_directory)

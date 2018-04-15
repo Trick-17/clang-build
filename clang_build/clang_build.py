@@ -129,10 +129,6 @@ def build(args, progress_disabled=True):
     messages = ['Configure', 'Compile', 'Link']
 
     with _CategoryProgress(messages, progress_disabled) as progress_bar:
-
-        logger = _logging.getLogger(__name__)
-        logger.info(f'clang-build {__version__}')
-
         # Check for clang++ executable
         clangpp, clang_ar = _find_clang(logger)
 
