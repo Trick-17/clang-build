@@ -39,7 +39,7 @@ script:
   - pip --version
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then python setup.py test; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coverage run --source clang_build setup.py test; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; coverage report -m; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coverage report -m; fi
 
 after_success:
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; coveralls; fi
