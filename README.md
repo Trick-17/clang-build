@@ -9,17 +9,17 @@ Windows test: [![Test status](https://ci.appveyor.com/api/projects/status/57qv53
 **Motivation:**
 
 - Meta build systems are inherently the wrong way to go, either the build system or the compiler should be platform-agnostic.
-- Trying to cover all use-cases is the wrong way to go - there is no need to let people do it the wrong way
+- Trying to cover all use-cases is the wrong way to go - there is no need to let people do it the wrong way.
 - CMake is cumbersome, unnecessarily generic and verbose and people should not need a second programming language to be able to build C++
-- With Clang, finally a properly cross-platform compiler exists
-- With Python we have a language we can use consistently across platforms
+- With Clang, finally a properly cross-platform compiler exists.
+- With Python we have a language we can use consistently across platforms.
 
 **Goals:**
 
-- One compiler (Clang), one build system (written in Python)
-- Simple projects should be simple to build
-- Build process for reasonable project structures should still be easy
-- Adding third-party dependencies should be manageable
+- One compiler (`Clang`), one build system (written in `python`).
+- Simple projects should be simple to build.
+- Build process for reasonable project structures should still be easy.
+- Adding third-party dependencies should be manageable.
 
 **Related resources:**
 
@@ -33,10 +33,13 @@ Usage
 
 In order to run `clang-build` one should only need to have Python and Clang installed.
 If you have admin rights, `pip install`, otherwise just drop-in the `clang-build.py` script,
-e.g. `curl -O https://raw.githubusercontent.com/GPMueller/clang-build-test/master/clang-build.py`
+e.g. 
+```
+curl -O https://raw.githubusercontent.com/GPMueller/clang-build-test/master/clang-build.py
+```
 
 - `clang-build` to build the current directory
-- `clang-build -d"path/to/dir"` to build a different directory (alternatively `--directory`)
+- `clang-build -d "path/to/dir"` to build a different directory (alternatively `--directory`)
 - `clang-build -V` to print the called clang commands (alternatively `--verbose`)
 
 The given directory will be searched for a `clang-build.toml` file, which you can use to configure
@@ -44,7 +47,7 @@ your build targets, if necessary. If the build file cannot be found, `clang-buil
 create an executable from your project, searching the root and some default folders for sources
 and headers.
 
-*Note: until this is a package on pypi, you need to call `python clang-build.py` instead of just `clang-build`...*
+**Note**: *until this is a package on pypi, you need to call `python clang-build.py` instead of just `clang-build`...*
 
 
 
@@ -81,7 +84,7 @@ What should be easy
 
 This would be things that only require a minimal TOML project file
 
-- add dependency / external project from source folder or remote (e.g. github)
+- add dependency / external project from source folder or remote (e.g. **GitHub**)
   - header-only should be trivial
   - for a regular (not too complicated) library it should be easy to write a build config
 - create a library from one subfolder, an executable from another and link them
