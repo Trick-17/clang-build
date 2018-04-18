@@ -5,15 +5,11 @@ Linux and OSX test: |Test status| Windows test: |Test status|
 
 **Motivation:**
 
--  Meta build systems are inherently the wrong way to go, either the
-   build system or the compiler should be platform-agnostic.
--  Trying to cover all use-cases is the wrong way to go - there is no
-   need to let people do it the wrong way
--  CMake is cumbersome, unnecessarily generic and verbose and people
-   should not need a second programming language to be able to build C++
+-  Meta build systems are inherently the wrong way to go, either the build system or the compiler should be platform-agnostic (ideally both).
+-  Trying to cover all use-cases is the wrong way to go - there is no need to let people do it the wrong way
+-  CMake is cumbersome, unnecessarily generic and verbose and people should not need a second programming language to be able to build C++
 -  With Clang, finally a properly cross-platform compiler exists
--  With Python we have a language we can use consistently across
-   platforms
+-  With Python we have a widely available language we can use consistently across platforms
 
 **Goals:**
 
@@ -29,31 +25,31 @@ Linux and OSX test: |Test status| Windows test: |Test status|
    Milkshake" <https://www.youtube.com/watch?v=7THzO-D0ta4>`__
 -  https://medium.com/@corentin.jabot/accio-dependency-manager-b1846e1caf76
 
+
 Usage
------
+=====
 
-In order to run ``clang-build`` one should only need to have Python and
-Clang installed. If you have admin rights, ``pip install``, otherwise
-just drop-in the ``clang-build.py`` script, e.g.
-``curl -O https://raw.githubusercontent.com/GPMueller/clang-build-test/master/clang-build.py``
+In order to run ``clang-build``, you only need Clang and Python3.
+Install via ``pip install clang-build`` (add the ``--user`` flag if you don't have admin rights).
 
--  ``clang-build`` to build the current directory
--  ``clang-build -d"path/to/dir"`` to build a different directory
-   (alternatively ``--directory``)
--  ``clang-build -V`` to print the called clang commands (alternatively
-   ``--verbose``)
+Running ``clang-build`` will try to build the current directory.
+The command-line options include
+-  ``-d path/to/dir`` to build a different directory
+-  ``-p`` to show a progress bar
+-  ``-V`` to print some additional info
+-  ``--debug`` to print the called clang commands
 
-The given directory will be searched for a ``clang-build.toml`` file,
-which you can use to configure your build targets, if necessary. If the
-build file cannot be found, ``clang-build`` will try to create an
-executable from your project, searching the root and some default
-folders for sources and headers.
+The given directory will be searched for a ``clang-build.toml`` file, which you can use to configure
+your build targets, if necessary. However, if you only want to build an executable, you will
+likely not even need a build file.
 
-*Note: until this is a package on pypi, you need to call
-``python clang-build.py`` instead of just ``clang-build``...*
+clang-build tries to use sane defaults, designed to make most projects very easy to configure
+and even complex projects far easier than with common build or meta-build systems.
+
 
 General Ideas
 =============
+*Note: not all of these are implemented, yet.*
 
 What should be trivial
 ----------------------
@@ -126,26 +122,24 @@ some python code
 -  binaries on disk, try to determine version from path and file names
 -  source on disk, try to determine version from path and file names
 
+
 Project File By Example
 =======================
 
 A single target
 ---------------
 
+Note:
+-  by default, the root and <targetname> folders, as well as "include" and "src" subdirectories will be searched for ".hpp", ".hxx", ".h" and ".cpp", ".cxx" and ".c" files
+-  a target without ``target_type``, but with source files will be an executable
+-  ``output_name`` should not contain pre- or suffixes such as lib, .exe, .so, as they are added automatically
+-  if we don't care about the output name, in this case we could skip the project file entirely
+
 .. code:: toml
 
     # Top-level brackets indicate a target
     [hello]
-    # Note: the following sources settings could be left out.
-    # .hpp and .cpp files will be searched for in include and src by default
-    [hello.sources]
-    file_extensions = [".hpp", ".cpp"]
-    include_directories = ["include"]
-    source_directories = ["src"]
-    # Some properties
-    [hello.properties]
-    cpp_version = 17
-    output_name = "runHello" # name should not contain pre- or suffixes such as lib, .exe, .so
+    output_name = "runHello"
 
 Two targets with linking
 ------------------------
@@ -154,144 +148,41 @@ Two targets with linking
 
     # Build a library
     [mylib]
-    target_type = "sharedlibrary"
-    [mylib.sources]
-    include_directories = ["mylib/include"]
-    source_directories = ["mylib/src"]
+    target_type = "shared library"
 
     # Build an executable and link the library
     [myexe]
     output_name = "runExe"
     target_type = "executable"
-    [myexe.sources]
-    include_directories = ["myexe/include"]
-    source_directories = ["myexe/src"]
-
-    [myexe.link]
     dependencies = ["mylib"]
-
     [myexe.flags]
-    link = ["-DMYLIB_SOME_DEFINE"]
+    link = ["-DMYEXE_SOME_DEFINE"]
 
-A package used by a target
---------------------------
+Adding external dependencies
+----------------------------
 
-``mypackage/clang-build.toml``
-
-.. code:: toml
-
-    # Build a library
-    [mylib]
-    target_type = "library"
-    [mylib.sources]
-    include_directories = ["mylib/include"]
-    source_directories = ["mylib/src"]
-
-``myexe/clang-build.toml``
+Note:
+-  external projects will be copied/downloaded into "build/targetname/external_sources"
+-  you can specify a subdirectory, if the thirdparty code has an unusual structure
+-  further granularity is given by ``include_directories`` and ``source_directories``
 
 .. code:: toml
 
-    # Include an external package/target (i.e. not from this toml file)
-    [somelib]
-    external = true
-    path = "/path/to/sources"
-
-    # Build an executable and link the library
-    [myexe]
-    [myexe.sources]
-    include_directories = ["include", "mylib.sources.include_directories"]
-    source_directories = ["src"]
-
-    [myexe.link]
-    dependencies = ["somelib"]
-
-Packages from server
---------------------
-
-.. code:: toml
-
-    # Build a library
     [mylib]
     external = true
     url = "https://github.com/trick-17/mylib"
     version = 1.1 # will try to git checkout [v]1.1[.*]
+    directory = "sources"           # will point to "build/mylib/external_sources/sources"
+    include_directories = ["mylib"] # will point to "build/mylib/external_sources/sources/mylib"
+    source_directories  = ["mylib"] # will point to "build/mylib/external_sources/sources/mylib"
+    # Maybe we need to deactivate annoying warnings coming from the library
+    [mylib.flags]
+    compile = ["-Wno-deprecated-declarations", "-Wno-self-assign"]
 
     # Build an executable and link the library
     [myexe]
-    [myexe.link]
     dependencies = ["mylib"]
 
-Defaults
-========
-
-General
--------
-
--  all relative paths in a toml are interpreted as relative to that toml
-   file
--  if only one target is built from source, it is built into
-   ``build/<build_type>``
--  if more than one target is built from source, they are built into
-   ``build/<target_name>/<build_type>``
-
-Target properties
------------------
-
--  target and its properties are **public** by default. The property
-   ``private = true`` can be used to set a target to be only visible in
-   the local .toml.
-
-Include Paths
--------------
-
-Note: only those paths should be added to the build flags, which the
-build system finds contain needed files.
-
-Linux
-~~~~~
-
--  .
--  ./include
--  /usr/local
--  /opt
--  $PATH
--  /include
-
-OSX
-~~~
-
--  .
--  ./include
--  /usr/local
--  /opt
--  $PATH
--  /include
-
-Windows
-~~~~~~~
-
--  .
--  ./include
--  %PATH%
-
-External targets
-----------------
-
-Search paths
-~~~~~~~~~~~~
-
-The build system should search these paths for folders with names
-corresponding to the external targets. For paths which were manually
-specified, the build system should search more deeply to try and find a
-``clang-build.toml`` and in turn search that for the corresponding
-target names.
-
-Local:
-
--  ``./``
--  ``./<target_name>``
-
-git server: - ``<url>`` - ``<url>/<target_name>``
 
 .. |Test status| image:: https://travis-ci.org/Trick-17/clang-build.svg?branch=master
    :target: https://travis-ci.org/Trick-17/clang-build
