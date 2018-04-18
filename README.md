@@ -97,6 +97,7 @@ This would be things that only require a minimal TOML project file
   - cuda
   - openmp
 - set target-specific flags, include folders, etc. which should not be propagated to dependency parents as "private"
+- scripting custom behaviour per target (e.g. generating a version header file before compiling)
 
 
 
@@ -105,7 +106,6 @@ What should be possible
 
 Steps that would involve more effort from the user, including possibly some python code
 
-- a Target configuration step before building (e.g. for more involved version numbering)
 - through the configuration step, inclusion of e.g. CMake-project should be possible
 - packaging: any target may be packaged, meaning it's dependencies are handled and if built, binaries may be bundled
 - external package dependencies
@@ -192,7 +192,7 @@ path = "/path/to/sources"
 # Build an executable and link the library
 [myexe]
 [myexe.sources]
-include_directories = ["include", "mylib.sources.include_directories"]
+include_directories = ["include"]
 source_directories = ["src"]
 
 [myexe.link]
@@ -215,6 +215,20 @@ version = 1.1 # will try to git checkout [v]1.1[.*]
 [myexe]
 [myexe.link]
 dependencies = ["mylib"]
+```
+
+
+
+Calling custom scripts
+----------------------------------------------
+
+```TOML
+# Build an executable
+[myexe]
+[myexe.scripts]
+before_compile = "generateVersionHeader.py"
+before_link    = "something.py"
+after_build    = "else.py"
 ```
 
 

@@ -37,4 +37,4 @@ test_script:
   # test/lib-and-exe
   #- "clang-build -d\"test/lib-and-exe\" -V"
   # TODO: need to copy build/mylib/mylib.dll into exe's directory
-  # - 'build\myexe\runLib.exe'
+  # - 'build\myexe\default\bin\runLib.exe'
