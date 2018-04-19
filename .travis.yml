@@ -21,22 +21,6 @@ matrix:
           - sourceline: 'ppa:jonathonf/gcc-7.1'
           - sourceline: 'ppa:deadsnakes/ppa'
       dist: trusty
-    - language: python
-      os: linux
-      env: DEPLOY=false
-      python: 2.7
-      addons:
-        apt:
-          packages:
-          - ca-certificates
-          - libc++-dev
-          - g++-7
-          - clang
-          sources:
-          - sourceline: 'ppa:ubuntu-toolchain-r/test'
-          - sourceline: 'ppa:jonathonf/gcc-7.1'
-          - sourceline: 'ppa:deadsnakes/ppa'
-      dist: trusty
     - language: cpp
       os: osx
       env: DEPLOY=true
@@ -46,33 +30,25 @@ matrix:
 
 install:
   - pip install setuptools
+  - pip install coveralls
   - python setup.py develop
 
 script:
   - clang --version
   - python --version
   - pip --version
-  # test/hello
-  - clang-build -d"test/hello" -V
-  - ./build/default/bin/main
-  # test/mini-project
-  - clang-build -d"test/mini-project" -V
-  - ./build/default/bin/main
-  # test/mwe-toml
-  - clang-build -d"test/mwe-toml" -V
-  - ./build/myexe/default/bin/runHello
-  # test/external-project
-  - clang-build -d"test/external-project" -V
-  - ./build/myexe/default/bin/runHello
-  # test/lib-and-exe
-  - clang-build -d"test/lib-and-exe" -V
-  # TODO: need to copy build/mylib/mylib.so into exe's directory on linux
-  # - ./build/myexe/default/bin/runLib
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then python setup.py test; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coverage run --source clang_build setup.py test; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coverage report -m; fi
+
+after_success:
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coveralls; fi
 
 deploy:
   provider: pypi
   user:     "$PYPIUSER"
   password: "$PYPIPASSWORD"
+  skip_cleanup: true
   on:
     all_branches: true
     condition: $DEPLOY = true

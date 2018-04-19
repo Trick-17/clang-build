@@ -1,3 +1,5 @@
 toml
-pbr
-enum34; python_version < '3'
+pbr<4
+networkx
+tqdm
+colorama

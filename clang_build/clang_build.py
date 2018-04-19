@@ -1,808 +1,365 @@
-"""
+'''
 clang-build:
   TODO: module docstring...
-"""
+'''
 
-
-
-import os
+import logging as _logging
+from pathlib import Path as _Path
+import textwrap as _textwrap
 import sys
-from sys import platform as _platform
-import subprocess
-from multiprocessing import Pool
-import getopt
+from multiprocessing import Pool as _Pool
+from multiprocessing import freeze_support as _freeze_support
 import argparse
-from distutils.dir_util import mkpath
-from enum import Enum
-from glob import glob
-import tempfile
+from shutil import which as _which
 import toml
-
-
-
-# Global pool for multiprocess build
-processpool = None
-
-
-
-class TargetType(Enum):
-    Sharedlibrary = 0
-    Staticlibrary = 1
-    Executable    = 2
-class BuildType(Enum):
-    Default        = 0
-    Release        = 1
-    MinSizeRel     = 2
-    RelWithDebInfo = 3
-    Debug          = 4
-    Coverage       = 5
-
-
-
-executable_suffix     = ''
-shared_library_prefix = ''
-shared_library_suffix = ''
-static_library_prefix = ''
-static_library_suffix = ''
-if _platform == "linux" or _platform == "linux2":
-    # Linux
-    shared_library_prefix = 'lib'
-    shared_library_suffix = '.so'
-    static_library_prefix = 'lib'
-    static_library_suffix = '.a'
-    platform_extra_flags_executable = ['']
-    platform_extra_flags_shared     = ['-fpic']
-    platform_extra_flags_static     = ['']
-elif _platform == "darwin":
-    # OS X
-    shared_library_prefix = 'lib'
-    shared_library_suffix = '.dylib'
-    static_library_prefix = 'lib'
-    static_library_suffix = '.a'
-    platform_extra_flags_executable = ['']
-    platform_extra_flags_shared     = ['']
-    platform_extra_flags_static     = ['']
-elif _platform == "win32":
-    # Windows
-    executable_suffix     = '.exe'
-    shared_library_prefix = ''
-    shared_library_suffix = '.dll'
-    static_library_prefix = ''
-    static_library_suffix = '.lib'
-    platform_extra_flags_executable = ['-Xclang', '-flto-visibility-public-std']
-    platform_extra_flags_shared     = ['-Xclang', '-flto-visibility-public-std']
-    platform_extra_flags_static     = ['-Xclang', '-flto-visibility-public-std']
-
-
-
-# Get the dialects of C++ available in clang
-supported_dialects = ['98']
-# Create a temporary file with a main function
-with tempfile.NamedTemporaryFile() as fp:
-    fp.write(b"int main(int argc, char ** argv){return 0;}")
-    fp.seek(0)
-    # Try to compile the file using `-std=c++XX` flag
-    for dialect in range(30):
-        str_dialect = str(dialect).zfill(2)
-        command = ["clang", "-xc++", "-std=c++"+str_dialect, fp.name, "-o"+tempfile.gettempdir()+"/test"]
-        try:
-            subprocess.check_output(command, stderr=subprocess.STDOUT)
-            # If it compiled, the dialect is supported
-            if str_dialect not in supported_dialects: supported_dialects.append(str_dialect)
-        except:
-            pass # We expect this to usually fail
-
-# The most recent C++ version available
-supported_dialect_newest = supported_dialects[-1]
-
-
-
-def listToString(theList, separator=" "):
-    theString = theList[0]
-    for string in theList[1:]:
-        theString += separator + string
-    return theString
-
-
-
-"""
-Buildable describes a source file and all information needed to build it.
-"""
-class Buildable:
-    def __init__(self, sourceFile, targetType, buildType=BuildType.Default, verbose=False, targetDirectory="", depfileDirectory="", objectDirectory="", buildDirectory="", root="", includeDirectories=[], compileFlags=[], linkFlags=[]):
-        self.sourceFile         = sourceFile
-        self.targetType         = targetType
-        self.buildType          = buildType
-        self.verbose            = verbose
-        self.targetDirectory    = targetDirectory
-        self.buildDirectory     = buildDirectory
-        self.objectDirectory    = objectDirectory
-        self.depfileDirectory   = depfileDirectory
-        self.root               = root
-        self.includeDirectories = includeDirectories
-        self.compileFlags       = compileFlags
-        self.linkFlags          = linkFlags
-
-        # Get the relative file path
-        path, file = os.path.split(sourceFile)
-        relpath = os.path.relpath(path, self.targetDirectory+"/"+self.root)
-        if  os.path.exists(self.targetDirectory+"/"+self.root+'/src'):
-            relpath = os.path.relpath(relpath, 'src')
-        # Get file name and extension
-        name, extension = os.path.splitext(file)
-
-        # Set name, extension and potentially produced output files
-        self.name          = name
-        self.fileExtension = extension
-        self.objectFile    = self.objectDirectory + "/" + relpath + "/" + self.name + ".o"
-        self.depfile       = self.depfileDirectory + "/" + relpath + "/" + self.name + ".d"
-
-    # Find and parse the dependency file, return list of headers this file depends on
-    def getDepfileHeaders(self):
-        depfileHeaders = []
-        with open(self.depfile, "r") as the_file:
-            depStr = the_file.read()
-            colonPos = depStr.find(":")
-            for line in depStr[colonPos + 1:].splitlines():
-                depline = line.replace(' \\', '').strip().split()
-                for header in depline:
-                    depfileHeaders.append(header)
-        return depfileHeaders
-
-
-
-"""
-Scan the dependencies of a Buildable and write them into a depfile
-This is not a class method, so that it can be called from multiprocessing
-"""
-def generateDepfile(buildable):
-    sourceFile = buildable.sourceFile
-    objectFile = buildable.objectFile
-
-    path, _ = os.path.split(buildable.depfile)
-    mkpath(path)
-
-    flags = []
-
-    for flag in buildable.compileFlags:
-        flags.append(flag)
-
-    for dir in buildable.includeDirectories:
-        flags.append("-I" + dir)
-
-    command = ["clang++", "-E", "-MMD", sourceFile, "-MF", buildable.depfile]
-    command += flags
-
-    if buildable.verbose:
-        print("--   " + listToString(command))
-    devnull = open(os.devnull, 'w')
-    subprocess.call(command, stdout=devnull, stderr=devnull)
-
-
-
-"""
-Compile a Buildable...
-"""
-def compile(buildable):
-
-    path, _ = os.path.split(buildable.objectFile)
-    mkpath(path)
-
-    flags = []
-
-    for flag in buildable.compileFlags:
-        flags.append(flag)
-
-    for dir in buildable.includeDirectories:
-        flags.append("-I" + dir)
-
-    if buildable.targetType == TargetType.Executable:
-        flags += platform_extra_flags_executable
-    elif buildable.targetType == TargetType.Sharedlibrary:
-        flags += platform_extra_flags_shared
-    elif buildable.targetType == TargetType.Staticlibrary:
-        flags += platform_extra_flags_static
-
-    command = ["clang++", "-c", buildable.sourceFile, "-o", buildable.objectFile]
-    command += flags
-
-    if buildable.verbose:
-        print("--   " + listToString(command))
-    subprocess.call(command)
-
-
-
-"""
-Target describes a single build or dependency target with all needed paths and
-a list of buildables that comprise it's compile and link steps.
-"""
-class Target:
-    def __init__(self, environment, name=""):
-        # Clang
-        self.clangpp   = environment.clangpp
-        self.clang_ar  = environment.clang_ar
-        self.llvm_root = environment.llvm_root
-
-        # Basics
-        self.targetDirectory = environment.workingDirectory
-        self.buildType       = environment.buildType
-        self.verbose         = environment.verbose
-        self.root            = ""
-        self.dialect         = supported_dialect_newest
-
-        # Properties
-        self.buildDirectory  = "build"
-        self.name            = name
-        self.outname         = "main"
-        self.targetType      = TargetType.Executable
-        self.external        = False
-        self.header_only     = False
-
-        # Custom flags (set from project file)
-        self.includeDirectories  = []
-        self.compileFlags        = []
-        self.compileFlagsDebug   = []
-        self.compileFlagsRelease = []
-        self.linkFlags           = []
-
-        # Include flags
-        self.defaultIncludeDirectories = ["include", "thirdparty"]
-
-        # Default flags
-        self.defaultCompileFlags       = ["-std=c++"+supported_dialect_newest, "-Wall", "-Werror"]
-
-        # Default release flags
-        self.defaultReleaseCompileFlags  = ["-O3", "-DNDEBUG"]
-        # Default debug flags
-        self.defaultDebugCompileFlags    = ["-O0", "-g3", "-DDEBUG"]
-        # Default coverage flags
-        self.defaultCoverageCompileFlags = self.defaultDebugCompileFlags + ["--coverage", "-fno-inline", "-fno-inline-small-functions", "-fno-default-inline"]
-
-        # Output directories
-        if environment.config:
-            targetBuildDir = self.buildDirectory + "/" + self.name + "/" + self.buildType.name.lower()
-        else:
-            targetBuildDir = self.buildDirectory + "/" + self.buildType.name.lower()
-        self.binaryDirectory     = targetBuildDir + "/bin"
-        self.libraryDirectory    = targetBuildDir + "/lib"
-        self.objectDirectory     = targetBuildDir + "/obj"
-        self.depfileDirectory    = targetBuildDir + "/deps"
-        self.testBinaryDirectory = targetBuildDir + "/test"
-
-        # Sources
-        self.headerFiles        = []
-        self.sourceFiles        = []
-
-        # Buildables which this Target contains
-        self.buildables         = []
-
-        # Dependencies
-        self.dependencies       = [] # string
-        self.dependencyTargets  = [] # Target
-        # Parents in the dependency graph
-        self.dependencyParents  = []
-
-        # Flag whether generation of all flags has been completed
-        self.flagsGenerated = False
-        # Flags whether compilation/linkage has been completed
-        self.compiled = False
-        self.linked   = False
-
-        # Extra scripts
-        self.beforeCompileScript = ""
-        self.beforeLinkScript    = ""
-        self.afterBuildScript    = ""
-
-    def generateBuildables(self):
-        for sourceFile in self.sourceFiles:
-            buildable = Buildable(sourceFile, self.targetType, buildType=self.buildType, verbose=self.verbose, depfileDirectory=self.depfileDirectory, objectDirectory=self.objectDirectory, targetDirectory=self.targetDirectory, buildDirectory=self.buildDirectory, root=self.root, includeDirectories=self.includeDirectories, compileFlags=self.compileFlags, linkFlags=self.linkFlags)
-            self.buildables.append(buildable)
-
-    def generateFlags(self):
-        # All dependencies need to have generated their flags before this target can proceed
-        for target in self.dependencyTargets:
-            if not target.flagsGenerated:
-                return
-
-        flags = []
-        # Default flags
-        for flag in self.defaultCompileFlags:
-            flags.append(flag)
-        # Own flags
-        for flag in self.compileFlags:
-            flags.append(flag)
-        if self.buildType == BuildType.Release:
-            for flag in self.defaultReleaseCompileFlags:
-                flags.append(flag)
-            for flag in self.compileFlagsRelease:
-                flags.append(flag)
-        if self.buildType == BuildType.Debug:
-            for flag in self.defaultDebugCompileFlags:
-                flags.append(flag)
-            for flag in self.compileFlagsDebug:
-                flags.append(flag)
-
-        # Dependency flags
-        for target in self.dependencyTargets:
-            flags += target.compileFlags
-
-        # Append
-        self.compileFlags = []
-        for flag in flags:
-            if flag not in self.compileFlags:
-                self.compileFlags.append(flag)
-
-        includeDirs = []
-        # Own include directories
-        for dir in self.defaultIncludeDirectories:
-            includeDirs.append(self.targetDirectory + "/" +dir)
-        # Dependency include directories
-        for target in self.dependencyTargets:
-            for dir in target.includeDirectories:
-                includeDirs.append(dir)
-
-        # Append
-        for dir in includeDirs:
-            if not dir in self.includeDirectories:
-                self.includeDirectories.append(dir)
-
-        # Done
-        self.flagsGenerated = True
-
-        # Spawn compilation of dependency parents
-        for parent in self.dependencyParents:
-            parent.generateFlags()
-
-    # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
-    def compile(self):
-        # All dependencies need to be compiled before the target can be compiled
-        for target in self.dependencyTargets:
-            if not target.compiled:
-                return
-
-        # If the target is header-only it does not need to be compiled
-        if len(self.sourceFiles) < 1:
-            if self.verbose:
-                print("-- Target " + self.outname + " seems to be header-only")
-            self.header_only = True
-
-        # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        neededBuildables = []
-        for buildable in self.buildables:
-            sourceFile = buildable.sourceFile
-            objectFile = buildable.objectFile
-            # Check if object file has been compiled
-            if os.path.isfile(objectFile):
-                # If object file is found, check if it is up to date
-                if os.path.getmtime(sourceFile) > os.path.getmtime(objectFile):
-                    neededBuildables.append(buildable)
-                # If object file is up to date, we check the headers it depends on
-                else:
-                    depHeaderFiles = buildable.getDepfileHeaders()
-                    for depHeaderFile in depHeaderFiles:
-                        if os.path.getmtime(depHeaderFile) > os.path.getmtime(objectFile):
-                            neededBuildables.append(buildable)
-            else:
-                neededBuildables.append(buildable)
-
-        # If the target was not modified, it may not need to compile
-        if not neededBuildables and not self.header_only:
-            if self.verbose:
-                print("-- Target " + self.outname + " is already compiled")
-            self.compiled = True
-
-        if self.verbose and neededBuildables:
-            print("-- Target " + self.outname + ": need to rebuild sources ", [b.name for b in neededBuildables])
-
-        # Before-compile step
-        if self.beforeCompileScript and not self.compiled:
-            if self.verbose:
-                print("-- Pre-compile step of target " + self.outname)
-            originalDir = os.getcwd()
-            newDir, _ = os.path.split(self.beforeCompileScript)
-            os.chdir(newDir)
-            execfile(self.beforeCompileScript)
-            os.chdir(originalDir)
-            if self.verbose:
-                print("-- Finished pre-compile step of target " + self.outname)
-
-        # Compile
-        if not (self.compiled or self.header_only):
-            # Create base directory for build
-            mkpath(self.buildDirectory)
-
-            # Create header dependency graph
-            print("-- Scanning dependencies of target " + self.outname)
-            processpool.map(generateDepfile, neededBuildables)
-
-            # Execute compile command
-            print("-- Compile target " + self.outname)
-            processpool.map(compile, neededBuildables)
-
-        # Done
-        self.compiled = True
-
-        # Spawn compilation of dependency parents
-        for parent in self.dependencyParents:
-            parent.compile()
-
-    # Link the compiled object files
-    def link(self):
-        # All dependencies need to be finished before the target can be linked
-        for target in self.dependencyTargets:
-            if not target.linked:
-                return
-
-        if self.targetType == TargetType.Executable:
-            self.prefix = ""
-            self.suffix = executable_suffix
-        elif self.targetType == TargetType.Sharedlibrary:
-            self.prefix = shared_library_prefix
-            self.suffix = shared_library_suffix
-        elif self.targetType == TargetType.Staticlibrary:
-            self.prefix = static_library_prefix
-            self.suffix = static_library_suffix
-
-        # Before-link step
-        if self.beforeLinkScript:
-            if self.verbose:
-                print("-- Pre-link step of target " + self.outname)
-            originalDir = os.getcwd()
-            newDir, _ = os.path.split(self.beforeCompileScript)
-            os.chdir(newDir)
-            execfile(self.beforeLinkScript)
-            os.chdir(originalDir)
-            if self.verbose:
-                print("-- Finished pre-link step of target " + self.outname)
-
-        # Link
-        if not self.header_only:
-            self.outfile = self.prefix + self.outname + self.suffix
-
-            if self.targetType == TargetType.Executable:
-                linkCommand = [self.clangpp, "-o", self.binaryDirectory+"/"+self.outfile]
-                mkpath(self.binaryDirectory)
-
-            elif self.targetType == TargetType.Sharedlibrary:
-                linkCommand = [self.clangpp, "-shared", "-o", self.libraryDirectory+"/"+self.outfile]
-                mkpath(self.libraryDirectory)
-
-            elif self.targetType == TargetType.Staticlibrary:
-                linkCommand = [self.clang_ar, "rc", self.libraryDirectory+"/"+self.outfile]
-                mkpath(self.libraryDirectory)
-
-            ### Library dependency search paths
-            for target in self.dependencyTargets:
-                if not target.header_only:
-                    linkCommand += ["-L"+os.path.abspath(target.libraryDirectory)]
-
-            ### Include directories
-            if self.targetType == TargetType.Executable or self.targetType == TargetType.Sharedlibrary:
-                for dir in self.includeDirectories:
-                    linkCommand.append("-I"+dir)
-
-            ### Link self
-            for buildable in self.buildables:
-                objectFile = buildable.objectFile
-                linkCommand.append(objectFile)
-
-            ### Link dependencies
-            for target in self.dependencyTargets:
-                if not target.header_only:
-                    linkCommand += ["-l"+target.outname]
-
-            # Execute link command
-            print("-- Link target " + self.outname)
-            if self.verbose:
-                print("--   " + listToString(linkCommand))
-            subprocess.call(linkCommand)
-
-        # Done
-        self.linked = True
-
-        # After-build step
-        if self.afterBuildScript:
-            if self.verbose:
-                print("-- After-build step of target " + self.outname)
-            originalDir = os.getcwd()
-            newDir, _ = os.path.split(self.beforeCompileScript)
-            os.chdir(newDir)
-            execfile(self.afterBuildScript)
-            os.chdir(originalDir)
-            if self.verbose:
-                print("-- Finished after-build step of target " + self.outname)
-
-        # Spawn compilation of dependency parents
-        for parent in self.dependencyParents:
-            parent.link()
-
-
-
-class Environment:
-    def __init__(self):
-        global processpool
-        self.nJobs = 1
-        processpool = Pool(processes=self.nJobs)
-
-        # Check for clang++ executable
-        from distutils.spawn import find_executable
-        self.clangpp  = find_executable("clang++")
-        self.clang_ar = find_executable("llvm-ar")
-        self.llvm_root = os.path.dirname(os.path.abspath(os.path.join(self.clangpp, "..")))
-
-        if not self.clangpp:
-            print("---- WARNING: could not find clang++! Please check your installation...")
-        if not self.clang_ar:
-            print("---- WARNING: could not find llvm-ar! Please check your installation...")
-
-        # Parse command line arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument("-V", "--verbose",
-                            help="activate verbose build",
-                            action="store_true")
-        parser.add_argument("-d", "--directory",
-                            help="set the root source directory")
-        parser.add_argument("-b", "--build-type",
-                            help="set the build type (default, release, debug, ...)")
-        parser.add_argument("-j", "--jobs", type=int,
-                            help="set the number of concurrent build jobs (default: 1)")
-        args = parser.parse_args()
-
-        # Verbosity
-        self.verbose = args.verbose
-        if self.verbose:
-            print("-- Verbosity turned on")
-            if self.clangpp:  print("-- llvm root directory: " + self.llvm_root)
-            if self.clangpp:  print("-- clang++ executable:  " + self.clangpp)
-            if self.clang_ar: print("-- llvm-ar executable:  " + self.clang_ar)
-            if self.clangpp:  print("-- Found supported C++ dialects: " + ', '.join(supported_dialects))
-
-        # Directory this was called from
-        self.callingdir = os.getcwd()
-
-        # Working directory is where the project root should be - this is searched for "clang-build.toml"
-        if args.directory:
-            self.workingDirectory = os.path.abspath(args.directory)
-        else:
-            self.workingDirectory = self.callingdir
-
-        if not os.path.exists(self.workingDirectory):
-            print("-- ERROR: specified non-existent directory \'" + self.workingDirectory + "\'")
-            print("---- clang-build finished")
-            sys.exit(1)
-
-        print("-- Working directory: " + self.workingDirectory)
-
-        # Check for presence of build config file
-        self.config = ""
-        if os.path.isfile(self.workingDirectory + "/clang-build.toml"):
-            self.config = self.workingDirectory + "/clang-build.toml"
-            if self.verbose:
-                print("-- Found config file!")
-        elif self.verbose:
-            print("-- Did not find config file!")
-
-        # Build type (Default, Release, Debug)
-        self.buildType = BuildType.Default
-        if args.build_type:
-            self.buildType = BuildType[args.build_type.lower().title()]
-        print("-- Build type: " + self.buildType.name)
-
-
-        # Multiprocessing pool
-        if args.jobs:
-            self.nJobs = args.jobs
-            processpool = Pool(processes = self.nJobs)
-            if self.verbose:
-                print("-- Running " + str(self.nJobs) + " concurrent build jobs" )
-
-
-def parseBuildConfig(environment):
-    config = toml.load(environment.config)
-
-    # Use sub-build directories if multiple targets
-    subbuilddirs = False
-    if len(config.items()) > 1:
-        subbuilddirs = True
-
-    # Parse targets from toml file
-    targets = []
-    for nodename, node in config.items():
-        # Create target
-        target = Target(environment, nodename)
-
-        # Parse Targets type (Executable, Library, Test)
-        target.targetType      = TargetType.Executable
-        if "target_type" in node:
-            target.targetType  = TargetType[node["target_type"].lower().title()]
-
-        # Parse output name for the compiled target
-        if "output_name" in node:
-            target.outname     = node["output_name"]
-        else:
-            target.outname     = target.name
-
-        # If we have multiple targets, each gets its own sub-builddirectory
-        if subbuilddirs:
-            target.buildDirectory += "/"+target.name
-
-        # Handle the case that the target is an external project
-        if "external" in node:
-            target.external        = node["external"]
-            if target.external:
-                downloaddir = target.buildDirectory + "/external_sources"
-                # Check if directory is already present and non-empty
-                if os.path.exists(downloaddir) and os.listdir(downloaddir):
-                    print("-- External target " + target.name + ": sources found in "+downloaddir)
-                # Otherwise we download the sources
-                else:
-                    print("-- External target " + target.name + ": downloading to "+downloaddir)
-                    mkpath(downloaddir)
-                    subprocess.call(["git", "clone", node["url"], downloaddir])
-                    print("-- External target " + target.name + ": downloaded")
-                target.includeDirectories.append(downloaddir)
-
-        # Parse the Targets sources
-        sources = []
-        headers = []
-        if "sources" in node:
-            sourcenode = node["sources"]
-
-            # Target root directory
-            sourceroot = ""
-            if "root" in sourcenode:
-                target.root = sourcenode["root"]
-                target.includeDirectories.append(target.targetDirectory+"/"+target.root)
-
-            # Add include directories
-            if "include_directories" in sourcenode:
-                for dir in sourcenode["include_directories"]:
-                    if dir not in target.includeDirectories:
-                        target.includeDirectories.append(target.targetDirectory+"/"+target.root+"/"+dir)
-
-                # Search for header files
-                for ext in ('*.hpp', '*.hxx', '*.h'):
-                    for dir in sourcenode["include_directories"]:
-                        headers += glob(os.path.join(target.targetDirectory+"/"+target.root+"/"+dir, ext))
-
-            # Search for source files
-            if "source_directories" in sourcenode:
-                for ext in ('*.cpp', '*.cxx', '*.c'):
-                    for dir in sourcenode["source_directories"]:
-                        sources += glob(os.path.join(target.targetDirectory+"/"+target.root+"/"+dir, ext))
-
-        # If sources were not specified we try to glob them
-        else:
-            # Search for header files
-            for ext in ('*.hpp', '*.hxx'):
-                headers += glob(os.path.join(target.targetDirectory, ext))
-            # Search for source files
-            for ext in ('*.cpp', '*.cxx'):
-                sources += glob(os.path.join(target.targetDirectory, ext))
-
-        # Set target sources
-        target.headerFiles = headers
-        target.sourceFiles = sources
-
-        # Flags
-        if "flags" in node:
-            flagsnode = node["flags"]
-            if "compile" in flagsnode:
-                for flag in flagsnode["compile"]:
-                    target.compileFlags.append(flag)
-            if "compileRelease" in flagsnode:
-                for flag in flagsnode["compileRelease"]:
-                    target.compileFlagsRelease.append(flag)
-            if "compileDebug" in flagsnode:
-                for flag in flagsnode["compileDebug"]:
-                    target.compileFlagsDebug.append(flag)
-            if "link" in flagsnode:
-                for flag in flagsnode["link"]:
-                    target.linkFlags.append(flag)
-
-        # Dependencies
-        if "link" in node:
-            if "dependencies" in node["link"]:
-                deps = node["link"]["dependencies"]
-                for dep in deps:
-                    if dep not in target.dependencies:
-                        target.dependencies.append(str(dep))
-                        if environment.verbose: print("-- Dependency added: "+target.name+" -> "+dep)
-
-        if "scripts" in node:
-            if "before_compile" in node["scripts"]:
-                target.beforeCompileScript = target.targetDirectory + "/" + node["scripts"]["before_compile"]
-
-        # List of targets
-        targets.append(target)
-
-    # Check if all dependencies are resolved in terms of defined targets, check for circular dependencies...
-    # Add all valid dependencies to the targets as Target instead of just string
-    for target in targets:
-        for dep in target.dependencies:
-            valid = False
-            for depTarget in targets:
-                if dep == depTarget.name:
-                    valid = True
-                    if depTarget not in target.dependencyTargets:
-                        target.dependencyTargets.append(depTarget)
-                        depTarget.dependencyParents.append(target)
-                        print("-- Dependency resolved: "+target.name+" -> "+dep)
-                    else:
-                        print("-- WARNING: you may have a double dependency: "+target.name+" -> "+dep)
-            if not valid:
-                print("-- WARNING: could not resolve dependency "+target.name+" -> "+dep)
-
-    # Determine leafs on dependency graph
-    leafs = []
-    for target in targets:
-        if not target.dependencyTargets:
-            leafs.append(target)
-    if not leafs:
-        print("-- WARNING: did not find any leafs in dependency graph!")
-
-    # Done
-    return targets, leafs
-
-
-
-def getDefaultTarget(environment):
-    # Create target
-    target = Target(environment)
-
-    # Search for header files
-    headers = []
-    for ext in ('*.hpp', '*.hxx', '*.h'):
-        headers += glob(os.path.join(environment.workingDirectory, ext))
-
-    # Search for source files
-    sources = []
-    for ext in ('*.cpp', '*.cxx', '*.c'):
-        sources += glob(os.path.join(environment.workingDirectory, ext))
-
-    # Set target
-    target.headerFiles = headers
-    target.sourceFiles = sources
-
-    # Done
-    return target
-
+from pbr.version import VersionInfo as _VersionInfo
+
+from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
+from .build_type import BuildType as _BuildType
+from .target import Executable as _Executable,\
+                    SharedLibrary as _SharedLibrary,\
+                    StaticLibrary as _StaticLibrary,\
+                    HeaderOnly as _HeaderOnly
+from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
+                              find_non_existent_dependencies as _find_non_existent_dependencies,\
+                              get_dependency_walk as _get_dependency_walk
+from .io_tools import get_sources_and_headers as _get_sources_and_headers
+from .progress_bar import CategoryProgress as _CategoryProgress,\
+                          IteratorProgress as _IteratorProgress
+from .logging_stream_handler import TqdmHandler as _TqdmHandler
+
+_v = _VersionInfo('clang-build').semantic_version()
+__version__ = _v.release_string()
+version_info = _v.version_tuple
+
+
+
+def _setup_logger(log_level=None):
+    logger = _logging.getLogger(__name__)
+    logger.setLevel(_logging.DEBUG)
+
+    # create formatter _and add it to the handlers
+    formatter = _logging.Formatter('%(message)s')
+
+    # add log file handler
+    fh = _logging.FileHandler('clang-build.log', mode='w')
+    fh.setLevel(_logging.DEBUG)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+    if log_level is not None:
+        ch = _TqdmHandler()
+        ch.setLevel(log_level)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+
+
+
+
+_command_line_description = (
+'`clang-build` is a build system to build your C++ projects. It uses the clang '
+'compiler/toolchain in the background and python as the build-system\'s scripting '
+'language.\n'
+'For more information please visit: https://github.com/trick-17/clang-build')
+
+def parse_args(args):
+    parser = argparse.ArgumentParser(description=_command_line_description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-V', '--verbose',
+                        help='activate more detailed output',
+                        action='store_true')
+    parser.add_argument('-p', '--progress', help='activates a progress bar output. is overruled by -V and --debug', action='store_true')
+    parser.add_argument('-d', '--directory', type=_Path,
+                        help='set the root source directory')
+    parser.add_argument('-b', '--build-type', choices=list(_BuildType), type=_BuildType, default=_BuildType.Default,
+                        help='set the build type for this project')
+    parser.add_argument('-j', '--jobs', type=int, default=1,
+                        help='set the number of concurrent build jobs')
+    parser.add_argument('--debug', help='activates additional debug output, overrides verbosity option.', action='store_true')
+    return parser.parse_args(args=args)
+
+
+def _find_clang(logger):
+    clangpp = _which('clang++')
+    clang_ar = _which('llvm-ar')
+    if clangpp:
+        llvm_root = _Path(clangpp).parents[0]
+    else:
+        logger.error('Couldn\'t find clang++ executable')
+        sys.exit(1)
+    if not clang_ar:
+        logger.error('Couldn\'t find llvm-ar executable')
+        sys.exit(1)
+
+    logger.info(f'llvm root directory: {llvm_root}')
+    logger.info(f'clang++ executable: {clangpp}')
+    logger.info(f'llvm-ar executable: {clang_ar}')
+    logger.info(f'Newest supported C++ dialect: {_get_max_supported_compiler_dialect(clangpp)}')
+
+    return clangpp, clang_ar
 
 
 def main():
-    print("---- clang-build v0.0.0")
+    args = parse_args(sys.argv[1:])
 
-    # Parse command line arguments, check for presence of build config file, etc.
-    environment = Environment()
-
-    # If build configuration toml file exists, parse lists of targets and leaf nodes of the dependency graph
-    if environment.config:
-        targets, leafs = parseBuildConfig(environment)
-    # Otherwise we try to build it as a simple hello world or mwe project
+    progress_disabled = True
+    # Verbosity
+    if not args.debug:
+        if args.verbose:
+            _setup_logger(_logging.INFO)
+        else:
+            # Only file log
+            _setup_logger(None)
     else:
-        defaultTarget = getDefaultTarget(environment)
-        targets = [defaultTarget]
-        leafs   = [defaultTarget]
+        _setup_logger(_logging.DEBUG)
 
-    # Generate flags of all targets, propagating up the dependency graph
-    for target in leafs:
-        target.generateFlags()
+    if args.progress:
+        progress_disabled = False
 
-    # Generate the buildables of all targets
-    for target in targets:
-        target.generateBuildables()
+    #
+    # TODO: create try except around build and deal with it.
+    #
+    build(args, progress_disabled)
 
-    # Build the targets, moving successively up the dependency graph
-    print("---- Compile step")
-    for target in leafs:
-        target.compile()
+def build(args, progress_disabled=True):
+    logger = _logging.getLogger(__name__)
+    logger.info(f'clang-build {__version__}')
 
-    print("---- Link step")
-    for target in leafs:
-        target.link()
+    messages = ['Configure', 'Compile', 'Link']
 
-    print("---- clang-build finished")
+    with _CategoryProgress(messages, progress_disabled) as progress_bar:
+        # Check for clang++ executable
+        clangpp, clang_ar = _find_clang(logger)
+
+        # Directory this was called from
+        callingdir = _Path().resolve()
+
+        # Working directory is where the project root should be - this is searched for 'clang-build.toml'
+        if args.directory:
+            workingdir = args.directory.resolve()
+        else:
+            workingdir = callingdir
+
+        if not workingdir.exists():
+            error_message = f'ERROR: specified non-existent directory [{workingdir}]'
+            logger.error(f'ERROR: specified non-existent directory [{workingdir}]')
+            raise RuntimeError(f'ERROR: specified non-existent directory [{workingdir}]')
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+        logger.info(f'Working directory: {workingdir}')
+
+        # Build type (Default, Release, Debug)
+        buildType = args.build_type
+        logger.info(f'Build type: {buildType.name}')
+
+        # Multiprocessing pool
+        processpool = _Pool(processes = args.jobs)
+        logger.info(f'Running up to {args.jobs} concurrent build jobs')
+
+        build_directory = _Path('build')
+        target_list = []
+
+        # Check for build configuration toml file
+        toml_file = _Path(workingdir, 'clang-build.toml')
+        if toml_file.exists():
+            logger.info('Found config file')
+            config = toml.load(str(toml_file))
+
+            # Use sub-build directories if multiple targets
+            subbuilddirs = False
+            if len(config.items()) > 1:
+                subbuilddirs = True
+
+            # Parse targets from toml file
+            non_existent_dependencies = _find_non_existent_dependencies(config)
+            if non_existent_dependencies:
+                error_messages = [f'In {target}: the dependency {dependency} does not point to a valid target' for\
+                                target, dependency in non_existent_dependencies]
+
+                error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+                logger.error(error_message)
+                sys.exit(1)
+
+            circular_dependencies = _find_circular_dependencies(config)
+            if circular_dependencies:
+                error_messages = [f'In {target}: circular dependency -> {dependency}' for\
+                                target, dependency in non_existent_dependencies]
+
+                error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+                logger.error(error_message)
+                sys.exit(1)
+
+            target_names = _get_dependency_walk(config)
+
+            for target_name in _IteratorProgress(target_names, progress_disabled, len(target_names)):
+                project_node = config[target_name]
+                # Directories
+                target_build_dir = build_directory if not subbuilddirs else build_directory.joinpath(target_name)
+                # Sources
+                files = _get_sources_and_headers(project_node, workingdir, target_build_dir)
+                # Dependencies
+                dependencies = [target_list[target_names.index(name)] for name in project_node.get('dependencies', [])]
+                executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
+
+                if executable_dependencies:
+                    logger.error(f'Error: The following targets are linking dependencies but were identified as executables: {executable_dependencies}')
+
+
+                if 'target_type' in project_node:
+                    #
+                    # Add an executable
+                    #
+                    if project_node['target_type'].lower() == 'executable':
+                        target_list.append(
+                            _Executable(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                files['sourcefiles'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
+
+                    #
+                    # Add a shared library
+                    #
+                    if project_node['target_type'].lower() == 'shared library':
+                        target_list.append(
+                            _SharedLibrary(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                files['sourcefiles'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
+
+                    #
+                    # Add a static library
+                    #
+                    elif project_node['target_type'].lower() == 'static library':
+                        target_list.append(
+                            _StaticLibrary(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                files['sourcefiles'],
+                                buildType,
+                                clangpp,
+                                clang_ar,
+                                project_node,
+                                dependencies))
+
+                    #
+                    # Add a header-only
+                    #
+                    elif project_node['target_type'].lower() == 'header only':
+                        if files['sourcefiles']:
+                            logger.info(f'Source files found for header-only target {target_name}. You may want to check your build configuration.')
+                        target_list.append(
+                            _HeaderOnly(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
+
+                    else:
+                        logger.error(f'ERROR: Unsupported target type: {project_node["target_type"]}')
+
+                # No target specified so must be executable or header only
+                else:
+                    if not files['sourcefiles']:
+                        logger.info(f'No source files found for target {target_name}. Creating header-only target.')
+                        target_list.append(
+                            _HeaderOnly(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
+                    else:
+                        logger.info(f'{len(files["sourcefiles"])} source files found for target {target_name}. Creating executable target.')
+                        target_list.append(
+                            _Executable(
+                                target_name,
+                                workingdir,
+                                target_build_dir,
+                                files['headers'],
+                                files['include_directories'],
+                                files['sourcefiles'],
+                                buildType,
+                                clangpp,
+                                project_node,
+                                dependencies))
+
+
+        # Otherwise we try to build it as a simple hello world or mwe project
+        else:
+            files = _get_sources_and_headers({}, workingdir, build_directory)
+
+            if not files['sourcefiles']:
+                error_message = f'Error, no sources and no [clang-build.toml] found in folder: {workingdir}'
+                logger.error(error_message)
+                raise RuntimeError(error_message)
+            # Create target
+            target_list.append(
+                _Executable(
+                    'main',
+                    workingdir,
+                    build_directory,
+                    files['headers'],
+                    files['include_directories'],
+                    files['sourcefiles'],
+                    buildType,
+                    clangpp))
+
+        # Build the targets
+        progress_bar.update()
+
+        logger.info('Compile')
+
+        for target in _IteratorProgress(target_list, progress_disabled, len(target_list), lambda x: x.name):
+            target.compile(processpool, progress_disabled)
+
+        # No parallel linking atm, could be added via
+        # https://stackoverflow.com/a/5288547/2305545
+        #
+
+        processpool.close()
+        processpool.join()
+
+        progress_bar.update()
+        logger.info('Link')
+        for target in target_list:
+            if not target.unsuccesful_builds:
+                target.link()
+            else:
+                logger.error(f'Target {target} did not compile. Errors:\n%s',
+                    [f'{file}: {output}' for file, output in zip(
+                        [t.name for t in target.unsuccesful_builds],
+                        [t.output_messages for t in target.unsuccesful_builds])])
+                break
+
+        progress_bar.update()
+        logger.info('clang-build finished.')
+
+
+if __name__ == '__main__':
+    _freeze_support()
+    main()

@@ -1,0 +1,18 @@
+[myexe]
+output_name  = "runLib"
+dependencies = ["mylib"]
+directory    = "myexe"
+
+[mylib]
+version      = "0.0.0"
+target_type  = "shared library"
+directory    = "mylib"
+dependencies = ["Eigen"]
+
+[Eigen]
+target_type = "header only"
+external    = true
+url         = "https://github.com/eigenteam/eigen-git-mirror"
+[Eigen.flags]
+compile  = ["-Wno-deprecated-declarations"]
+compileRelease = ["-DEIGEN_NO_DEBUG"]

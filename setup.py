@@ -3,5 +3,6 @@
 import setuptools
 
 setuptools.setup(
-    setup_requires=['pbr>=3.1.1'],
+    python_requires='>=3.6',
+    setup_requires=['pbr<4'],
     pbr=True)
