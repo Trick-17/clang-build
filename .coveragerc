@@ -1,0 +1,5 @@
+[run]
+branch = True
+concurrency = "multiprocessing"
+[paths]
+source = "clang_build"
