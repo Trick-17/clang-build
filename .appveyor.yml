@@ -17,11 +17,13 @@ install:
   - set PATH=%PYTHON%\\scripts;%PATH%
   # Install python packages
   - "%PYTHON%/Scripts/pip.exe install twine"
+  - "%PYTHON%/Scripts/pip.exe install codecov"
 
 test_script:
   # test/hello
   - "%PYTHON%/python setup.py develop"
-  - "%PYTHON%/python -m unittest"
+  - "%PYTHON%/Scripts/coverage run --source clang_build test/test.py"
+  - "%PYTHON%/Scripts/codecov"
   #- "%PYTHON%/python setup.py develop"
   #- "clang-build -d\"test/hello\" -V"
   #- 'build\main.exe'

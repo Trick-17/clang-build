@@ -30,19 +30,19 @@ matrix:
 
 install:
   - pip install setuptools
-  - pip install coveralls
+  - pip install codecov
   - python setup.py develop
 
 script:
   - clang --version
   - python --version
   - pip --version
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then python setup.py test; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coverage run --source clang_build setup.py test; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coverage report -m; fi
+  - then python setup.py test
+  - then coverage run --source clang_build setup.py test
+  - then coverage report -m
 
 after_success:
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then coveralls; fi
+  - codecov
 
 deploy:
   provider: pypi
