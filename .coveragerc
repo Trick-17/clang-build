@@ -1,5 +1,4 @@
 [run]
-branch = True
 source = clang_build
 parallel = True
 concurrency = multiprocessing
