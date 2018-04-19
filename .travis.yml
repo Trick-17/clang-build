@@ -37,9 +37,9 @@ script:
   - clang --version
   - python --version
   - pip --version
-  - then python setup.py test
-  - then coverage run --source clang_build setup.py test
-  - then coverage report -m
+  - python setup.py test
+  - coverage run --source clang_build setup.py test
+  - coverage report -m
 
 after_success:
   - codecov
