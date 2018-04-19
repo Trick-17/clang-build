@@ -11,9 +11,7 @@ from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
 from shutil import which as _which
-from glob import iglob as _iglob
 import toml
-import networkx as _nx
 from pbr.version import VersionInfo as _VersionInfo
 
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
@@ -175,6 +173,15 @@ def build(args, progress_disabled=True):
             non_existent_dependencies = _find_non_existent_dependencies(config)
             if non_existent_dependencies:
                 error_messages = [f'In {target}: the dependency {dependency} does not point to a valid target' for\
+                                target, dependency in non_existent_dependencies]
+
+                error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+                logger.error(error_message)
+                sys.exit(1)
+
+            circular_dependencies = _find_circular_dependencies(config)
+            if circular_dependencies:
+                error_messages = [f'In {target}: circular dependency -> {dependency}' for\
                                 target, dependency in non_existent_dependencies]
 
                 error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
