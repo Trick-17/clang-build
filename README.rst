@@ -1,15 +1,14 @@
 Clang-build
 ===========
 
-Linux and OSX test: |Test status| Windows test: |Test status|
+Linux and OSX test: |Test status| Windows test: |Test status| Code quality: |codacy|
 
 **Motivation:**
 
 -  Meta build systems are inherently the wrong way to go, either the build system or the compiler should be platform-agnostic (ideally both).
 -  Trying to cover all use-cases is the wrong way to go - there is no need to let people do it the wrong way
--  CMake is cumbersome, unnecessarily generic and verbose and people should not need a second programming language to be able to build C++
+-  CMake is cumbersome, unnecessarily generic and verbose and people should not need a programming/scripting language whose only purpose is to build C++
 -  With Clang, finally a properly cross-platform compiler exists
--  With Python we have a widely available language we can use consistently across platforms
 
 **Goals:**
 
@@ -34,6 +33,7 @@ Install via ``pip install clang-build`` (add the ``--user`` flag if you don't ha
 
 Running ``clang-build`` will try to build the current directory.
 The command-line options include
+
 -  ``-d path/to/dir`` to build a different directory
 -  ``-p`` to show a progress bar
 -  ``-V`` to print some additional info
@@ -130,6 +130,7 @@ A single target
 ---------------
 
 Note:
+
 -  by default, the root and <targetname> folders, as well as "include" and "src" subdirectories will be searched for ".hpp", ".hxx", ".h" and ".cpp", ".cxx" and ".c" files
 -  a target without ``target_type``, but with source files will be an executable
 -  ``output_name`` should not contain pre- or suffixes such as lib, .exe, .so, as they are added automatically
@@ -162,6 +163,7 @@ Adding external dependencies
 ----------------------------
 
 Note:
+
 -  external projects will be copied/downloaded into "build/targetname/external_sources"
 -  you can specify a subdirectory, if the thirdparty code has an unusual structure
 -  further granularity is given by ``include_directories`` and ``source_directories``
@@ -173,8 +175,8 @@ Note:
     url = "https://github.com/trick-17/mylib"
     version = 1.1 # will try to git checkout [v]1.1[.*]
     directory = "sources"           # will point to "build/mylib/external_sources/sources"
-    include_directories = ["mylib"] # will point to "build/mylib/external_sources/sources/mylib"
-    source_directories  = ["mylib"] # will point to "build/mylib/external_sources/sources/mylib"
+    include_directories = ["mylib/include"] # will point to "build/mylib/external_sources/sources/mylib"
+    source_directories  = ["mylib/src"] # will point to "build/mylib/external_sources/sources/mylib"
     # Maybe we need to deactivate annoying warnings coming from the library
     [mylib.flags]
     compile = ["-Wno-deprecated-declarations", "-Wno-self-assign"]
@@ -188,3 +190,5 @@ Note:
    :target: https://travis-ci.org/Trick-17/clang-build
 .. |Test status| image:: https://ci.appveyor.com/api/projects/status/57qv53r4totihxrj/branch/master?svg=true
    :target: https://ci.appveyor.com/project/GPMueller/clang-build
+.. |codacy| image:: https://api.codacy.com/project/badge/Grade/2bcc761ed19844c48f92f7779e2cf67f
+   :target: https://www.codacy.com/app/Trick-17/clang-build?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Trick-17/clang-build&amp;utm_campaign=Badge_Grade
