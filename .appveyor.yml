@@ -22,7 +22,7 @@ install:
 test_script:
   # test/hello
   - "%PYTHON%/python setup.py develop"
-  - "%PYTHON%/Scripts/coverage run clang_build test/test.py"
+  - "%PYTHON%/Scripts/coverage run test/test.py"
   - "%PYTHON%/Scripts/coverage combine"
   - "%PYTHON%/Scripts/codecov"
   #- "%PYTHON%/python setup.py develop"
