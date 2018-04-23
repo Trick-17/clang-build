@@ -143,6 +143,9 @@ class HeaderOnly(Target):
 def generateDepfile(buildable):
     buildable.generate_dependency_file()
 
+def generate_depfile_single_source(buildable):
+    buildable.generate_depfile()
+
 def compile_single_source(buildable):
     buildable.compile()
 
@@ -254,7 +257,6 @@ class Compilable(Target):
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool, progress_disabled):
 
-
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
         self.neededBuildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
 
@@ -267,17 +269,27 @@ class Compilable(Target):
 
         # Before-compile step
         if self.beforeCompileScript:
-            _LOGGER.info(f'Pre-compile step of target [{self.name}]')
+            script_file = self.root_directory.joinpath(self.beforeCompileScript)
+            _LOGGER.info(f'Pre-compile step of target [{self.name}]: {script_file}')
             originalDir = _os.getcwd()
             _os.chdir(self.root_directory)
-            script_file = self.root_directory.joinpath(self.beforeCompileScript)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
             _os.chdir(originalDir)
             _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
 
-        # Compile
+        # Execute depfile generation command
+        _LOGGER.info(f'Scan dependencies of target [{self.outname}]')
+        for b in self.neededBuildables:
+            _LOGGER.debug(' '.join(b.dependency_command))
+        list(_get_build_progress_bar(
+                process_pool.imap(
+                    generate_depfile_single_source,
+                    self.neededBuildables),
+                progress_disabled,
+                total=len(self.neededBuildables),
+                name=self.name))
 
         # Execute compile command
         _LOGGER.info(f'Compile target [{self.outname}]')
@@ -290,7 +302,6 @@ class Compilable(Target):
                 progress_disabled,
                 total=len(self.neededBuildables),
                 name=self.name))
-
 
         self.unsuccesful_builds = [buildable for buildable in self.neededBuildables if buildable.compilation_failed]
 
