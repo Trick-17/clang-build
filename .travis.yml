@@ -27,6 +27,7 @@ matrix:
       osx_image: xcode8
       before_script:
         - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
+        - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install python; fi
 
 install:
   - pip3 install setuptools
