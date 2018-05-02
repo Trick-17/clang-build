@@ -1,7 +1,8 @@
 Clang-build
 ===========
 
-Linux and OSX test: |Test status| Windows test: |Test status| Code quality: |codacy| Coverage: |coverage|
+Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Code quality: |codacy| Coverage: |coverage|
+
 
 **Motivation:**
 
@@ -186,9 +187,9 @@ Note:
     dependencies = ["mylib"]
 
 
-.. |Test status| image:: https://travis-ci.org/Trick-17/clang-build.svg?branch=master
+.. |Test status Travis| image:: https://travis-ci.org/Trick-17/clang-build.svg?branch=master
    :target: https://travis-ci.org/Trick-17/clang-build
-.. |Test status| image:: https://ci.appveyor.com/api/projects/status/57qv53r4totihxrj/branch/master?svg=true
+.. |Test status AppVeyor| image:: https://ci.appveyor.com/api/projects/status/57qv53r4totihxrj/branch/master?svg=true
    :target: https://ci.appveyor.com/project/GPMueller/clang-build
 .. |codacy| image:: https://api.codacy.com/project/badge/Grade/2bcc761ed19844c48f92f7779e2cf67f
    :target: https://www.codacy.com/app/Trick-17/clang-build?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Trick-17/clang-build&amp;utm_campaign=Badge_Grade

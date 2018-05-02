@@ -143,6 +143,9 @@ class HeaderOnly(Target):
 def generateDepfile(buildable):
     buildable.generate_dependency_file()
 
+def generate_depfile_single_source(buildable):
+    buildable.generate_depfile()
+
 def compile_single_source(buildable):
     buildable.compile()
 
@@ -241,20 +244,18 @@ class Compilable(Target):
             if not target.__class__ is HeaderOnly:
                 self.linkCommand += ['-l'+target.outname]
 
-        ### Additional scripts
-        #self.beforeCompileScript = ""
-        #self.beforeLinkScript    = ""
-        #self.afterBuildScript    = ""
-        #if 'scripts' in options: ### TODO: maybe the scripts should be named differently
-        #    if 'before_compile' in config['scripts']:
-        #        self.beforeCompileScript = _Path(self.root_directory, config['scripts']['before_compile'])
-        #        self.beforeLinkScript    = _Path(self.root_directory, config['scripts']['before_link'])
-        #        self.afterBuildScript    = _Path(self.root_directory, config['scripts']['after_build'])
+        ## Additional scripts
+        self.beforeCompileScript = ""
+        self.beforeLinkScript    = ""
+        self.afterBuildScript    = ""
+        if 'scripts' in options: ### TODO: maybe the scripts should be named differently
+            self.beforeCompileScript = options['scripts'].get('before_compile', "")
+            self.beforeLinkScript    = options['scripts'].get('before_link',    "")
+            self.afterBuildScript    = options['scripts'].get('after_build',    "")
 
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool, progress_disabled):
-
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
         self.neededBuildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
@@ -267,16 +268,28 @@ class Compilable(Target):
         _LOGGER.info(f'Target [{self.name}] needs to build sources %s', [b.name for b in self.neededBuildables])
 
         # Before-compile step
-        #if self.beforeCompileScript and not self.compiled:
-        #    _LOGGER.info(f'Pre-compile step of target [{self.name}]')
-        #    originalDir = os.getcwd()
-        #    newDir, _ = os.path.split(self.beforeCompileScript)
-        #    os.chdir(newDir)
-        #    execfile(self.beforeCompileScript)
-        #    os.chdir(originalDir)
-        #    _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
+        if self.beforeCompileScript:
+            script_file = self.root_directory.joinpath(self.beforeCompileScript)
+            _LOGGER.info(f'Pre-compile step of target [{self.name}]: {script_file}')
+            originalDir = _os.getcwd()
+            _os.chdir(self.root_directory)
+            with open(script_file) as f:
+                code = compile(f.read(), script_file, 'exec')
+                exec(code, globals(), locals())
+            _os.chdir(originalDir)
+            _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
 
-        # Compile
+        # Execute depfile generation command
+        _LOGGER.info(f'Scan dependencies of target [{self.outname}]')
+        for b in self.neededBuildables:
+            _LOGGER.debug(' '.join(b.dependency_command))
+        list(_get_build_progress_bar(
+                process_pool.imap(
+                    generate_depfile_single_source,
+                    self.neededBuildables),
+                progress_disabled,
+                total=len(self.neededBuildables),
+                name=self.name))
 
         # Execute compile command
         _LOGGER.info(f'Compile target [{self.outname}]')
@@ -290,20 +303,22 @@ class Compilable(Target):
                 total=len(self.neededBuildables),
                 name=self.name))
 
-
         self.unsuccesful_builds = [buildable for buildable in self.neededBuildables if buildable.compilation_failed]
 
 
     def link(self):
         # Before-link step
-        #if self.beforeLinkScript:
-        #    _LOGGER.info(f'Pre-link step of target [{self.name}]')
-        #    originalDir = os.getcwd()
-        #    newDir, _ = os.path.split(self.beforeCompileScript)
-        #    os.chdir(newDir)
-        #    execfile(self.beforeLinkScript)
-        #    os.chdir(originalDir)
-        #    _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
+        if self.beforeLinkScript:
+            _LOGGER.info(f'Pre-link step of target [{self.name}]')
+            originalDir = _os.getcwd()
+            _os.chdir(self.root_directory)
+            script_file = self.root_directory.joinpath(self.beforeLinkScript)
+            with open(script_file) as f:
+                code = compile(f.read(), script_file, 'exec')
+                exec(code, globals(), locals())
+            _os.chdir(originalDir)
+            _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
+
         # Execute link command
         _LOGGER.info(f'Link target [{self.name}]')
         # TODO: Capture output
@@ -316,15 +331,18 @@ class Compilable(Target):
             error_message = f'Error linking target [{self.name}] with message: {e}'
             _LOGGER.error(error_message)
             raise RuntimeError(error_message)
+
         ## After-build step
-        #if self.afterBuildScript:
-        #    _LOGGER.info(f'After-build step of target [{self.name}]')
-        #    originalDir = os.getcwd()
-        #    newDir, _ = os.path.split(self.beforeCompileScript)
-        #    os.chdir(newDir)
-        #    execfile(self.afterBuildScript)
-        #    os.chdir(originalDir)
-        #    _LOGGER.info(f'Finished after-build step of target [{self.name}]')
+        if self.afterBuildScript:
+            _LOGGER.info(f'After-build step of target [{self.name}]')
+            originalDir = _os.getcwd()
+            _os.chdir(self.root_directory)
+            script_file = self.root_directory.joinpath(self.afterBuildScript)
+            with open(script_file) as f:
+                code = compile(f.read(), script_file, 'exec')
+                exec(code, globals(), locals())
+            _os.chdir(originalDir)
+            _LOGGER.info(f'Finished after-build step of target [{self.name}]')
 
 
 class Executable(Compilable):
