@@ -29,17 +29,17 @@ matrix:
         - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
 
 install:
-  - pip install setuptools
-  - pip install codecov
-  - python setup.py develop
+  - pip3 install setuptools
+  - pip3 install codecov
+  - python3 setup.py develop
 
 script:
   - clang --version
-  - python --version
-  - pip --version
-  - python setup.py test
-  - coverage run setup.py test
-  - coverage combine
+  - python3 --version
+  - pip3 --version
+  - python3 setup.py test
+  - python3 -m coverage run setup.py test
+  - python3 -m coverage combine
 
 after_success:
   - codecov
