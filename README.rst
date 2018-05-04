@@ -1,7 +1,8 @@
 Clang-build
 ===========
 
-Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Code quality: |codacy|
+Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Code quality: |codacy| Coverage: |coverage|
+
 
 **Motivation:**
 
@@ -192,3 +193,5 @@ Note:
    :target: https://ci.appveyor.com/project/GPMueller/clang-build
 .. |codacy| image:: https://api.codacy.com/project/badge/Grade/2bcc761ed19844c48f92f7779e2cf67f
    :target: https://www.codacy.com/app/Trick-17/clang-build?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Trick-17/clang-build&amp;utm_campaign=Badge_Grade
+.. |coverage| image:: https://codecov.io/gh/Trick-17/clang-build/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/Trick-17/clang-build

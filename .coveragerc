@@ -1,0 +1,7 @@
+[run]
+source = clang_build
+parallel = True
+concurrency = multiprocessing
+timid = True
+[paths]
+source = clang_build
