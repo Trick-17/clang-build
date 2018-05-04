@@ -7,7 +7,7 @@ matrix:
   include:
     - language: python
       os: linux
-      env: DEPLOY=false
+      env: DEPLOY=true
       python: 3.6
       addons:
         apt:
@@ -23,7 +23,7 @@ matrix:
       dist: trusty
     - language: cpp
       os: osx
-      env: DEPLOY=true
+      env: DEPLOY=false
       osx_image: xcode8
       before_install:
         - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
