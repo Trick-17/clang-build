@@ -183,10 +183,26 @@ def build(args):
         toml_file = _Path(environment.workingdir, 'clang-build.toml')
         if toml_file.exists():
             logger.info('Found config file')
+
+            # Parse config file
             config = toml.load(str(toml_file))
 
-            working_project = _Project(config, environment)
-            target_list = working_project.get_targets()
+            # Determine if there are multiple projects
+            targets_config = {key: val for key, val in config.items() if not key == "subproject" and not key == "name"}
+            subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
+            multiple_projects = False
+            if (targets_config and subprojects_config) or (len(subprojects_config["subproject"]) > 1):
+                multiple_projects = True
+
+            # Create root project
+            project = _Project(config, environment, multiple_projects)
+
+            # Get list of all targets
+            target_list += project.get_targets()
+
+            # # Generate list of all targets
+            # for project in working_projects:
+            #     target_list.append(project.get_targets())
 
         # Otherwise we try to build it as a simple hello world or mwe project
         else:
