@@ -101,22 +101,19 @@ def _find_clang(logger):
 
 
 class _Environment:
-    def __init__(self):
+    def __init__(self, args):
         # Some defaults
         self.logger = None
-        self.progress_disabled = False
+        self.progress_disabled = True
         self.buildType  = None
         self.clangpp  = "clang++"
         self.clang_ar = "llvm-ar"
         self.messages = ['Configure', 'Compile', 'Link']
-        self.progress_disabled = True
         # Directory this was called from
         self.callingdir = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
         self.workingdir = self.callingdir
 
-        # Get the command line arguments
-        args = parse_args(sys.argv[1:])
 
         # Verbosity
         if not args.debug:
@@ -163,15 +160,20 @@ class _Environment:
 
 
 def main():
-    environment = _Environment()
+    # Get the command line arguments
+    args = parse_args(sys.argv[1:])
+
     #
     # TODO: create try except around build and deal with it.
     #
-    build(environment)
+    build(args)
 
 
 
-def build(environment):
+def build(args):
+    # Create container of environment variables
+    environment = _Environment(args)
+
     with _CategoryProgress(environment.messages, environment.progress_disabled) as progress_bar:
         target_list = []
         logger = environment.logger
@@ -183,7 +185,7 @@ def build(environment):
             logger.info('Found config file')
             config = toml.load(str(toml_file))
 
-            working_project = _Project(config, logger)
+            working_project = _Project(config, environment)
             target_list = working_project.get_targets()
 
         # Otherwise we try to build it as a simple hello world or mwe project
@@ -235,6 +237,7 @@ def build(environment):
 
         progress_bar.update()
         logger.info('clang-build finished.')
+
 
 
 if __name__ == '__main__':
