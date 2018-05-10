@@ -1,5 +1,6 @@
 AUTHORS
 ChangeLog
+test/external_scripts/version.h
 
 ### Subdirectories ###
 */build/*
