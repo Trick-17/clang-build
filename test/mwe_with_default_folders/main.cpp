@@ -1,9 +1,7 @@
 #include <iostream>
 #include <smallfunctions.hpp>
 
-int main(int argc, char ** argv)
+int main()
 {
-    std::cerr << "Calculated Integer: " << calculateInt() << std::endl;
-    std::cerr << "Calculated Vector:  " << calculateVec().transpose() << std::endl;
-    return 0;
+    std::cerr << "Calculated Magic: " << calculate_magic() << std::endl;
 }
