@@ -228,6 +228,8 @@ class Compilable(Target):
         # Linking setup
         self.linkCommand = link_command + [str(self.outfile)]
 
+        self.linkCommand += self.linkFlags
+
         ### Library dependency search paths
         for target in self.dependencyTargets:
             if not target.__class__ is HeaderOnly:

@@ -101,6 +101,16 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'the version is 1.2.0')
 
+    def test_openmp(self):
+        clang_build.build(clang_build.parse_args(['-d', 'test/openmp', '-p']))
+
+        try:
+            output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run compiled program')
+
+        # self.assertEqual(output, 'Hello from thread 1, nthreads 8')
+
     # def test_mwe_two_targets(self):
     #     logging.getLogger().setLevel(logging.DEBUG)
     #     clang_build.build(clang_build.parse_args(['-d', 'test/multi_target_external', '-p']))

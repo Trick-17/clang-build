@@ -1,0 +1,5 @@
+[myexe]
+output_name = "runHello"
+[myexe.flags]
+compile  = ["-fopenmp"]
+link  = ["-fopenmp"]
