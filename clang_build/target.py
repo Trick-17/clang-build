@@ -140,14 +140,13 @@ class HeaderOnly(Target):
     def compile(self, process_pool, progress_disabled):
         _LOGGER.info(f'Header-only target [{self.name}] does not require compiling.')
 
-def generateDepfile(buildable):
-    buildable.generate_dependency_file()
-
 def generate_depfile_single_source(buildable):
     buildable.generate_depfile()
+    return buildable
 
 def compile_single_source(buildable):
     buildable.compile()
+    return buildable
 
 class Compilable(Target):
 
@@ -283,7 +282,7 @@ class Compilable(Target):
         _LOGGER.info(f'Scan dependencies of target [{self.outname}]')
         for b in self.neededBuildables:
             _LOGGER.debug(' '.join(b.dependency_command))
-        list(_get_build_progress_bar(
+        self.neededBuildables = list(_get_build_progress_bar(
                 process_pool.imap(
                     generate_depfile_single_source,
                     self.neededBuildables),
@@ -295,7 +294,7 @@ class Compilable(Target):
         _LOGGER.info(f'Compile target [{self.outname}]')
         for b in self.neededBuildables:
             _LOGGER.debug(' '.join(b.compile_command))
-        list(_get_build_progress_bar(
+        self.neededBuildables = list(_get_build_progress_bar(
                 process_pool.imap(
                     compile_single_source,
                     self.neededBuildables),
