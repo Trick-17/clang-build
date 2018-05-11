@@ -74,7 +74,7 @@ class Target:
 
         # If target is marked as external, try to fetch the sources
         ### TODO: external sources should be fetched before any sources are read in, i.e. even before targets are created
-        self.external = options.get('external', False)
+        self.external = "url" in options
         if self.external:
             downloaddir = buildDirectory.joinpath('external_sources')
             # Check if directory is already present and non-empty

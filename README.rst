@@ -172,7 +172,6 @@ Note:
 .. code:: toml
 
     [mylib]
-    external = true
     url = "https://github.com/trick-17/mylib"
     version = 1.1 # will try to git checkout [v]1.1[.*]
     directory = "sources"           # will point to "build/mylib/external_sources/sources"

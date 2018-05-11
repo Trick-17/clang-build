@@ -37,9 +37,32 @@ class Project:
 
         # print(f"Project {self.name}")
         self.workingdir = environment.workingdir
-        if "url" in config:
-            # TODO: implement "external" projects
-            print("external project...")
+
+        # Project build directory
+        self.build_directory = environment.build_directory
+        if multiple_projects:
+            self.build_directory = self.build_directory.joinpath(self.name)
+
+        ### TODO: external sources should be fetched before any sources are read in, i.e. even before projects are created
+        self.external = "url" in config
+        if self.external:
+            downloaddir = self.build_directory.joinpath('external_sources')
+            # Check if directory is already present and non-empty
+            if downloaddir.exists() and _os.listdir(str(downloaddir)):
+                _LOGGER.info(f'External project [[{self.name}]]: sources found in {str(downloaddir)}')
+            # Otherwise we download the sources
+            else:
+                _LOGGER.info(f'External project [[{self.name}]]: downloading to {str(downloaddir)}')
+                downloaddir.mkdir(parents=True, exist_ok=True)
+                try:
+                    _subprocess.run(["git", "clone", config["url"], str(downloaddir)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                except _subprocess.CalledProcessError as e:
+                    error_message = f"Error trying to download external project [[{self.name}]]. Message " + e.output
+                    _LOGGER.exception(error_message)
+                    raise RuntimeError(error_message)
+                _LOGGER.info(f'External project [[{self.name}]]: downloaded')
+            self.workingdir = downloaddir
+
         if "directory" in config:
             self.workingdir = environment.workingdir.joinpath(config["directory"])
             toml_file = _Path(self.workingdir, 'clang-build.toml')
@@ -65,8 +88,6 @@ class Project:
                 print(f"Project {self.name}: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project.")
                 environment.logger.error(f"Project {self.name}: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project.")
                 sys.exit(1)
-
-
 
         # Generate Projects
         subprojects = []
@@ -134,10 +155,6 @@ class Project:
 
         self.target_list = []
 
-        # Project build directory
-        self.build_directory = environment.build_directory
-        if multiple_projects:
-            self.build_directory = self.build_directory.joinpath(self.name)
 
         for target_name in _IteratorProgress(target_names_project, environment.progress_disabled, len(target_names_project)):
             # print(f"-- Project {self.name}: target {name}:................")

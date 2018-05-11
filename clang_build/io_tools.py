@@ -26,7 +26,7 @@ def get_sources_and_headers(target_options, working_directory, target_build_dire
     # Root directory of target source tree
     target_root = _Path(working_directory)
 
-    if target_options.get('external', False):
+    if 'url' in target_options:
         target_root = target_root.joinpath(target_build_directory, 'external_sources')
 
     if 'directory' in target_options:
