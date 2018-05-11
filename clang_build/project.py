@@ -36,18 +36,18 @@ class Project:
         self.name = config.get("name", "")
 
         # print(f"Project {self.name}")
-
+        self.workingdir = environment.workingdir
         if "url" in config:
             # TODO: implement "external" projects
             print("external project...")
         if "directory" in config:
-            toml_dir  = environment.workingdir.joinpath(config["directory"])
-            toml_file = _Path(toml_dir, 'clang-build.toml')
+            self.workingdir = environment.workingdir.joinpath(config["directory"])
+            toml_file = _Path(self.workingdir, 'clang-build.toml')
             if toml_file.exists():
                 environment.logger.info(f'Found config file {toml_file}')
                 config = toml.load(str(toml_file))
             else:
-                print(f"Project {self.name}: could not find project file in directory {toml_dir}")
+                print(f"Project {self.name}: could not find project file in directory {self.workingdir}")
 
         # Get subset of config which contains targets not associated to any project name
         self.targets_config = {key: val for key, val in config.items() if not key == "subproject" and not key == "name"}
@@ -145,7 +145,7 @@ class Project:
             # Directories
             target_build_dir = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)
             # Sources
-            files = _get_sources_and_headers(target_node, environment.workingdir, target_build_dir)
+            files = _get_sources_and_headers(target_node, self.workingdir, target_build_dir)
             # Dependencies
             dependencies = []
             for name in target_node.get('dependencies', []):
@@ -179,7 +179,7 @@ class Project:
                     self.target_list.append(
                         _Executable(
                             target_name,
-                            environment.workingdir,
+                            self.workingdir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -196,7 +196,7 @@ class Project:
                     self.target_list.append(
                         _SharedLibrary(
                             target_name,
-                            environment.workingdir,
+                            self.workingdir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -213,7 +213,7 @@ class Project:
                     self.target_list.append(
                         _StaticLibrary(
                             target_name,
-                            environment.workingdir,
+                            self.workingdir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -233,7 +233,7 @@ class Project:
                     self.target_list.append(
                         _HeaderOnly(
                             target_name,
-                            environment.workingdir,
+                            self.workingdir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -252,7 +252,7 @@ class Project:
                     self.target_list.append(
                         _HeaderOnly(
                             target_name,
-                            environment.workingdir,
+                            self.workingdir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -265,7 +265,7 @@ class Project:
                     self.target_list.append(
                         _Executable(
                             target_name,
-                            environment.workingdir,
+                            self.workingdir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
