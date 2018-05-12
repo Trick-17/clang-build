@@ -178,6 +178,7 @@ def main():
                     printout += f'\n{file}:{row}:{column}: {messagetype}: {message}'
             logger.error(printout)
     except _LinkError as link_error:
+        logger = _logging.getLogger(__name__)
         logger.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
             printout = f'Target {target} did not link. Errors:\n{errors}'
