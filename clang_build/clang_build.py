@@ -135,9 +135,7 @@ def main():
     except _LinkError as link_error:
         logger.error('Compilation was unsuccessful:')
         for target, errors in link_error.error_dict.items():
-            printout = f'Target {target} did not link. Errors:'
-            for target, output in errors:
-                printout += f'\n{target}: {output}'
+            printout = f'Target {target} did not link. Errors:\n{errors}'
             logger.error(printout)
 
 
@@ -386,11 +384,7 @@ def build(args, progress_disabled=True):
         errors = {}
         for target in target_list:
             if target.unsuccessful_link:
-                outputs = [(target.name, target.link_report)]
-                # outputs = [(file, output) for file, output in zip(
-                #         [t.sourceFile for t in target.unsuccessful_link],
-                #         [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccessful_link])]
-                errors[target.name] = outputs
+                errors[target.name] = target.link_report
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
 
