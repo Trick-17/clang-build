@@ -302,7 +302,7 @@ class Compilable(Target):
                 total=len(self.neededBuildables),
                 name=self.name))
 
-        self.unsuccesful_builds = [buildable for buildable in self.neededBuildables if buildable.compilation_failed]
+        self.unsuccesful_builds = [buildable for buildable in self.neededBuildables if (buildable.compilation_failed or buildable.depfile_failed)]
 
 
     def link(self):

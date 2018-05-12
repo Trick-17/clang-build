@@ -357,7 +357,7 @@ def build(args, progress_disabled=True):
             if target.unsuccesful_builds:
                 outputs = [(file, output) for file, output in zip(
                         [t.name for t in target.unsuccesful_builds],
-                        [t.output_messages for t in target.unsuccesful_builds])]
+                        [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccesful_builds])]
                 errors[target.name] = outputs
 
                 logger.error(f'Target {target} did not compile. Errors:\n%s',
