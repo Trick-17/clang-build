@@ -28,6 +28,7 @@ from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
 from .logging_stream_handler import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
+from .errors import LinkError as _LinkError
 
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
@@ -130,6 +131,13 @@ def main():
                     messagetype = out['type']
                     message = out['message']
                     printout += f'\n{file}:{row}:{column}: {messagetype}: {message}'
+            logger.error(printout)
+    except _LinkError as link_error:
+        logger.error('Compilation was unsuccessful:')
+        for target, errors in link_error.error_dict.items():
+            printout = f'Target {target} did not link. Errors:'
+            for target, output in errors:
+                printout += f'\n{target}: {output}'
             logger.error(printout)
 
 
@@ -357,21 +365,34 @@ def build(args, progress_disabled=True):
         processpool.close()
         processpool.join()
 
+        # Check for compile errors
         errors = {}
         for target in target_list:
-            if target.unsuccesful_builds:
+            if target.unsuccessful_builds:
                 outputs = [(file, output) for file, output in zip(
-                        [t.sourceFile for t in target.unsuccesful_builds],
-                        [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccesful_builds])]
+                        [t.sourceFile for t in target.unsuccessful_builds],
+                        [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccessful_builds])]
                 errors[target.name] = outputs
-
         if errors:
             raise _CompileError('Compilation was unsuccessful', errors)
 
+        # Link
         progress_bar.update()
         logger.info('Link')
         for target in target_list:
             target.link()
+
+        # Check for link errors
+        errors = {}
+        for target in target_list:
+            if target.unsuccessful_link:
+                outputs = [(target.name, target.link_report)]
+                # outputs = [(file, output) for file, output in zip(
+                #         [t.sourceFile for t in target.unsuccessful_link],
+                #         [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccessful_link])]
+                errors[target.name] = outputs
+        if errors:
+            raise _LinkError('Linking was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')
