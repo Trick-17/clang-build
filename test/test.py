@@ -127,6 +127,16 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'the version is 1.2.0')
 
+    def test_subproject(self):
+        clang_build_try_except(['-d', 'test/subproject', '-V', '-p'])
+
+        try:
+            output = subprocess.check_output(['./build/mainproject/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run compiled program')
+
+        self.assertEqual(output, 'Hello! mylib::triple(3) returned 9')
+
     # def test_openmp(self):
     #     clang_build_try_except(['-d', 'test/openmp', '-V', '-p'])
 
