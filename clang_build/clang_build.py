@@ -122,10 +122,15 @@ def main():
     except _CompileError as compile_error:
         logger.error('Compilation was unsuccessful:')
         for target, errors in compile_error.error_dict.items():
-            logger.error(f'Taget {target} failed:')
-            for f, message in errors:
-                logger.error(_textwrap.indent(f'File {f}\n{message}', ' '*4))
-            logger.error()
+            printout = f'Target {target} did not compile. Errors:'
+            for file, output in errors:
+                for out in output:
+                    row = out['row']
+                    column = out['column']
+                    messagetype = out['type']
+                    message = out['message']
+                    printout += f'\n{file}:{row}:{column}: {messagetype}: {message}'
+            logger.error(printout)
 
 
 def build(args, progress_disabled=True):
@@ -356,12 +361,9 @@ def build(args, progress_disabled=True):
         for target in target_list:
             if target.unsuccesful_builds:
                 outputs = [(file, output) for file, output in zip(
-                        [t.name for t in target.unsuccesful_builds],
+                        [t.sourceFile for t in target.unsuccesful_builds],
                         [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccesful_builds])]
                 errors[target.name] = outputs
-
-                logger.error(f'Target {target} did not compile. Errors:\n%s',
-                    [f'{file}: {output}' for file, output in outputs])
 
         if errors:
             raise _CompileError('Compilation was unsuccessful', errors)
