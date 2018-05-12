@@ -28,6 +28,8 @@ from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
 from .logging_stream_handler import TqdmHandler as _TqdmHandler
+from .errors import CompileError as _CompileError
+from .errors import LinkError as _LinkError
 
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
@@ -114,7 +116,6 @@ class _Environment:
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
         self.workingdir = self.callingdir
 
-
         # Verbosity
         if not args.debug:
             if args.verbose:
@@ -160,20 +161,33 @@ class _Environment:
 
 
 def main():
-    # Get the command line arguments
-    args = parse_args(sys.argv[1:])
-
-    #
-    # TODO: create try except around build and deal with it.
-    #
-    build(args)
-
-
-
-def build(args):
     # Create container of environment variables
-    environment = _Environment(args)
+    environment = _Environment(parse_args(sys.argv[1:]))
 
+    # Build
+    try:
+        build(environment)
+    except _CompileError as compile_error:
+        environment.logger.error('Compilation was unsuccessful:')
+        for target, errors in compile_error.error_dict.items():
+            printout = f'Target {target} did not compile. Errors:'
+            for file, output in errors:
+                for out in output:
+                    row = out['row']
+                    column = out['column']
+                    messagetype = out['type']
+                    message = out['message']
+                    printout += f'\n{file}:{row}:{column}: {messagetype}: {message}'
+            environment.logger.error(printout)
+    except _LinkError as link_error:
+        environment.logger.error('Linking was unsuccessful:')
+        for target, errors in link_error.error_dict.items():
+            printout = f'Target {target} did not link. Errors:\n{errors}'
+            environment.logger.error(printout)
+
+
+
+def build(environment):
     with _CategoryProgress(environment.messages, environment.progress_disabled) as progress_bar:
         target_list = []
         logger = environment.logger
@@ -240,17 +254,30 @@ def build(args):
         processpool.close()
         processpool.join()
 
+        # Check for compile errors
+        errors = {}
+        for target in target_list:
+            if target.unsuccessful_builds:
+                outputs = [(file, output) for file, output in zip(
+                        [t.sourceFile for t in target.unsuccessful_builds],
+                        [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccessful_builds])]
+                errors[target.name] = outputs
+        if errors:
+            raise _CompileError('Compilation was unsuccessful', errors)
+
+        # Link
         progress_bar.update()
         logger.info('Link')
         for target in target_list:
-            if not target.unsuccesful_builds:
-                target.link()
-            else:
-                logger.error(f'Target {target} did not compile. Errors:\n%s',
-                    [f'{file}: {output}' for file, output in zip(
-                        [t.name for t in target.unsuccesful_builds],
-                        [t.output_messages for t in target.unsuccesful_builds])])
-                break
+            target.link()
+
+        # Check for link errors
+        errors = {}
+        for target in target_list:
+            if target.unsuccessful_link:
+                errors[target.name] = target.link_report
+        if errors:
+            raise _LinkError('Linking was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')

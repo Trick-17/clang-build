@@ -120,7 +120,7 @@ class Target:
         self.includeDirectories = list(set(self.includeDirectories))
         self.headers = list(set(self.headers))
 
-        self.unsuccesful_builds = []
+        self.unsuccessful_builds = []
 
     def get_include_directory_command(self):
         return [f'-I{dir}' for dir in self.includeDirectories]
@@ -140,14 +140,13 @@ class HeaderOnly(Target):
     def compile(self, process_pool, progress_disabled):
         _LOGGER.info(f'Header-only target [{self.name}] does not require compiling.')
 
-def generateDepfile(buildable):
-    buildable.generate_dependency_file()
-
 def generate_depfile_single_source(buildable):
     buildable.generate_depfile()
+    return buildable
 
 def compile_single_source(buildable):
     buildable.compile()
+    return buildable
 
 class Compilable(Target):
 
@@ -223,7 +222,7 @@ class Compilable(Target):
             clangpp=self.clangpp) for sourceFile in self.sourceFiles]
 
         # If compilation of buildables fail, they will be stored here later
-        self.unsuccesful_builds = []
+        self.unsuccessful_builds = []
 
         # Linking setup
         self.linkCommand = link_command + [str(self.outfile)]
@@ -270,7 +269,7 @@ class Compilable(Target):
         _LOGGER.info(f'Scan dependencies of target [{self.outname}]')
         for b in self.neededBuildables:
             _LOGGER.debug(' '.join(b.dependency_command))
-        list(_get_build_progress_bar(
+        self.neededBuildables = list(_get_build_progress_bar(
                 process_pool.imap(
                     generate_depfile_single_source,
                     self.neededBuildables),
@@ -282,7 +281,7 @@ class Compilable(Target):
         _LOGGER.info(f'Compile target [{self.outname}]')
         for b in self.neededBuildables:
             _LOGGER.debug(' '.join(b.compile_command))
-        list(_get_build_progress_bar(
+        self.neededBuildables = list(_get_build_progress_bar(
                 process_pool.imap(
                     compile_single_source,
                     self.neededBuildables),
@@ -290,7 +289,7 @@ class Compilable(Target):
                 total=len(self.neededBuildables),
                 name=self.name))
 
-        self.unsuccesful_builds = [buildable for buildable in self.neededBuildables if buildable.compilation_failed]
+        self.unsuccessful_builds = [buildable for buildable in self.neededBuildables if (buildable.compilation_failed or buildable.depfile_failed)]
 
 
     def link(self):
@@ -306,18 +305,16 @@ class Compilable(Target):
             _os.chdir(originalDir)
             _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
 
-        # Execute link command
         _LOGGER.info(f'Link target [{self.name}]')
-        # TODO: Capture output
         _LOGGER.debug('    ' + ' '.join(self.linkCommand))
 
-        self.linker_error = None
+        # Execute link command
         try:
-            _subprocess.check_output(self.linkCommand)
-        except _subprocess.CalledProcessError as e:
-            error_message = f'Error linking target [{self.name}] with message: {e}'
-            _LOGGER.error(error_message)
-            raise RuntimeError(error_message)
+            self.link_report = _subprocess.check_output(self.linkCommand, stderr=_subprocess.STDOUT).decode('utf-8').strip()
+            self.unsuccessful_link = False
+        except _subprocess.CalledProcessError as error:
+            self.unsuccessful_link = True
+            self.link_report = error.output.decode('utf-8').strip()
 
         ## After-build step
         if self.afterBuildScript:

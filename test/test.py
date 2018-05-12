@@ -9,7 +9,7 @@ from pathlib import Path as _Path
 from multiprocessing import freeze_support
 
 from clang_build import clang_build
-
+from clang_build.errors import CompileError
 
 def on_rm_error( func, path, exc_info):
     # path contains the path of the file that couldn't be removed
@@ -28,6 +28,10 @@ class TestClangBuild(unittest.TestCase):
             self.fail('Could not run compiled program')
 
         self.assertEqual(output, 'Hello!')
+
+    def test_compile_error(self):
+        with self.assertRaises(CompileError):
+            clang_build.build(clang_build.parse_args(['-d', 'test/mwe_build_error']), False)
 
     def test_script_call(self):
         try:
@@ -67,9 +71,8 @@ class TestClangBuild(unittest.TestCase):
             output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
-        calculated_integer, calculated_vector = output.splitlines()
-        self.assertEqual(calculated_integer, 'Calculated Integer: 1253643')
-        self.assertEqual(calculated_vector, 'Calculated Vector:  0 0 1')
+
+        self.assertEqual(output, 'Calculated Magic: 30')
 
     def test_toml_mwe(self):
         clang_build.build(clang_build.parse_args(['-d', 'test/toml_mwe', '-p']))
