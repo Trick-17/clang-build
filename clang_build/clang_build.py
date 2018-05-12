@@ -142,8 +142,8 @@ class _Environment:
 
         if not self.workingdir.exists():
             error_message = f'ERROR: specified non-existent directory [{self.workingdir}]'
-            self.logger.error(f'ERROR: specified non-existent directory [{self.workingdir}]')
-            raise RuntimeError(f'ERROR: specified non-existent directory [{self.workingdir}]')
+            self.logger.error(error_message)
+            raise RuntimeError(error_message)
 
         self.logger.info(f'Working directory: {self.workingdir}')
 
@@ -155,7 +155,7 @@ class _Environment:
         self.processpool = _Pool(processes = args.jobs)
         self.logger.info(f'Running up to {args.jobs} concurrent build jobs')
 
-        # Build directory ### TODO: should this be per project?
+        # Build directory
         self.build_directory = _Path('build')
 
 
