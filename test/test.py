@@ -31,7 +31,7 @@ class TestClangBuild(unittest.TestCase):
 
     def test_compile_error(self):
         with self.assertRaises(CompileError):
-            clang_build.build(clang_build.parse_args(['-d', 'test/mwe_build_error']), False)
+            clang_build.build(clang_build.parse_args(['-d', 'test/mwe_build_error', '-V', '-p']))
 
     def test_script_call(self):
         try:

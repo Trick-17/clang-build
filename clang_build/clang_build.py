@@ -161,14 +161,12 @@ class _Environment:
 
 
 def main():
-    # Create container of environment variables
-    environment = _Environment(parse_args(sys.argv[1:]))
-
     # Build
     try:
-        build(environment)
+        build(parse_args(sys.argv[1:]))
     except _CompileError as compile_error:
-        environment.logger.error('Compilation was unsuccessful:')
+        logger = _logging.getLogger(__name__)
+        logger.error('Compilation was unsuccessful:')
         for target, errors in compile_error.error_dict.items():
             printout = f'Target {target} did not compile. Errors:'
             for file, output in errors:
@@ -178,16 +176,19 @@ def main():
                     messagetype = out['type']
                     message = out['message']
                     printout += f'\n{file}:{row}:{column}: {messagetype}: {message}'
-            environment.logger.error(printout)
+            logger.error(printout)
     except _LinkError as link_error:
-        environment.logger.error('Linking was unsuccessful:')
+        logger.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
             printout = f'Target {target} did not link. Errors:\n{errors}'
-            environment.logger.error(printout)
+            logger.error(printout)
 
 
 
-def build(environment):
+def build(args):
+    # Create container of environment variables
+    environment = _Environment(args)
+
     with _CategoryProgress(environment.messages, environment.progress_disabled) as progress_bar:
         target_list = []
         logger = environment.logger
