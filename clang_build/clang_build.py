@@ -110,7 +110,6 @@ class _Environment:
         self.buildType  = None
         self.clangpp  = "clang++"
         self.clang_ar = "llvm-ar"
-        self.messages = ['Configure', 'Compile', 'Link']
         # Directory this was called from
         self.callingdir = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
@@ -190,7 +189,7 @@ def build(args):
     # Create container of environment variables
     environment = _Environment(args)
 
-    with _CategoryProgress(environment.messages, environment.progress_disabled) as progress_bar:
+    with _CategoryProgress(['Configure', 'Compile', 'Link'], environment.progress_disabled) as progress_bar:
         target_list = []
         logger = environment.logger
         processpool = environment.processpool

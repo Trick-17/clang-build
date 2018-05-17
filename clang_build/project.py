@@ -35,7 +35,6 @@ class Project:
 
         self.name = config.get("name", "")
 
-        # print(f"Project {self.name}")
         self.workingdir = environment.workingdir
 
         # Project build directory
@@ -43,7 +42,6 @@ class Project:
         if multiple_projects:
             self.build_directory = self.build_directory.joinpath(self.name)
 
-        ### TODO: external sources should be fetched before any sources are read in, i.e. even before projects are created
         self.external = "url" in config
         if self.external:
             downloaddir = self.build_directory.joinpath('external_sources')
@@ -70,7 +68,9 @@ class Project:
                 environment.logger.info(f'Found config file {toml_file}')
                 config = toml.load(str(toml_file))
             else:
-                print(f"Project {self.name}: could not find project file in directory {self.workingdir}")
+                error_message = f"Project {self.name}: could not find project file in directory {self.workingdir}"
+                _LOGGER.exception(error_message)
+                raise RuntimeError(error_message)
 
         # Get subset of config which contains targets not associated to any project name
         self.targets_config = {key: val for key, val in config.items() if not key == "subproject" and not key == "name"}
@@ -78,16 +78,12 @@ class Project:
         # Get subsets of config which define projects
         self.subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
 
-        # print("targets:     ", self.targets_config)
-        # print("subprojects: ", self.subprojects_config)
-        # print("full config: ", config)
-
         # An "anonymous" project, i.e. project-less targets, is not allowed together with subprojects
         if self.targets_config and self.subprojects_config:
             if not self.name:
-                print(f"Project {self.name}: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project.")
-                environment.logger.error(f"Project {self.name}: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project.")
-                sys.exit(1)
+                error_message = f"Project {self.name}: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project."
+                _LOGGER.exception(error_message)
+                raise RuntimeError(error_message)
 
         # Generate Projects
         subprojects = []
@@ -100,9 +96,6 @@ class Project:
         self.subprojects = subprojects
         self.subproject_names = [project.name if project.name else "anonymous" for project in subprojects]
 
-        # print(f"subprojects of {self.name}: ", [project.name if project.name else "anonymous" for project in subprojects])
-
-
         # Use sub-build directories if the project contains multiple targets
         multiple_targets = False
         if len(self.targets_config.items()) > 1:
@@ -110,7 +103,6 @@ class Project:
 
         if not self.targets_config:
             return
-        # print("targets config: ", self.targets_config)
 
         targets_and_subprojects = self.targets_config.copy()
         for project in subprojects:
@@ -121,17 +113,14 @@ class Project:
             targets_and_subproject_targets.update(project.targets_config)
 
         # Parse targets from toml file
-        # print(targets_and_subprojects)
         non_existent_dependencies = _find_non_existent_dependencies(targets_and_subprojects)
         if non_existent_dependencies:
             error_messages = [f'In {target}: the dependency {dependency} does not point to a valid target' for\
                             target, dependency in non_existent_dependencies]
 
             error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
-            environment.logger.error(error_message)
-            # print(f"Project {self.name}: non_existent_dependencies.")
-            # print(f"                     ", error_messages)
-            sys.exit(1)
+            _LOGGER.exception(error_message)
+            raise RuntimeError(error_message)
 
         circular_dependencies = _find_circular_dependencies(self.targets_config)
         if circular_dependencies:
@@ -139,9 +128,8 @@ class Project:
                             target, dependency in non_existent_dependencies]
 
             error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
-            environment.logger.error(error_message)
-            print(f"Project {self.name}: circular_dependencies.")
-            sys.exit(1)
+            _LOGGER.exception(error_message)
+            raise RuntimeError(error_message)
 
 
         target_names_total = _get_dependency_walk(targets_and_subproject_targets)
@@ -149,15 +137,11 @@ class Project:
         for name in target_names_total:
             if name in self.targets_config:
                 target_names_project.append(name)
-        # print(f"-- Project {self.name}: target names of project and subprojects: ", target_names_total)
-        # print(f"-- Project {self.name}: target names of project: ", target_names_project)
-        # print(f"-- Project {self.name}: target config: ", targets_and_subproject_targets)
 
         self.target_list = []
 
 
         for target_name in _IteratorProgress(target_names_project, environment.progress_disabled, len(target_names_project)):
-            # print(f"-- Project {self.name}: target {name}:................")
             target_node = targets_and_subproject_targets[target_name]
             # Directories
             target_build_dir = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)
@@ -182,11 +166,8 @@ class Project:
 
             executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
 
-            # print(f"-- Project {self.name}: target {target_name}: dependencies: ", dependencies)
-
             if executable_dependencies:
                 environment.logger.error(f'Error: The following targets are linking dependencies but were identified as executables: {executable_dependencies}')
-
 
             if 'target_type' in target_node:
                 #
