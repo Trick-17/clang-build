@@ -2,10 +2,18 @@ import networkx as _nx
 
 def find_non_existent_dependencies(project):
     illegal_dependencies = []
-    keys = [str(key) for key in project.keys()]
     for nodename, node in project.items():
         for dependency in node.get('dependencies', []):
-            if str(dependency) not in keys:
+            # Split string at dots
+            subnames = str(dependency).split(".")
+            if subnames[0] in project.keys():
+                subproject = project
+                for i in range(1, len(subnames)):
+                    subproject = subproject[subnames[i-1]]
+                    if subnames[i] not in subproject.keys():
+                        illegal_dependencies.append((nodename, '.'.join(subnames[:i])))
+                        i = len(subnames)
+            else:
                 illegal_dependencies.append((nodename, dependency))
 
     return illegal_dependencies
@@ -27,6 +35,8 @@ def get_dependency_walk(project):
             continue
 
         for dependency in dependencies:
-            graph.add_edge(str(nodename), str(dependency))
+            # Split string at dots
+            subnames = str(dependency).split(".")
+            graph.add_edge(str(nodename), str(subnames[-1]))
 
     return list(reversed(list(_nx.topological_sort(graph))))

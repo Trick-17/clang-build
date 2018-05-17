@@ -74,7 +74,7 @@ class Target:
 
         # If target is marked as external, try to fetch the sources
         ### TODO: external sources should be fetched before any sources are read in, i.e. even before targets are created
-        self.external = options.get('external', False)
+        self.external = "url" in options
         if self.external:
             downloaddir = buildDirectory.joinpath('external_sources')
             # Check if directory is already present and non-empty
@@ -227,21 +227,8 @@ class Compilable(Target):
         # Linking setup
         self.linkCommand = link_command + [str(self.outfile)]
 
-        ### Library dependency search paths
-        for target in self.dependencyTargets:
-            if not target.__class__ is HeaderOnly:
-                self.linkCommand += ['-L'+str(target.outputFolder.resolve())]
+        self.linkCommand += self.linkFlags
 
-        ### Include directories
-        #linkCommand += self.get_include_directory_command()
-
-        ### Link self
-        self.linkCommand += [str(buildable.objectFile) for buildable in self.buildables]
-
-        ### Link dependencies
-        for target in self.dependencyTargets:
-            if not target.__class__ is HeaderOnly:
-                self.linkCommand += ['-l'+target.outname]
 
         ## Additional scripts
         self.beforeCompileScript = ""
@@ -372,6 +359,19 @@ class Executable(Compilable):
             options=options,
             dependencies=dependencies)
 
+        ### Library dependency search paths
+        for target in self.dependencyTargets:
+            if not target.__class__ is HeaderOnly:
+                self.linkCommand += ['-L'+str(target.outputFolder.resolve())]
+
+        ### Link self
+        self.linkCommand += [str(buildable.objectFile) for buildable in self.buildables]
+
+        ### Link dependencies
+        for target in self.dependencyTargets:
+            if not target.__class__ is HeaderOnly:
+                self.linkCommand += ['-l'+target.outname]
+
 
 class SharedLibrary(Compilable):
     def __init__(self,
@@ -402,6 +402,19 @@ class SharedLibrary(Compilable):
             suffix=_platform.SHARED_LIBRARY_SUFFIX,
             options=options,
             dependencies=dependencies)
+
+        ### Library dependency search paths
+        for target in self.dependencyTargets:
+            if not target.__class__ is HeaderOnly:
+                self.linkCommand += ['-L'+str(target.outputFolder.resolve())]
+
+        ### Link self
+        self.linkCommand += [str(buildable.objectFile) for buildable in self.buildables]
+
+        ### Link dependencies
+        for target in self.dependencyTargets:
+            if not target.__class__ is HeaderOnly:
+                self.linkCommand += ['-l'+target.outname]
 
 
 class StaticLibrary(Compilable):
@@ -434,6 +447,17 @@ class StaticLibrary(Compilable):
             suffix=_platform.STATIC_LIBRARY_SUFFIX,
             options=options,
             dependencies=dependencies)
+
+        # ### Include directories
+        # self.linkCommand += self.get_include_directory_command()
+
+        ### Link self
+        self.linkCommand += [str(buildable.objectFile) for buildable in self.buildables]
+
+        ### Link dependencies
+        for target in self.dependencyTargets:
+            if not target.__class__ is HeaderOnly:
+                self.linkCommand += [str(buildable.objectFile) for buildable in target.buildables]
 
 if __name__ == '__main__':
     _freeze_support()
