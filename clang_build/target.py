@@ -57,20 +57,7 @@ class Target:
 
         self.headers = headers
 
-        if 'directory' in options:
-            self.root_directory = self.root_directory.joinpath(options['directory'])
-
         self.includeDirectories = []
-        if self.root_directory.joinpath('include').exists():
-            self.includeDirectories.append(self.root_directory.joinpath('include'))
-        self.includeDirectories += include_directories
-
-        if 'properties' in options and 'cpp_version' in options['properties']:
-            self.dialect = _get_dialect_string(options['properties']['cpp_version'])
-        else:
-            self.dialect = _get_max_supported_compiler_dialect(clangpp)
-
-        # TODO: parse user-specified target version
 
         # If target is marked as external, try to fetch the sources
         ### TODO: external sources should be fetched before any sources are read in, i.e. even before targets are created
@@ -93,6 +80,23 @@ class Target:
                 _LOGGER.info(f'External target [{self.name}]: downloaded')
             self.includeDirectories.append(downloaddir)
             self.root_directory = downloaddir
+
+        # Sub-directory, if specified
+        if 'directory' in options:
+            self.root_directory = self.root_directory.joinpath(options['directory'])
+        print(f"target {self.name} dir {self.root_directory}")
+
+        # Include directories
+        if self.root_directory.joinpath('include').exists():
+            self.includeDirectories.append(self.root_directory.joinpath('include'))
+        self.includeDirectories += include_directories
+
+        if 'properties' in options and 'cpp_version' in options['properties']:
+            self.dialect = _get_dialect_string(options['properties']['cpp_version'])
+        else:
+            self.dialect = _get_max_supported_compiler_dialect(clangpp)
+
+        # TODO: parse user-specified target version
 
         compileFlags        = []
         compileFlagsDebug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
@@ -117,13 +121,13 @@ class Target:
             self.headers += target.headers
 
         self.compileFlags = list(set(self.compileFlags))
-        self.includeDirectories = list(set(self.includeDirectories))
+        self.includeDirectories = list(set([dir.resolve() for dir in self.includeDirectories]))
         self.headers = list(set(self.headers))
 
         self.unsuccessful_builds = []
 
     def get_include_directory_command(self):
-        return [f'-I{dir}' for dir in self.includeDirectories]
+        return [f'-I\'{dir}\'' for dir in self.includeDirectories]
 
     def link(self):
         # Subclasses must implement
