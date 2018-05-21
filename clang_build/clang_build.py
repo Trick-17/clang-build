@@ -261,7 +261,7 @@ def build(args):
             if target.unsuccessful_builds:
                 outputs = [(file, output) for file, output in zip(
                         [t.sourceFile for t in target.unsuccessful_builds],
-                        [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccessful_builds])]
+                        [t.depfile_report if t.depfile_failed else t.output_messages for t in target.unsuccessful_builds])]
                 errors[target.name] = outputs
         if errors:
             raise _CompileError('Compilation was unsuccessful', errors)
@@ -275,8 +275,9 @@ def build(args):
         # Check for link errors
         errors = {}
         for target in target_list:
-            if target.unsuccessful_link:
-                errors[target.name] = target.link_report
+            if target.__class__ is not _HeaderOnly:
+                if target.unsuccessful_link:
+                    errors[target.name] = target.link_report
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
 
