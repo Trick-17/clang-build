@@ -8,18 +8,21 @@ import logging as _logging
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 # Find and parse the dependency file, return list of headers this file depends on
+# See e.g. https://gcc.gnu.org/onlinedocs/gcc-8.1.0/gcc/Preprocessor-Options.html#Preprocessor-Options for documentation
 # TODO: Can this be simplified?
 def _get_depfile_headers(depfile):
     depfileHeaders = []
     with open(depfile, 'r') as the_file:
         depStr = the_file.read()
+        # Find the first colon, which will be right after the object file name
         colonPos = depStr.find(':')
+        # Separate the remainder into lines
         for line in depStr[colonPos + 1:].splitlines():
+            # Remove the newline character ('\'-newline)
             if line.endswith('\\'):
                 line = line[:-1]
-            depline = line.strip().split()
-            for header in depline:
-                depfileHeaders.append(_Path(header))
+            # Add header (or source, actually)
+            depfileHeaders.append(_Path(line.strip().replace('\\ ', ' ')).resolve())
     return depfileHeaders
 
 def _needs_rebuild(object_file, source_file, depfile):
@@ -115,7 +118,12 @@ class SingleSource:
 
         # Get type, row, column and content of each message
         message_parser = _re.compile(r':(?P<row>\d+):(?P<column>\d+):\s*(?P<type>error|warning):\s*(?P<message>[\s\S.]*)')
-        self.output_messages = [message_parser.search(message).groupdict() for message in message_list]
+        for message in message_list:
+            parsed = message_parser.search(message)
+            if parsed:
+                self.output_messages.append(parsed.groupdict())
+            else:
+                print('clang-build could not parse error message:\n', message)
 
 if __name__ == '__name__':
     _freeze_support()
