@@ -75,7 +75,6 @@ class SingleSource:
         flags = compileFlags + include_strings
 
         self.compilation_failed = False
-        self.output_messages = []
 
         # prepare everything for dependency file generation
         self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
@@ -89,6 +88,8 @@ class SingleSource:
     def generate_depfile(self):
         # TODO: logging in multiprocess
         # _LOGGER.debug('    ' + ' '.join(dependency_command))
+        # print('---- depfile command list: ', self.dependency_command)
+        # print('---- depfile command: '+' '.join(self.dependency_command))
         try:
             self.depfile_report = _subprocess.check_output(self.dependency_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
             self.depfile_failed = False
@@ -100,6 +101,8 @@ class SingleSource:
     def compile(self):
         # TODO: logging in multiprocess
         # _LOGGER.debug('    ' + ' '.join(self.compile_command))
+        # print('---- compile command list: ', self.compile_command)
+        # print('---- compile command: '+' '.join(self.compile_command))
         try:
             self.compile_report = _subprocess.check_output(self.compile_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
             self.compilation_failed = False
@@ -107,23 +110,6 @@ class SingleSource:
             self.compilation_failed = True
             self.compile_report = error.output.decode('utf-8').strip()
 
-        self.parse_compile_output()
-
-    def parse_compile_output(self):
-        # Remove last line
-        output_text = _re.split(r'(.*)\n.*generated\.$', self.compile_report)[0]
-
-        # Find all the indivdual messages
-        message_list = _re.split(_re.escape(str(self.sourceFile)), output_text)[1:]
-
-        # Get type, row, column and content of each message
-        message_parser = _re.compile(r':(?P<row>\d+):(?P<column>\d+):\s*(?P<type>error|warning):\s*(?P<message>[\s\S.]*)')
-        for message in message_list:
-            parsed = message_parser.search(message)
-            if parsed:
-                self.output_messages.append(parsed.groupdict())
-            else:
-                print('clang-build could not parse error message:\n', message)
 
 if __name__ == '__name__':
     _freeze_support()

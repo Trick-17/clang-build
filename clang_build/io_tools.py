@@ -36,10 +36,10 @@ def get_sources_and_headers(target_options, working_directory, target_build_dire
         sourcenode = target_options['sources']
 
         if 'include_directories' in sourcenode:
-            relative_includes = [_Path(file) for file in sourcenode['include_directories']]
+            relative_includes = [_Path(path) for path in sourcenode['include_directories']]
 
         if 'source_directories' in sourcenode:
-            relative_source_directories = [_Path(file) for file in sourcenode['source_directories']]
+            relative_source_directories = [_Path(path) for path in sourcenode['source_directories']]
 
 
     # Some defaults if nothing was specified

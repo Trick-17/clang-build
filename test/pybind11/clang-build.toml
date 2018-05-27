@@ -6,7 +6,7 @@ dependencies = ["pybind", "mylib"]
 include_directories = ["C:/Program Files/Python36/include"]
 source_directories = ["python"]
 [pylib.flags]
-link  = ["-L'C:/Program Files/Python36/libs'"]
+link  = ['-L', 'C:/Program Files/Python36/libs']
 
 [mylib]
 target_type  = "shared library"

@@ -127,7 +127,10 @@ class Target:
         self.unsuccessful_builds = []
 
     def get_include_directory_command(self):
-        return [f'-I\'{dir}\'' for dir in self.includeDirectories]
+        ret = []
+        for dir in self.includeDirectories:
+            ret += ['-I',  str(dir.resolve())]
+        return ret
 
     def link(self):
         # Subclasses must implement
@@ -366,7 +369,7 @@ class Executable(Compilable):
         ### Library dependency search paths
         for target in self.dependencyTargets:
             if not target.__class__ is HeaderOnly:
-                self.linkCommand += ['-L'+str(target.outputFolder.resolve())]
+                self.linkCommand += ['-L', str(target.outputFolder.resolve())]
 
         ### Link self
         self.linkCommand += [str(buildable.objectFile) for buildable in self.buildables]
@@ -410,7 +413,7 @@ class SharedLibrary(Compilable):
         ### Library dependency search paths
         for target in self.dependencyTargets:
             if not target.__class__ is HeaderOnly:
-                self.linkCommand += ['-L'+str(target.outputFolder.resolve())]
+                self.linkCommand += ['-L', str(target.outputFolder.resolve())]
 
         ### Link self
         self.linkCommand += [str(buildable.objectFile) for buildable in self.buildables]
