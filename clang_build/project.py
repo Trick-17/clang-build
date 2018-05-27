@@ -145,8 +145,40 @@ class Project:
             target_node = targets_and_subproject_targets[target_name]
             # Directories
             target_build_dir = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)
+            target_root_dir  = self.workingdir
+
+            # If target is marked as external, try to fetch the sources
+            ### TODO: external sources should be fetched before any sources are read in, i.e. even before targets are created
+            external = "url" in target_node
+            if external:
+                downloaddir = target_build_dir.joinpath('external_sources')
+                # Check if directory is already present and non-empty
+                if downloaddir.exists() and _os.listdir(str(downloaddir)):
+                    _LOGGER.info(f'External target [{self.name}]: sources found in {str(downloaddir)}')
+                # Otherwise we download the sources
+                else:
+                    _LOGGER.info(f'External target [{self.name}]: downloading to {str(downloaddir)}')
+                    downloaddir.mkdir(parents=True, exist_ok=True)
+                    try:
+                        _subprocess.run(["git", "clone", target_node["url"], str(downloaddir)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                    except _subprocess.CalledProcessError as e:
+                        error_message = f"Error trying to download external target [{self.name}]. Message " + e.output
+                        _LOGGER.exception(error_message)
+                        raise RuntimeError(error_message)
+                    _LOGGER.info(f'External target [{self.name}]: downloaded')
+                # self.includeDirectories.append(downloaddir)
+                target_root_dir = downloaddir
+
+            # Build directory for obj, bin etc. should be under build type folder, e.g. default
+            target_build_dir = target_build_dir.joinpath(environment.buildType.name.lower())
+
+            # Sub-directory, if specified
+            if 'directory' in target_node:
+                target_root_dir = target_root_dir.joinpath(target_node['directory'])
+            print(f"target {target_name} dir {target_root_dir}")
+
             # Sources
-            files = _get_sources_and_headers(target_node, self.workingdir, target_build_dir)
+            files = _get_sources_and_headers(target_node, target_root_dir, target_build_dir)
             # Dependencies
             dependencies = []
             for name in target_node.get('dependencies', []):
@@ -177,7 +209,7 @@ class Project:
                     self.target_list.append(
                         _Executable(
                             target_name,
-                            self.workingdir,
+                            target_root_dir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],

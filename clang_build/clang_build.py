@@ -207,7 +207,7 @@ def build(args):
                 _Executable(
                     'main',
                     environment.workingdir,
-                    environment.build_directory,
+                    environment.build_directory.joinpath(environment.buildType.name.lower()),
                     files['headers'],
                     files['include_directories'],
                     files['sourcefiles'],
@@ -266,14 +266,14 @@ def main():
         logger = _logging.getLogger(__name__)
         logger.error('Compilation was unsuccessful:')
         for target, errors in compile_error.error_dict.items():
-            printout = f'Target {target} did not compile. Errors:\n'
+            printout = f'Target [{target}] did not compile. Errors:\n'
             printout += ' '.join(errors)
             logger.error(printout)
     except _LinkError as link_error:
         logger = _logging.getLogger(__name__)
         logger.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
-            printout = f'Target {target} did not link. Errors:\n{errors}'
+            printout = f'Target [{target}] did not link. Errors:\n{errors}'
             logger.error(printout)
 
 

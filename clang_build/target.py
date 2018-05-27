@@ -53,38 +53,11 @@ class Target:
         self.root_directory = _Path(working_directory)
         self.buildType      = buildType
 
-        self.buildDirectory = buildDirectory.joinpath(buildType.name.lower())
+        self.buildDirectory = buildDirectory
 
         self.headers = headers
 
         self.includeDirectories = []
-
-        # If target is marked as external, try to fetch the sources
-        ### TODO: external sources should be fetched before any sources are read in, i.e. even before targets are created
-        self.external = "url" in options
-        if self.external:
-            downloaddir = buildDirectory.joinpath('external_sources')
-            # Check if directory is already present and non-empty
-            if downloaddir.exists() and _os.listdir(str(downloaddir)):
-                _LOGGER.info(f'External target [{self.name}]: sources found in {str(downloaddir)}')
-            # Otherwise we download the sources
-            else:
-                _LOGGER.info(f'External target [{self.name}]: downloading to {str(downloaddir)}')
-                downloaddir.mkdir(parents=True, exist_ok=True)
-                try:
-                    _subprocess.run(["git", "clone", options["url"], str(downloaddir)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
-                except _subprocess.CalledProcessError as e:
-                    error_message = f"Error trying to download external target [{self.name}]. Message " + e.output
-                    _LOGGER.exception(error_message)
-                    raise RuntimeError(error_message)
-                _LOGGER.info(f'External target [{self.name}]: downloaded')
-            self.includeDirectories.append(downloaddir)
-            self.root_directory = downloaddir
-
-        # Sub-directory, if specified
-        if 'directory' in options:
-            self.root_directory = self.root_directory.joinpath(options['directory'])
-        print(f"target {self.name} dir {self.root_directory}")
 
         # Include directories
         if self.root_directory.joinpath('include').exists():
@@ -174,11 +147,6 @@ class Compilable(Target):
             options=None,
             dependencies=None):
 
-        if not source_files:
-            error_message = f'ERROR: Targt [{name}] was defined as a {self.__class__} but no source files were found'
-            _LOGGER.error(error_message)
-            raise RuntimeError(error_message)
-
         super().__init__(
             name=name,
             working_directory=working_directory,
@@ -189,6 +157,11 @@ class Compilable(Target):
             clangpp=clangpp,
             options=options,
             dependencies=dependencies)
+
+        if not source_files:
+            error_message = f'ERROR: Targt [{name}] was defined as a {self.__class__} but no source files were found'
+            _LOGGER.error(error_message)
+            raise RuntimeError(error_message)
 
         if options is None:
             options = {}
