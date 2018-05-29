@@ -154,18 +154,18 @@ class Project:
                 downloaddir = target_build_dir.joinpath('external_sources')
                 # Check if directory is already present and non-empty
                 if downloaddir.exists() and _os.listdir(str(downloaddir)):
-                    _LOGGER.info(f'External target [{self.name}]: sources found in {str(downloaddir)}')
+                    _LOGGER.info(f'External target [{target_name}]: sources found in {str(downloaddir)}')
                 # Otherwise we download the sources
                 else:
-                    _LOGGER.info(f'External target [{self.name}]: downloading to {str(downloaddir)}')
+                    _LOGGER.info(f'External target [{target_name}]: downloading to {str(downloaddir)}')
                     downloaddir.mkdir(parents=True, exist_ok=True)
                     try:
                         _subprocess.run(["git", "clone", target_node["url"], str(downloaddir)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                     except _subprocess.CalledProcessError as e:
-                        error_message = f"Error trying to download external target [{self.name}]. Message " + e.output
+                        error_message = f"Error trying to download external target [{target_name}]. Message " + e.output
                         _LOGGER.exception(error_message)
                         raise RuntimeError(error_message)
-                    _LOGGER.info(f'External target [{self.name}]: downloaded')
+                    _LOGGER.info(f'External target [{target_name}]: downloaded')
                 # self.includeDirectories.append(downloaddir)
                 target_root_dir = downloaddir
 
@@ -199,7 +199,8 @@ class Project:
             executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
 
             if executable_dependencies:
-                environment.logger.error(f'Error: The following targets are linking dependencies but were identified as executables: {executable_dependencies}')
+                exelist = ', '.join([f'[{dep.name}]' for dep in executable_dependencies])
+                environment.logger.error(f'Error: The following targets are linking dependencies but were identified as executables:\n    {exelist}')
 
             if 'target_type' in target_node:
                 #
