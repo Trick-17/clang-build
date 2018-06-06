@@ -87,11 +87,13 @@ def _find_clang(logger):
     if clangpp:
         llvm_root = _Path(clangpp).parents[0]
     else:
-        logger.error('Couldn\'t find clang++ executable')
-        sys.exit(1)
+        error_message = 'Couldn\'t find clang++ executable'
+        logger.error(error_message)
+        raise RuntimeError(error_message)
     if not clang_ar:
-        logger.error('Couldn\'t find llvm-ar executable')
-        sys.exit(1)
+        error_message = 'Couldn\'t find llvm-ar executable'
+        logger.error(error_message)
+        raise RuntimeError(error_message)
 
     logger.info(f'llvm root directory: {llvm_root}')
     logger.info(f'clang++ executable: {clangpp}')
