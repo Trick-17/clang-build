@@ -88,8 +88,6 @@ class SingleSource:
     def generate_depfile(self):
         # TODO: logging in multiprocess
         # _LOGGER.debug('    ' + ' '.join(dependency_command))
-        # print('---- depfile command list: ', self.dependency_command)
-        # print('---- depfile command: '+' '.join(self.dependency_command))
         try:
             self.depfile_report = _subprocess.check_output(self.dependency_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
             self.depfile_failed = False
@@ -101,8 +99,6 @@ class SingleSource:
     def compile(self):
         # TODO: logging in multiprocess
         # _LOGGER.debug('    ' + ' '.join(self.compile_command))
-        # print('---- compile command list: ', self.compile_command)
-        # print('---- compile command: '+' '.join(self.compile_command))
         try:
             self.compile_report = _subprocess.check_output(self.compile_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
             self.compilation_failed = False

@@ -8,7 +8,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(mylib, m)
+PYBIND11_MODULE(pylib, m)
 {
     m.attr("__version__") = "dev";
 
@@ -16,5 +16,5 @@ PYBIND11_MODULE(mylib, m)
     m.doc() = "This is my library...";
 
     // Module functions
-    m.def("calculate", &mylib::triple, "calculate the triple of a number");
+    m.def("triple", &mylib::triple, "calculate the triple of a number");
 }

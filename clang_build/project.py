@@ -148,7 +148,7 @@ class Project:
             target_root_dir  = self.workingdir
 
             # If target is marked as external, try to fetch the sources
-            ### TODO: external sources should be fetched before any sources are read in, i.e. even before targets are created
+            ### TODO: external sources should be fetched before any sources are read in, i.e. even before the first target is created
             external = "url" in target_node
             if external:
                 downloaddir = target_build_dir.joinpath('external_sources')
