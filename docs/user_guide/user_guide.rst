@@ -11,3 +11,5 @@ your C++ project with Clang Build.
    first_steps.rst
    customisations.rst
    multiple_targets.rst
+   multiple_projects.rst
+   defaults.rst

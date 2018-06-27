@@ -17,7 +17,7 @@ By default:
 Search Paths
 ----------------------------------------------
 
-### Include directories
+**Include directories**
 Default system directories for `#include`-searches are given by Clang.
 
 `clang-build`'s include directories will be added to the search paths and will be searched
@@ -25,7 +25,7 @@ for header files for a target.
 In your project file, you can add an `include_directories` array to specify a target's header directories,
 where by default `clang-build` will try the target's root directory and an "include" subdirectory.
 
-### Source directories
+**Source directories**
 `clang-build`'s source directories will be searched for source files for a target.
 In your project file, you can add a `source_directories` array to specify a target's source directories,
 where by default `clang-build` will try the target's root directory and a "src" subdirectory.
@@ -47,21 +47,28 @@ The `default` build type does not add any flags, however
 Build Directories
 ----------------------------------------------
 
-- build
-  - targetname
-    - external_sources
-    - release
-      - obj
-      - dep
-      - bin
-      - lib
-      - include
-    - debug
-      - ...
-    - default
-      - ...
-    - ...
-  - othertargetname
-    - ...
+.. code-block:: text
+  build
+  ├── myproject
+  |   ├── targetname
+  |   |   ├── external_sources
+  |   |   ├── release
+  |   |   |   ├── obj
+  |   |   |   ├── dep
+  |   |   |   ├── bin
+  |   |   |   ├── lib
+  |   |   |   └── include
+  |   |   ├── debug
+  |   |   | └── ...
+  |   |   ├── default
+  |   |   | └── ...
+  |   |   └── ...
+  |   └── othertargetname
+  |       └── ...
+  └── mysubproject
+      └── ...
 
-*Note: "release", "debug", etc. directories will be placed directly into "build", if only one target is in the build configuration.*
+*Note:*
+If there is only one project, the target build folders will be placed directly into "build".
+Analogously, if there is only one target, the "release", "debug", etc. directories will be
+placed directly into "build".
