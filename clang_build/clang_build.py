@@ -87,11 +87,13 @@ def _find_clang(logger):
     if clangpp:
         llvm_root = _Path(clangpp).parents[0]
     else:
-        logger.error('Couldn\'t find clang++ executable')
-        sys.exit(1)
+        error_message = 'Couldn\'t find clang++ executable'
+        logger.error(error_message)
+        raise RuntimeError(error_message)
     if not clang_ar:
-        logger.error('Couldn\'t find llvm-ar executable')
-        sys.exit(1)
+        error_message = 'Couldn\'t find llvm-ar executable'
+        logger.error(error_message)
+        raise RuntimeError(error_message)
 
     logger.info(f'llvm root directory: {llvm_root}')
     logger.info(f'clang++ executable: {clangpp}')
@@ -159,32 +161,6 @@ class _Environment:
 
 
 
-def main():
-    # Build
-    try:
-        build(parse_args(sys.argv[1:]))
-    except _CompileError as compile_error:
-        logger = _logging.getLogger(__name__)
-        logger.error('Compilation was unsuccessful:')
-        for target, errors in compile_error.error_dict.items():
-            printout = f'Target {target} did not compile. Errors:'
-            for file, output in errors:
-                for out in output:
-                    row = out['row']
-                    column = out['column']
-                    messagetype = out['type']
-                    message = out['message']
-                    printout += f'\n{file}:{row}:{column}: {messagetype}: {message}'
-            logger.error(printout)
-    except _LinkError as link_error:
-        logger = _logging.getLogger(__name__)
-        logger.error('Linking was unsuccessful:')
-        for target, errors in link_error.error_dict.items():
-            printout = f'Target {target} did not link. Errors:\n{errors}'
-            logger.error(printout)
-
-
-
 def build(args):
     # Create container of environment variables
     environment = _Environment(args)
@@ -233,7 +209,7 @@ def build(args):
                 _Executable(
                     'main',
                     environment.workingdir,
-                    environment.build_directory,
+                    environment.build_directory.joinpath(environment.buildType.name.lower()),
                     files['headers'],
                     files['include_directories'],
                     files['sourcefiles'],
@@ -258,11 +234,9 @@ def build(args):
         # Check for compile errors
         errors = {}
         for target in target_list:
-            if target.unsuccessful_builds:
-                outputs = [(file, output) for file, output in zip(
-                        [t.sourceFile for t in target.unsuccessful_builds],
-                        [t.depfile_message if t.depfile_failed else t.output_messages for t in target.unsuccessful_builds])]
-                errors[target.name] = outputs
+            if target.__class__ is not _HeaderOnly:
+                if target.unsuccessful_builds:
+                    errors[target.name] = [source.compile_report for source in target.unsuccessful_builds]
         if errors:
             raise _CompileError('Compilation was unsuccessful', errors)
 
@@ -275,13 +249,34 @@ def build(args):
         # Check for link errors
         errors = {}
         for target in target_list:
-            if target.unsuccessful_link:
-                errors[target.name] = target.link_report
+            if target.__class__ is not _HeaderOnly:
+                if target.unsuccessful_link:
+                    errors[target.name] = target.link_report
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')
+
+
+
+def main():
+    # Build
+    try:
+        build(parse_args(sys.argv[1:]))
+    except _CompileError as compile_error:
+        logger = _logging.getLogger(__name__)
+        logger.error('Compilation was unsuccessful:')
+        for target, errors in compile_error.error_dict.items():
+            printout = f'Target [{target}] did not compile. Errors:\n'
+            printout += ' '.join(errors)
+            logger.error(printout)
+    except _LinkError as link_error:
+        logger = _logging.getLogger(__name__)
+        logger.error('Linking was unsuccessful:')
+        for target, errors in link_error.error_dict.items():
+            printout = f'Target [{target}] did not link. Errors:\n{errors}'
+            logger.error(printout)
 
 
 

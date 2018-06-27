@@ -8,18 +8,21 @@ import logging as _logging
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 # Find and parse the dependency file, return list of headers this file depends on
+# See e.g. https://gcc.gnu.org/onlinedocs/gcc-8.1.0/gcc/Preprocessor-Options.html#Preprocessor-Options for documentation
 # TODO: Can this be simplified?
 def _get_depfile_headers(depfile):
     depfileHeaders = []
     with open(depfile, 'r') as the_file:
         depStr = the_file.read()
+        # Find the first colon, which will be right after the object file name
         colonPos = depStr.find(':')
+        # Separate the remainder into lines
         for line in depStr[colonPos + 1:].splitlines():
+            # Remove the newline character ('\'-newline)
             if line.endswith('\\'):
                 line = line[:-1]
-            depline = line.strip().split()
-            for header in depline:
-                depfileHeaders.append(_Path(header))
+            # Add header (or source, actually)
+            depfileHeaders.append(_Path(line.strip().replace('\\ ', ' ')).resolve())
     return depfileHeaders
 
 def _needs_rebuild(object_file, source_file, depfile):
@@ -72,7 +75,6 @@ class SingleSource:
         flags = compileFlags + include_strings
 
         self.compilation_failed = False
-        self.output_messages = []
 
         # prepare everything for dependency file generation
         self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
@@ -104,18 +106,6 @@ class SingleSource:
             self.compilation_failed = True
             self.compile_report = error.output.decode('utf-8').strip()
 
-        self.parse_compile_output()
-
-    def parse_compile_output(self):
-        # Remove last line
-        output_text = _re.split(r'(.*)\n.*generated\.$', self.compile_report)[0]
-
-        # Find all the indivdual messages
-        message_list = _re.split(_re.escape(str(self.sourceFile)), output_text)[1:]
-
-        # Get type, row, column and content of each message
-        message_parser = _re.compile(r':(?P<row>\d+):(?P<column>\d+):\s*(?P<type>error|warning):\s*(?P<message>[\s\S.]*)')
-        self.output_messages = [message_parser.search(message).groupdict() for message in message_list]
 
 if __name__ == '__name__':
     _freeze_support()
