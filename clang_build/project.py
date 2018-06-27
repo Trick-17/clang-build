@@ -175,7 +175,6 @@ class Project:
             # Sub-directory, if specified
             if 'directory' in target_node:
                 target_root_dir = target_root_dir.joinpath(target_node['directory'])
-            print(f"target {target_name} dir {target_root_dir}")
 
             # Sources
             files = _get_sources_and_headers(target_node, target_root_dir, target_build_dir)
