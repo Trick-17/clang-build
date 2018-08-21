@@ -137,6 +137,16 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Hello! mylib::triple(3) returned 9')
 
+    def test_boost_filesystem(self):
+        clang_build_try_except(['-d', 'test/boost-filesystem', '-V', '-p'])
+
+        try:
+            output = subprocess.check_output(['./build/myexe/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run compiled program')
+
+        self.assertEqual(output, '"build" is a directory')
+
     # def test_openmp(self):
     #     clang_build_try_except(['-d', 'test/openmp', '-V', '-p'])
 
