@@ -125,7 +125,7 @@ class Project:
         circular_dependencies = _find_circular_dependencies(self.targets_config)
         if circular_dependencies:
             error_messages = [f'In {target}: circular dependency -> {dependency}' for\
-                            target, dependency in non_existent_dependencies]
+                            target, dependency in circular_dependencies]
 
             error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
             _LOGGER.exception(error_message)
@@ -168,6 +168,15 @@ class Project:
                     _LOGGER.info(f'External target [{target_name}]: downloaded')
                 # self.includeDirectories.append(downloaddir)
                 target_root_dir = downloaddir
+
+                if "version" in target_node:
+                    version = target_node["version"]
+                    try:
+                        _subprocess.run(["git", "checkout", version], cwd=target_root_dir, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                    except _subprocess.CalledProcessError as e:
+                        error_message = f"Error trying to checkout target [{target_name}] version \'{version}\'. Message " + e.output
+                        _LOGGER.exception(error_message)
+                        raise RuntimeError(error_message)
 
             # Build directory for obj, bin etc. should be under build type folder, e.g. default
             target_build_dir = target_build_dir.joinpath(environment.buildType.name.lower())
