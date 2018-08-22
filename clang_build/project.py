@@ -184,7 +184,6 @@ class Project:
             # Sub-directory, if specified
             if 'directory' in target_node:
                 target_root_dir = target_root_dir.joinpath(target_node['directory'])
-            print(f"target {target_name} dir {target_root_dir}")
 
             # Sources
             files = _get_sources_and_headers(target_node, target_root_dir, target_build_dir)
@@ -236,7 +235,7 @@ class Project:
                     self.target_list.append(
                         _SharedLibrary(
                             target_name,
-                            self.workingdir,
+                            target_root_dir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -253,7 +252,7 @@ class Project:
                     self.target_list.append(
                         _StaticLibrary(
                             target_name,
-                            self.workingdir,
+                            target_root_dir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -273,7 +272,7 @@ class Project:
                     self.target_list.append(
                         _HeaderOnly(
                             target_name,
-                            self.workingdir,
+                            target_root_dir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -292,7 +291,7 @@ class Project:
                     self.target_list.append(
                         _HeaderOnly(
                             target_name,
-                            self.workingdir,
+                            target_root_dir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],
@@ -305,7 +304,7 @@ class Project:
                     self.target_list.append(
                         _Executable(
                             target_name,
-                            self.workingdir,
+                            target_root_dir,
                             target_build_dir,
                             files['headers'],
                             files['include_directories'],

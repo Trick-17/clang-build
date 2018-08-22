@@ -32,11 +32,11 @@ class Target:
 
     def __init__(self,
             name,
-            working_directory,
-            buildDirectory,
+            root_dir,
+            build_dir,
             headers,
             include_directories,
-            buildType,
+            build_type,
             clangpp,
             options=None,
             dependencies=None):
@@ -50,19 +50,19 @@ class Target:
 
         # Basics
         self.name           = name
-        self.root_directory = _Path(working_directory)
-        self.buildType      = buildType
+        self.root_directory = _Path(root_dir)
+        self.build_type      = build_type
 
-        self.buildDirectory = buildDirectory
+        self.build_directory = build_dir
 
         self.headers = headers
 
-        self.includeDirectories = []
+        self.include_directories = []
 
         # Include directories
         if self.root_directory.joinpath('include').exists():
-            self.includeDirectories.append(self.root_directory.joinpath('include'))
-        self.includeDirectories += include_directories
+            self.include_directories.append(self.root_directory.joinpath('include'))
+        self.include_directories += include_directories
 
         if 'properties' in options and 'cpp_version' in options['properties']:
             self.dialect = _get_dialect_string(options['properties']['cpp_version'])
@@ -71,37 +71,37 @@ class Target:
 
         # TODO: parse user-specified target version
 
-        compileFlags        = []
-        compileFlagsDebug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
-        compileFlagsRelease = Target.DEFAULT_RELEASE_COMPILE_FLAGS
+        compile_flags        = []
+        compile_flags_debug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
+        compile_flags_release = Target.DEFAULT_RELEASE_COMPILE_FLAGS
         self.linkFlags = []
 
         if 'flags' in options:
-            compileFlags += options['flags'].get('compile', [])
-            compileFlagsRelease += options['flags'].get('compileRelease', [])
-            compileFlagsDebug += options['flags'].get('compileDebug', [])
+            compile_flags += options['flags'].get('compile', [])
+            compile_flags_release += options['flags'].get('compileRelease', [])
+            compile_flags_debug += options['flags'].get('compileDebug', [])
             self.linkFlags += options['flags'].get('link', [])
 
-        self.compileFlags = compileFlags
-        if self.buildType == _BuildType.Release:
-            self.compileFlags += compileFlagsRelease
-        if self.buildType == _BuildType.Debug:
-            self.compileFlags += compileFlagsDebug
+        self.compile_flags = compile_flags
+        if self.build_type == _BuildType.Release:
+            self.compile_flags += compile_flags_release
+        if self.build_type == _BuildType.Debug:
+            self.compile_flags += compile_flags_debug
 
         for target in self.dependencyTargets:
-            self.compileFlags += target.compileFlags
-            self.includeDirectories += target.includeDirectories
+            self.compile_flags += target.compile_flags
+            self.include_directories += target.include_directories
             self.headers += target.headers
 
-        self.compileFlags = list(set(self.compileFlags))
-        self.includeDirectories = list(set([dir.resolve() for dir in self.includeDirectories]))
+        self.compile_flags = list(set(self.compile_flags))
+        self.include_directories = list(set([dir.resolve() for dir in self.include_directories]))
         self.headers = list(set(self.headers))
 
         self.unsuccessful_builds = []
 
     def get_include_directory_command(self):
         ret = []
-        for dir in self.includeDirectories:
+        for dir in self.include_directories:
             ret += ['-I',  str(dir.resolve())]
         return ret
 
@@ -132,12 +132,12 @@ class Compilable(Target):
 
     def __init__(self,
             name,
-            working_directory,
-            buildDirectory,
+            root_dir,
+            build_dir,
             headers,
             include_directories,
             source_files,
-            buildType,
+            build_type,
             clangpp,
             link_command,
             output_folder,
@@ -149,11 +149,11 @@ class Compilable(Target):
 
         super().__init__(
             name=name,
-            working_directory=working_directory,
-            buildDirectory=buildDirectory,
+            root_dir=root_dir,
+            build_dir=build_dir,
             headers=headers,
             include_directories=include_directories,
-            buildType=buildType,
+            build_type=build_type,
             clangpp=clangpp,
             options=options,
             dependencies=dependencies)
@@ -168,12 +168,12 @@ class Compilable(Target):
         if dependencies is None:
             dependencies = []
 
-        self.objectDirectory     = self.buildDirectory.joinpath('obj').resolve()
-        self.depfileDirectory    = self.buildDirectory.joinpath('dep').resolve()
-        self.outputFolder        = self.buildDirectory.joinpath(output_folder).resolve()
+        self.object_directory     = self.build_directory.joinpath('obj').resolve()
+        self.depfile_directory    = self.build_directory.joinpath('dep').resolve()
+        self.outputFolder        = self.build_directory.joinpath(output_folder).resolve()
 
-        self.objectDirectory.mkdir(parents=True, exist_ok=True)
-        self.depfileDirectory.mkdir(parents=True, exist_ok=True)
+        self.object_directory.mkdir(parents=True, exist_ok=True)
+        self.depfile_directory.mkdir(parents=True, exist_ok=True)
         self.outputFolder.mkdir(parents=True, exist_ok=True)
 
         if 'output_name' in options:
@@ -188,18 +188,18 @@ class Compilable(Target):
         self.clangpp   = clangpp
 
         # Sources
-        self.sourceFiles        = source_files
+        self.source_files        = source_files
 
         # Buildables which this Target contains
         self.buildables = [_SingleSource(
-            sourceFile=sourceFile,
-            platformFlags=platform_flags,
+            source_file=source_file,
+            platform_flags=platform_flags,
             current_target_root_path=self.root_directory,
-            depfileDirectory=self.depfileDirectory,
-            objectDirectory=self.objectDirectory,
+            depfile_directory=self.depfile_directory,
+            object_directory=self.object_directory,
             include_strings=self.get_include_directory_command(),
-            compileFlags=[self.dialect] + Target.DEFAULT_COMPILE_FLAGS + self.compileFlags,
-            clangpp=self.clangpp) for sourceFile in self.sourceFiles]
+            compile_flags=[self.dialect] + Target.DEFAULT_COMPILE_FLAGS + self.compile_flags,
+            clangpp=self.clangpp) for source_file in self.source_files]
 
         # If compilation of buildables fail, they will be stored here later
         self.unsuccessful_builds = []
@@ -312,24 +312,24 @@ class Compilable(Target):
 class Executable(Compilable):
     def __init__(self,
             name,
-            working_directory,
-            buildDirectory,
+            root_dir,
+            build_dir,
             headers,
             include_directories,
             source_files,
-            buildType,
+            build_type,
             clangpp,
             options=None,
             dependencies=None):
 
         super().__init__(
             name=name,
-            working_directory=working_directory,
-            buildDirectory=buildDirectory,
+            root_dir=root_dir,
+            build_dir=build_dir,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
-            buildType=buildType,
+            build_type=build_type,
             clangpp=clangpp,
             link_command=[clangpp, '-o'],
             output_folder = _platform.EXECUTABLE_OUTPUT,
@@ -356,24 +356,24 @@ class Executable(Compilable):
 class SharedLibrary(Compilable):
     def __init__(self,
             name,
-            working_directory,
-            buildDirectory,
+            root_dir,
+            build_dir,
             headers,
             include_directories,
             source_files,
-            buildType,
+            build_type,
             clangpp,
             options=None,
             dependencies=None):
 
         super().__init__(
             name=name,
-            working_directory=working_directory,
-            buildDirectory=buildDirectory,
+            root_dir=root_dir,
+            build_dir=build_dir,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
-            buildType=buildType,
+            build_type=build_type,
             clangpp=clangpp,
             link_command=[clangpp, '-shared', '-o'],
             output_folder = _platform.SHARED_LIBRARY_OUTPUT,
@@ -400,12 +400,12 @@ class SharedLibrary(Compilable):
 class StaticLibrary(Compilable):
     def __init__(self,
             name,
-            working_directory,
-            buildDirectory,
+            root_dir,
+            build_dir,
             headers,
             include_directories,
             source_files,
-            buildType,
+            build_type,
             clangpp,
             clang_ar,
             options=None,
@@ -413,12 +413,12 @@ class StaticLibrary(Compilable):
 
         super().__init__(
             name=name,
-            working_directory=working_directory,
-            buildDirectory=buildDirectory,
+            root_dir=root_dir,
+            build_dir=build_dir,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
-            buildType=buildType,
+            build_type=build_type,
             clangpp=clangpp,
             link_command=[clang_ar, 'rc'],
             output_folder = _platform.STATIC_LIBRARY_OUTPUT,

@@ -46,43 +46,43 @@ def _needs_rebuild(object_file, source_file, depfile):
 class SingleSource:
     def __init__(
             self,
-            sourceFile,
-            platformFlags,
+            source_file,
+            platform_flags,
             current_target_root_path,
-            depfileDirectory,
-            objectDirectory,
+            depfile_directory,
+            object_directory,
             include_strings,
-            compileFlags,
+            compile_flags,
             clangpp):
 
         # Get the relative file path
-        self.name          = sourceFile.name
-        self.sourceFile    = sourceFile
+        self.name          = source_file.name
+        self.source_file    = source_file
 
-        relpath = _os.path.relpath(sourceFile.parents[0], current_target_root_path)
-
-        # TODO: I'm not sure I understand the necessity/function of this part
-        if  current_target_root_path.joinpath('src').exists():
+        # If the source file is in a directory called 'src', we do not create a
+        # subdirectory called 'src' in the build folder structure
+        relpath = _os.path.relpath(source_file.parents[0], current_target_root_path)
+        if current_target_root_path.joinpath('src').exists():
             relpath = _os.path.relpath(relpath, 'src')
 
         # Set name, extension and potentially produced output files
+        self.objfile = _Path(object_directory,  relpath, self.source_file.stem + '.o')
+        self.depfile = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
-        self.objectFile = _Path(objectDirectory,  relpath, self.sourceFile.stem + '.o')
-        self.depfile    = _Path(depfileDirectory, relpath, self.sourceFile.stem + '.d')
 
-        self.needs_rebuild = _needs_rebuild(self.objectFile, self.sourceFile, self.depfile)
+        self.needs_rebuild = _needs_rebuild(self.objfile, self.source_file, self.depfile)
 
-        flags = compileFlags + include_strings
+        flags = compile_flags + include_strings
 
         self.compilation_failed = False
 
         # prepare everything for dependency file generation
         self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
-        self.dependency_command = [clangpp, '-E', '-MMD', str(self.sourceFile), '-MF', str(self.depfile)] + flags
+        self.dependency_command = [clangpp, '-E', '-MMD', str(self.source_file), '-MF', str(self.depfile)] + flags
 
         # prepare everything for compilation
-        self.objectFile.parents[0].mkdir(parents=True, exist_ok=True)
-        self.compile_command = [clangpp, '-c', str(self.sourceFile), '-o', str(self.objectFile)] + flags + platformFlags
+        self.objfile.parents[0].mkdir(parents=True, exist_ok=True)
+        self.compile_command = [clangpp, '-c', str(self.source_file), '-o', str(self.objfile)] + flags + platform_flags
 
 
     def generate_depfile(self):
