@@ -66,11 +66,11 @@ class SingleSource:
             relpath = _os.path.relpath(relpath, 'src')
 
         # Set name, extension and potentially produced output files
-        self.objfile = _Path(object_directory,  relpath, self.source_file.stem + '.o')
-        self.depfile = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
+        self.object_file = _Path(object_directory,  relpath, self.source_file.stem + '.o')
+        self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
 
-        self.needs_rebuild = _needs_rebuild(self.objfile, self.source_file, self.depfile)
+        self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)
 
         flags = compile_flags + include_strings
 
@@ -81,8 +81,8 @@ class SingleSource:
         self.dependency_command = [clangpp, '-E', '-MMD', str(self.source_file), '-MF', str(self.depfile)] + flags
 
         # prepare everything for compilation
-        self.objfile.parents[0].mkdir(parents=True, exist_ok=True)
-        self.compile_command = [clangpp, '-c', str(self.source_file), '-o', str(self.objfile)] + flags + platform_flags
+        self.object_file.parents[0].mkdir(parents=True, exist_ok=True)
+        self.compile_command = [clangpp, '-c', str(self.source_file), '-o', str(self.object_file)] + flags + platform_flags
 
 
     def generate_depfile(self):
