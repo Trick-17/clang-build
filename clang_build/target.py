@@ -32,8 +32,8 @@ class Target:
 
     def __init__(self,
             name,
-            root_dir,
-            build_dir,
+            root_directory,
+            build_directory,
             headers,
             include_directories,
             build_type,
@@ -50,10 +50,10 @@ class Target:
 
         # Basics
         self.name           = name
-        self.root_directory = _Path(root_dir)
+        self.root_directory = _Path(root_directory)
         self.build_type      = build_type
 
-        self.build_directory = build_dir
+        self.build_directory = build_directory
 
         self.headers = headers
 
@@ -132,8 +132,8 @@ class Compilable(Target):
 
     def __init__(self,
             name,
-            root_dir,
-            build_dir,
+            root_directory,
+            build_directory,
             headers,
             include_directories,
             source_files,
@@ -149,8 +149,8 @@ class Compilable(Target):
 
         super().__init__(
             name=name,
-            root_dir=root_dir,
-            build_dir=build_dir,
+            root_directory=root_directory,
+            build_directory=build_directory,
             headers=headers,
             include_directories=include_directories,
             build_type=build_type,
@@ -237,12 +237,12 @@ class Compilable(Target):
         if self.before_compile_script:
             script_file = self.root_directory.joinpath(self.before_compile_script)
             _LOGGER.info(f'Pre-compile step of target [{self.name}]: {script_file}')
-            originalDir = _os.getcwd()
+            original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
-            _os.chdir(originalDir)
+            _os.chdir(original_directory)
             _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
 
         # Execute depfile generation command
@@ -276,13 +276,13 @@ class Compilable(Target):
         # Before-link step
         if self.before_link_script:
             _LOGGER.info(f'Pre-link step of target [{self.name}]')
-            originalDir = _os.getcwd()
+            original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
             script_file = self.root_directory.joinpath(self.before_link_script)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
-            _os.chdir(originalDir)
+            _os.chdir(original_directory)
             _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
 
         _LOGGER.info(f'Link target [{self.name}]')
@@ -299,21 +299,21 @@ class Compilable(Target):
         ## After-build step
         if self.after_build_script:
             _LOGGER.info(f'After-build step of target [{self.name}]')
-            originalDir = _os.getcwd()
+            original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
             script_file = self.root_directory.joinpath(self.after_build_script)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
-            _os.chdir(originalDir)
+            _os.chdir(original_directory)
             _LOGGER.info(f'Finished after-build step of target [{self.name}]')
 
 
 class Executable(Compilable):
     def __init__(self,
             name,
-            root_dir,
-            build_dir,
+            root_directory,
+            build_directory,
             headers,
             include_directories,
             source_files,
@@ -324,8 +324,8 @@ class Executable(Compilable):
 
         super().__init__(
             name=name,
-            root_dir=root_dir,
-            build_dir=build_dir,
+            root_directory=root_directory,
+            build_directory=build_directory,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
@@ -356,8 +356,8 @@ class Executable(Compilable):
 class SharedLibrary(Compilable):
     def __init__(self,
             name,
-            root_dir,
-            build_dir,
+            root_directory,
+            build_directory,
             headers,
             include_directories,
             source_files,
@@ -368,8 +368,8 @@ class SharedLibrary(Compilable):
 
         super().__init__(
             name=name,
-            root_dir=root_dir,
-            build_dir=build_dir,
+            root_directory=root_directory,
+            build_directory=build_directory,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
@@ -400,8 +400,8 @@ class SharedLibrary(Compilable):
 class StaticLibrary(Compilable):
     def __init__(self,
             name,
-            root_dir,
-            build_dir,
+            root_directory,
+            build_directory,
             headers,
             include_directories,
             source_files,
@@ -413,8 +413,8 @@ class StaticLibrary(Compilable):
 
         super().__init__(
             name=name,
-            root_dir=root_dir,
-            build_dir=build_dir,
+            root_directory=root_directory,
+            build_directory=build_directory,
             headers=headers,
             include_directories=include_directories,
             source_files=source_files,
