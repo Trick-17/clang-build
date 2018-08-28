@@ -113,9 +113,9 @@ class _Environment:
         self.clangpp  = "clang++"
         self.clang_ar = "llvm-ar"
         # Directory this was called from
-        self.callingdir = _Path().resolve()
+        self.calling_directory = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
-        self.workingdir = self.callingdir
+        self.working_directory = self.calling_directory
 
         # Verbosity
         if not args.debug:
@@ -139,14 +139,14 @@ class _Environment:
 
         # Working directory
         if args.directory:
-            self.workingdir = args.directory.resolve()
+            self.working_directory = args.directory.resolve()
 
-        if not self.workingdir.exists():
-            error_message = f'ERROR: specified non-existent directory [{self.workingdir}]'
+        if not self.working_directory.exists():
+            error_message = f'ERROR: specified non-existent directory [{self.working_directory}]'
             self.logger.error(error_message)
             raise RuntimeError(error_message)
 
-        self.logger.info(f'Working directory: {self.workingdir}')
+        self.logger.info(f'Working directory: {self.working_directory}')
 
         # Build type (Default, Release, Debug)
         self.buildType = args.build_type
@@ -171,7 +171,7 @@ def build(args):
         processpool = environment.processpool
 
         # Check for build configuration toml file
-        toml_file = _Path(environment.workingdir, 'clang-build.toml')
+        toml_file = _Path(environment.working_directory, 'clang-build.toml')
         if toml_file.exists():
             logger.info('Found config file')
 
@@ -198,17 +198,17 @@ def build(args):
 
         # Otherwise we try to build it as a simple hello world or mwe project
         else:
-            files = _get_sources_and_headers({}, environment.workingdir, environment.build_directory)
+            files = _get_sources_and_headers({}, environment.working_directory, environment.build_directory)
 
             if not files['sourcefiles']:
-                error_message = f'Error, no sources and no [clang-build.toml] found in folder: {environment.workingdir}'
+                error_message = f'Error, no sources and no [clang-build.toml] found in folder: {environment.working_directory}'
                 logger.error(error_message)
                 raise RuntimeError(error_message)
             # Create target
             target_list.append(
                 _Executable(
                     'main',
-                    environment.workingdir,
+                    environment.working_directory,
                     environment.build_directory.joinpath(environment.buildType.name.lower()),
                     files['headers'],
                     files['include_directories'],
