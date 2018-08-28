@@ -173,10 +173,11 @@ Note:
 
     [mylib]
     url = "https://github.com/trick-17/mylib"
-    version = 1.1 # will try to git checkout [v]1.1[.*]
+    version = 1.1 # will try to `git checkout 1.1`
     directory = "sources"           # will point to "build/mylib/external_sources/sources"
-    include_directories = ["mylib/include"] # will point to "build/mylib/external_sources/sources/mylib"
-    source_directories  = ["mylib/src"] # will point to "build/mylib/external_sources/sources/mylib"
+    [mylib.sources]
+    include_directories = ["mylib/include"] # will point to "build/mylib/external_sources/sources/mylib/include"
+    source_directories  = ["mylib/src"]     # will point to "build/mylib/external_sources/sources/mylib/src"
     # Maybe we need to deactivate annoying warnings coming from the library
     [mylib.flags]
     compile = ["-Wno-deprecated-declarations", "-Wno-self-assign"]

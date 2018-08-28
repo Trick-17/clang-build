@@ -35,7 +35,7 @@ class Project:
 
         self.name = config.get("name", "")
 
-        self.workingdir = environment.workingdir
+        self.working_directory = environment.working_directory
 
         # Project build directory
         self.build_directory = environment.build_directory
@@ -44,31 +44,31 @@ class Project:
 
         self.external = "url" in config
         if self.external:
-            downloaddir = self.build_directory.joinpath('external_sources')
+            download_directory = self.build_directory.joinpath('external_sources')
             # Check if directory is already present and non-empty
-            if downloaddir.exists() and _os.listdir(str(downloaddir)):
-                _LOGGER.info(f'External project [[{self.name}]]: sources found in {str(downloaddir)}')
+            if download_directory.exists() and _os.listdir(str(download_directory)):
+                _LOGGER.info(f'External project [[{self.name}]]: sources found in {str(download_directory)}')
             # Otherwise we download the sources
             else:
-                _LOGGER.info(f'External project [[{self.name}]]: downloading to {str(downloaddir)}')
-                downloaddir.mkdir(parents=True, exist_ok=True)
+                _LOGGER.info(f'External project [[{self.name}]]: downloading to {str(download_directory)}')
+                download_directory.mkdir(parents=True, exist_ok=True)
                 try:
-                    _subprocess.run(["git", "clone", config["url"], str(downloaddir)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                    _subprocess.run(["git", "clone", config["url"], str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                 except _subprocess.CalledProcessError as e:
                     error_message = f"Error trying to download external project [[{self.name}]]. Message " + e.output
                     _LOGGER.exception(error_message)
                     raise RuntimeError(error_message)
                 _LOGGER.info(f'External project [[{self.name}]]: downloaded')
-            self.workingdir = downloaddir
+            self.working_directory = download_directory
 
         if "directory" in config:
-            self.workingdir = environment.workingdir.joinpath(config["directory"])
-            toml_file = _Path(self.workingdir, 'clang-build.toml')
+            self.working_directory = environment.working_directory.joinpath(config["directory"])
+            toml_file = _Path(self.working_directory, 'clang-build.toml')
             if toml_file.exists():
                 environment.logger.info(f'Found config file {toml_file}')
                 config = toml.load(str(toml_file))
             else:
-                error_message = f"Project {self.name}: could not find project file in directory {self.workingdir}"
+                error_message = f"Project {self.name}: could not find project file in directory {self.working_directory}"
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
@@ -125,7 +125,7 @@ class Project:
         circular_dependencies = _find_circular_dependencies(self.targets_config)
         if circular_dependencies:
             error_messages = [f'In {target}: circular dependency -> {dependency}' for\
-                            target, dependency in non_existent_dependencies]
+                            target, dependency in circular_dependencies]
 
             error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
             _LOGGER.exception(error_message)
@@ -144,41 +144,49 @@ class Project:
         for target_name in _IteratorProgress(target_names_project, environment.progress_disabled, len(target_names_project)):
             target_node = targets_and_subproject_targets[target_name]
             # Directories
-            target_build_dir = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)
-            target_root_dir  = self.workingdir
+            target_build_directory = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)
+            target_root_directory  = self.working_directory
 
             # If target is marked as external, try to fetch the sources
             ### TODO: external sources should be fetched before any sources are read in, i.e. even before the first target is created
             external = "url" in target_node
             if external:
-                downloaddir = target_build_dir.joinpath('external_sources')
+                download_directory = target_build_directory.joinpath('external_sources')
                 # Check if directory is already present and non-empty
-                if downloaddir.exists() and _os.listdir(str(downloaddir)):
-                    _LOGGER.info(f'External target [{target_name}]: sources found in {str(downloaddir)}')
+                if download_directory.exists() and _os.listdir(str(download_directory)):
+                    _LOGGER.info(f'External target [{target_name}]: sources found in {str(download_directory)}')
                 # Otherwise we download the sources
                 else:
-                    _LOGGER.info(f'External target [{target_name}]: downloading to {str(downloaddir)}')
-                    downloaddir.mkdir(parents=True, exist_ok=True)
+                    _LOGGER.info(f'External target [{target_name}]: downloading to {str(download_directory)}')
+                    download_directory.mkdir(parents=True, exist_ok=True)
                     try:
-                        _subprocess.run(["git", "clone", target_node["url"], str(downloaddir)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                        _subprocess.run(["git", "clone", target_node["url"], str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                     except _subprocess.CalledProcessError as e:
                         error_message = f"Error trying to download external target [{target_name}]. Message " + e.output
                         _LOGGER.exception(error_message)
                         raise RuntimeError(error_message)
                     _LOGGER.info(f'External target [{target_name}]: downloaded')
-                # self.includeDirectories.append(downloaddir)
-                target_root_dir = downloaddir
+                # self.includeDirectories.append(download_directory)
+                target_root_directory = download_directory
+
+                if "version" in target_node:
+                    version = target_node["version"]
+                    try:
+                        _subprocess.run(["git", "checkout", version], cwd=target_root_directory, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                    except _subprocess.CalledProcessError as e:
+                        error_message = f"Error trying to checkout target [{target_name}] version \'{version}\'. Message " + e.output
+                        _LOGGER.exception(error_message)
+                        raise RuntimeError(error_message)
 
             # Build directory for obj, bin etc. should be under build type folder, e.g. default
-            target_build_dir = target_build_dir.joinpath(environment.buildType.name.lower())
+            target_build_directory = target_build_directory.joinpath(environment.buildType.name.lower())
 
             # Sub-directory, if specified
             if 'directory' in target_node:
-                target_root_dir = target_root_dir.joinpath(target_node['directory'])
-            print(f"target {target_name} dir {target_root_dir}")
+                target_root_directory = target_root_directory.joinpath(target_node['directory'])
 
             # Sources
-            files = _get_sources_and_headers(target_node, target_root_dir, target_build_dir)
+            files = _get_sources_and_headers(target_node, target_root_directory, target_build_directory)
             # Dependencies
             dependencies = []
             for name in target_node.get('dependencies', []):
@@ -210,8 +218,8 @@ class Project:
                     self.target_list.append(
                         _Executable(
                             target_name,
-                            target_root_dir,
-                            target_build_dir,
+                            target_root_directory,
+                            target_build_directory,
                             files['headers'],
                             files['include_directories'],
                             files['sourcefiles'],
@@ -227,8 +235,8 @@ class Project:
                     self.target_list.append(
                         _SharedLibrary(
                             target_name,
-                            self.workingdir,
-                            target_build_dir,
+                            target_root_directory,
+                            target_build_directory,
                             files['headers'],
                             files['include_directories'],
                             files['sourcefiles'],
@@ -244,8 +252,8 @@ class Project:
                     self.target_list.append(
                         _StaticLibrary(
                             target_name,
-                            self.workingdir,
-                            target_build_dir,
+                            target_root_directory,
+                            target_build_directory,
                             files['headers'],
                             files['include_directories'],
                             files['sourcefiles'],
@@ -264,8 +272,8 @@ class Project:
                     self.target_list.append(
                         _HeaderOnly(
                             target_name,
-                            self.workingdir,
-                            target_build_dir,
+                            target_root_directory,
+                            target_build_directory,
                             files['headers'],
                             files['include_directories'],
                             environment.buildType,
@@ -283,8 +291,8 @@ class Project:
                     self.target_list.append(
                         _HeaderOnly(
                             target_name,
-                            self.workingdir,
-                            target_build_dir,
+                            target_root_directory,
+                            target_build_directory,
                             files['headers'],
                             files['include_directories'],
                             environment.buildType,
@@ -296,8 +304,8 @@ class Project:
                     self.target_list.append(
                         _Executable(
                             target_name,
-                            self.workingdir,
-                            target_build_dir,
+                            target_root_directory,
+                            target_build_directory,
                             files['headers'],
                             files['include_directories'],
                             files['sourcefiles'],
