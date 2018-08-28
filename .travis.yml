@@ -54,5 +54,5 @@ deploy:
   password: "$PYPIPASSWORD"
   skip_cleanup: true
   on:
-    all_branches: true
+    branch: master
     condition: $DEPLOY = true
