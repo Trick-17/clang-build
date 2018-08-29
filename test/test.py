@@ -25,7 +25,7 @@ def clang_build_try_except( args ):
         logger = logging.getLogger('clang_build')
         logger.error('Compilation was unsuccessful:')
         for target, errors in compile_error.error_dict.items():
-            printout = f'Target {target} did not compile. Errors:'
+            printout = f'Target [{target}] did not compile. Errors:'
             for file, output in errors:
                 for out in output:
                     row = out['row']
@@ -38,7 +38,7 @@ def clang_build_try_except( args ):
         logger = logging.getLogger('clang_build')
         logger.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
-            printout = f'Target {target} did not link. Errors:\n{errors}'
+            printout = f'Target [{target}] did not link. Errors:\n{errors}'
             logger.error(printout)
 
 class TestClangBuild(unittest.TestCase):

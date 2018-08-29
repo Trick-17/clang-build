@@ -68,7 +68,7 @@ class Project:
                 environment.logger.info(f'Found config file {toml_file}')
                 config = toml.load(str(toml_file))
             else:
-                error_message = f"Project {self.name}: could not find project file in directory {self.working_directory}"
+                error_message = f"Project [[{self.name}]]: could not find project file in directory {self.working_directory}"
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
@@ -81,7 +81,7 @@ class Project:
         # An "anonymous" project, i.e. project-less targets, is not allowed together with subprojects
         if self.targets_config and self.subprojects_config:
             if not self.name:
-                error_message = f"Project {self.name}: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project."
+                error_message = f"Project [[{self.name}]]: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project."
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
@@ -115,7 +115,7 @@ class Project:
         # Parse targets from toml file
         non_existent_dependencies = _find_non_existent_dependencies(targets_and_subprojects)
         if non_existent_dependencies:
-            error_messages = [f'In {target}: the dependency {dependency} does not point to a valid target' for\
+            error_messages = [f'In target [{target}]: the dependency {dependency} does not point to a valid target' for\
                             target, dependency in non_existent_dependencies]
 
             error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
@@ -124,7 +124,7 @@ class Project:
 
         circular_dependencies = _find_circular_dependencies(self.targets_config)
         if circular_dependencies:
-            error_messages = [f'In {target}: circular dependency -> {dependency}' for\
+            error_messages = [f'In target [{target}]: circular dependency -> {dependency}' for\
                             target, dependency in circular_dependencies]
 
             error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)

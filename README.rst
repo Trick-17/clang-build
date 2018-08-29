@@ -3,6 +3,9 @@ Clang-build
 
 Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Code quality: |codacy| Coverage: |coverage|
 
+**Find the full documentation at https://clang-build.readthedocs.io**
+
+.. image:: https://thumbs.gfycat.com/BewitchedAshamedDeermouse-size_restricted.gif
 
 **Motivation:**
 
@@ -46,6 +49,15 @@ likely not even need a build file.
 
 clang-build tries to use sane defaults, designed to make most projects very easy to configure
 and even complex projects far easier than with common build or meta-build systems.
+
+
+Real-World Examples
+===================
+
+Examples of real-world used and tested projects, which can be easily be integrated
+into your project using `clang-build`:
+
+-  `test/boost-filesystem <https://github.com/Trick-17/clang-build/tree/master/test/boost-filesystem>`
 
 
 General Ideas
@@ -165,7 +177,7 @@ Adding external dependencies
 
 Note:
 
--  external projects will be copied/downloaded into "build/targetname/external_sources"
+-  external targets will be copied/downloaded into "build/targetname/external_sources"
 -  you can specify a subdirectory, if the thirdparty code has an unusual structure
 -  further granularity is given by ``include_directories`` and ``source_directories``
 
