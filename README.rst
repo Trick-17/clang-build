@@ -3,9 +3,15 @@ Clang-build
 
 Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Code quality: |codacy| Coverage: |coverage|
 
+.. image:: https://thumbs.gfycat.com/BewitchedAshamedDeermouse-size_restricted.gif
+
 **Find the full documentation at https://clang-build.readthedocs.io**
 
-.. image:: https://thumbs.gfycat.com/BewitchedAshamedDeermouse-size_restricted.gif
+-  `first steps <https://clang-build.readthedocs.io/en/latest/user_guide/first_steps.html>`_
+-  `customisations <https://clang-build.readthedocs.io/en/latest/user_guide/customisations.html>`_
+-  `multiple targets <https://clang-build.readthedocs.io/en/documentation/user_guide/multiple_targets.html>`_
+-  `multiple projects <https://clang-build.readthedocs.io/en/documentation/user_guide/multiple_projects.html>`_
+-  `defaults <https://clang-build.readthedocs.io/en/documentation/user_guide/defaults.html>`_
 
 **Motivation:**
 
@@ -25,7 +31,7 @@ Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Co
 
 -  `CppCon 2017: Isabella Muerte "There Will Be Build Systems: I
    Configure Your
-   Milkshake" <https://www.youtube.com/watch?v=7THzO-D0ta4>`__
+   Milkshake" <https://www.youtube.com/watch?v=7THzO-D0ta4>`_
 -  https://medium.com/@corentin.jabot/accio-dependency-manager-b1846e1caf76
 
 
@@ -57,7 +63,7 @@ Real-World Examples
 Examples of real-world used and tested projects, which can be easily be integrated
 into your project using `clang-build`:
 
--  `test/boost-filesystem <https://github.com/Trick-17/clang-build/tree/master/test/boost-filesystem>`
+-  `test/boost-filesystem <https://github.com/Trick-17/clang-build/tree/master/test/boost-filesystem>`_
 
 
 General Ideas
