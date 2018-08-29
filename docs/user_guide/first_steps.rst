@@ -1,7 +1,11 @@
 First steps
 ===========
+
 Let's start with a very simple project. You only have one source file in your project
 folder and you want to compile it into an executable.
+
+.. image:: https://thumbs.gfycat.com/BewitchedAshamedDeermouse-size_restricted.gif
+
 
 The minimum working example
 ---------------------------
@@ -51,6 +55,7 @@ in the `src` folder as you would normally do:
 
 At the same time, all source files in the `src` folder and subfolders of the `src` folder are
 automatically detected, compiled and linked into one executable.
+
 
 Switching between debug and release
 -----------------------------------
