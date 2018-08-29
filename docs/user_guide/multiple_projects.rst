@@ -27,6 +27,7 @@ Example configuration file
 A simple example of a main project consuming a second one, which is located in a subdirectory:
 
 .. code-block:: TOML
+
     name = "mainproject"
 
     [myexe]
@@ -39,7 +40,7 @@ A simple example of a main project consuming a second one, which is located in a
     name = "mysubproject"
     directory = "mylib"
 
-See also `test/subproject <https://github.com/Trick-17/clang-build/tree/master/test/subproject>`
+See also `test/subproject <https://github.com/Trick-17/clang-build/tree/master/test/subproject>`_
 
 Instead of `directory`, you may also specify `url` -- analogous to external targets -- to fetch
 an external repository and use it's build config as a subproject configuration file.
@@ -53,6 +54,7 @@ Multiple subprojects in the same file
 A second simple example:
 
 .. code-block:: TOML
+
     name = "mainproject"
 
     [myexe]
@@ -67,4 +69,4 @@ A second simple example:
     [subproject.mylib]
     target_type  = "static library"
 
-See also `test/boost-filesystem <https://github.com/Trick-17/clang-build/tree/master/test/boost-filesystem>`
+See also `test/boost-filesystem <https://github.com/Trick-17/clang-build/tree/master/test/boost-filesystem>`_
