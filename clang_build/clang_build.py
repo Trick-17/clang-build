@@ -75,6 +75,8 @@ def parse_args(args):
                         help='set the root source directory')
     parser.add_argument('-b', '--build-type', choices=list(_BuildType), type=_BuildType, default=_BuildType.Default,
                         help='set the build type for this project')
+    parser.add_argument('-a', '--all', type=bool, default=False,
+                        help='build every target, irrespective of whether any root target depends on it')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                         help='set the number of concurrent build jobs')
     parser.add_argument('--debug', help='activates additional debug output, overrides verbosity option.', action='store_true')
@@ -107,11 +109,11 @@ def _find_clang(logger):
 class _Environment:
     def __init__(self, args):
         # Some defaults
-        self.logger = None
+        self.logger    = None
         self.progress_disabled = True
-        self.buildType  = None
-        self.clangpp  = "clang++"
-        self.clang_ar = "llvm-ar"
+        self.buildType = None
+        self.clangpp   = "clang++"
+        self.clang_ar  = "llvm-ar"
         # Directory this was called from
         self.calling_directory = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
@@ -152,6 +154,9 @@ class _Environment:
         self.buildType = args.build_type
         self.logger.info(f'Build type: {self.buildType.name}')
 
+        # Working directory
+        self.build_all = args.all
+
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
         self.logger.info(f'Running up to {args.jobs} concurrent build jobs')
@@ -187,10 +192,10 @@ def build(args):
                     multiple_projects = True
 
             # Create root project
-            project = _Project(config, environment, multiple_projects)
+            root_project = _Project(config, environment, multiple_projects, True)
 
             # Get list of all targets
-            target_list += project.get_targets()
+            target_list += root_project.get_targets(root_project.target_dont_build_list)
 
             # # Generate list of all targets
             # for project in working_projects:

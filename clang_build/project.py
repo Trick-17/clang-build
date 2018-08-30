@@ -19,6 +19,7 @@ from .target import Executable as _Executable,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
 from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
+                              find_roots as _find_roots,\
                               find_non_existent_dependencies as _find_non_existent_dependencies,\
                               get_dependency_walk as _get_dependency_walk
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
@@ -31,11 +32,27 @@ _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 
 class Project:
-    def __init__(self, config, environment, multiple_projects):
+    def __init__(self, config, environment, multiple_projects, is_root_project):
+
+        self.working_directory = environment.working_directory
+        self.is_root_project = is_root_project
 
         self.name = config.get("name", "")
 
-        self.working_directory = environment.working_directory
+        if "directory" in config:
+            self.working_directory = environment.working_directory.joinpath(config["directory"])
+            toml_file = _Path(self.working_directory, 'clang-build.toml')
+            if toml_file.exists():
+                environment.logger.info(f'Found config file {toml_file}')
+                config = toml.load(str(toml_file))
+            else:
+                error_message = f"Project [[{self.name}]]: could not find project file in directory {self.working_directory}"
+                _LOGGER.exception(error_message)
+                raise RuntimeError(error_message)
+
+        # Re-fetch name if name not specified previously and config was changed
+        if not self.name:
+            self.name = config.get("name", "")
 
         # Project build directory
         self.build_directory = environment.build_directory
@@ -61,17 +78,6 @@ class Project:
                 _LOGGER.info(f'External project [[{self.name}]]: downloaded')
             self.working_directory = download_directory
 
-        if "directory" in config:
-            self.working_directory = environment.working_directory.joinpath(config["directory"])
-            toml_file = _Path(self.working_directory, 'clang-build.toml')
-            if toml_file.exists():
-                environment.logger.info(f'Found config file {toml_file}')
-                config = toml.load(str(toml_file))
-            else:
-                error_message = f"Project {self.name}: could not find project file in directory {self.working_directory}"
-                _LOGGER.exception(error_message)
-                raise RuntimeError(error_message)
-
         # Get subset of config which contains targets not associated to any project name
         self.targets_config = {key: val for key, val in config.items() if not key == "subproject" and not key == "name"}
 
@@ -81,7 +87,7 @@ class Project:
         # An "anonymous" project, i.e. project-less targets, is not allowed together with subprojects
         if self.targets_config and self.subprojects_config:
             if not self.name:
-                error_message = f"Project {self.name}: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project."
+                error_message = f"Project [[{self.name}]]: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project."
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
@@ -91,7 +97,7 @@ class Project:
         #     subprojects += [Project(targets_config, environment, multiple_projects)]
 
         if self.subprojects_config:
-            subprojects += [Project(config, environment, multiple_projects) for config in self.subprojects_config["subproject"]]
+            subprojects += [Project(config, environment, multiple_projects, False) for config in self.subprojects_config["subproject"]]
 
         self.subprojects = subprojects
         self.subproject_names = [project.name if project.name else "anonymous" for project in subprojects]
@@ -131,6 +137,19 @@ class Project:
             _LOGGER.exception(error_message)
             raise RuntimeError(error_message)
 
+        self.target_dont_build_list = []
+        if is_root_project and not environment.build_all:
+            ### TODO: the second order roots are not yet detected.
+            ###     i.e. if a target is only depended on by targets which will not be built,
+            ###     it should not be built either
+            roots = _find_roots(targets_and_subproject_targets)
+            for root in roots:
+                if root not in self.targets_config:
+                    self.target_dont_build_list.append(root)
+            if self.target_dont_build_list:
+                _LOGGER.info(f'Not building target(s) [{"], [".join(self.target_dont_build_list)}].')
+        elif is_root_project:
+            _LOGGER.info(f'Building all targets!')
 
         target_names_total = _get_dependency_walk(targets_and_subproject_targets)
         target_names_project = []
@@ -139,7 +158,6 @@ class Project:
                 target_names_project.append(name)
 
         self.target_list = []
-
 
         for target_name in _IteratorProgress(target_names_project, environment.progress_disabled, len(target_names_project)):
             target_node = targets_and_subproject_targets[target_name]
@@ -231,7 +249,7 @@ class Project:
                 #
                 # Add a shared library
                 #
-                if target_node['target_type'].lower() == 'shared library':
+                elif target_node['target_type'].lower() == 'shared library':
                     self.target_list.append(
                         _SharedLibrary(
                             target_name,
@@ -282,7 +300,9 @@ class Project:
                             dependencies))
 
                 else:
-                    environment.logger.error(f'ERROR: Unsupported target type: {target_node["target_type"]}')
+                    error_message = f'ERROR: Unsupported target type: "{target_node["target_type"].lower()}"'
+                    _LOGGER.exception(error_message)
+                    raise RuntimeError(error_message)
 
             # No target specified so must be executable or header only
             else:
@@ -314,9 +334,9 @@ class Project:
                             target_node,
                             dependencies))
 
-    def get_targets(self):
+    def get_targets(self, exclude=[]):
         targetlist = []
         for subproject in self.subprojects:
-            targetlist += subproject.get_targets()
-        targetlist += self.target_list
+            targetlist += subproject.get_targets(exclude)
+        targetlist += [target for target in self.target_list if target.name not in exclude]
         return targetlist

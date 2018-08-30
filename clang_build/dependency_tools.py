@@ -26,6 +26,21 @@ def find_circular_dependencies(project):
 
     return list(_nx.simple_cycles(graph))
 
+def find_roots(project):
+    graph = _nx.DiGraph()
+    for nodename, node in project.items():
+        dependencies = node.get('dependencies', [])
+        if not dependencies:
+            graph.add_node(str(nodename))
+            continue
+
+        for dependency in dependencies:
+            # Split string at dots
+            subnames = str(dependency).split(".")
+            graph.add_edge(str(nodename), str(subnames[-1]))
+
+    return [x for x in graph.nodes() if graph.in_degree(x) == 0]
+
 def get_dependency_walk(project):
     graph = _nx.DiGraph()
     for nodename, node in project.items():
