@@ -72,7 +72,7 @@ class Project:
                 try:
                     _subprocess.run(["git", "clone", config["url"], str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                 except _subprocess.CalledProcessError as e:
-                    error_message = f"Error trying to download external project [[{self.name}]]. Message " + e.output
+                    error_message = f"Project [[{self.name}]]: Error trying to download external project [[{self.name}]]. Message " + e.output
                     _LOGGER.exception(error_message)
                     raise RuntimeError(error_message)
                 _LOGGER.info(f'External project [[{self.name}]]: downloaded')
@@ -121,10 +121,10 @@ class Project:
         # Parse targets from toml file
         non_existent_dependencies = _find_non_existent_dependencies(targets_and_subprojects)
         if non_existent_dependencies:
-            error_messages = [f'In {target}: the dependency {dependency} does not point to a valid target' for\
+            error_messages = [f'In [{target}]: the dependency {dependency} does not point to a valid target' for\
                             target, dependency in non_existent_dependencies]
 
-            error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+            error_message = "Project [[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
             _LOGGER.exception(error_message)
             raise RuntimeError(error_message)
 
@@ -133,7 +133,7 @@ class Project:
             error_messages = [f'In {target}: circular dependency -> {dependency}' for\
                             target, dependency in circular_dependencies]
 
-            error_message = _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+            error_message = "Project [[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
             _LOGGER.exception(error_message)
             raise RuntimeError(error_message)
 
@@ -180,10 +180,10 @@ class Project:
                     try:
                         _subprocess.run(["git", "clone", target_node["url"], str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                     except _subprocess.CalledProcessError as e:
-                        error_message = f"Error trying to download external target [{target_name}]. Message " + e.output
+                        error_message = f"Project [[{self.name}]]: Error trying to download external target [{target_name}]. Message " + e.output
                         _LOGGER.exception(error_message)
                         raise RuntimeError(error_message)
-                    _LOGGER.info(f'External target [{target_name}]: downloaded')
+                    _LOGGER.info(f'Project [[{self.name}]]: External target [{target_name}]: downloaded')
                 # self.includeDirectories.append(download_directory)
                 target_root_directory = download_directory
 
@@ -226,7 +226,9 @@ class Project:
 
             if executable_dependencies:
                 exelist = ', '.join([f'[{dep.name}]' for dep in executable_dependencies])
-                environment.logger.error(f'Error: The following targets are linking dependencies but were identified as executables:\n    {exelist}')
+                error_message = f'Project [[{self.name}]]: Error: The following targets are linking dependencies but were identified as executables:\n    {exelist}'
+                _LOGGER.exception(error_message)
+                raise RuntimeError(error_message)
 
             if 'target_type' in target_node:
                 #
@@ -300,7 +302,7 @@ class Project:
                             dependencies))
 
                 else:
-                    error_message = f'ERROR: Unsupported target type: "{target_node["target_type"].lower()}"'
+                    error_message = f'Project [[{self.name}]]: ERROR: Unsupported target type: "{target_node["target_type"].lower()}"'
                     _LOGGER.exception(error_message)
                     raise RuntimeError(error_message)
 
