@@ -145,7 +145,8 @@ class Compilable(Target):
             prefix,
             suffix,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            force_build=False):
 
         super().__init__(
             name=name,
@@ -167,6 +168,8 @@ class Compilable(Target):
             options = {}
         if dependencies is None:
             dependencies = []
+
+        self.force_build = force_build
 
         self.object_directory  = self.build_directory.joinpath('obj').resolve()
         self.depfile_directory = self.build_directory.joinpath('dep').resolve()
@@ -224,7 +227,10 @@ class Compilable(Target):
     def compile(self, process_pool, progress_disabled):
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        self.needed_buildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
+        if not self.force_build:
+            self.needed_buildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
+        else:
+            self.needed_buildables = self.buildables
 
         # If the target was not modified, it may not need to compile
         if not self.needed_buildables:
@@ -320,7 +326,8 @@ class Executable(Compilable):
             build_type,
             clangpp,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            force_build=False):
 
         super().__init__(
             name=name,
@@ -337,7 +344,8 @@ class Executable(Compilable):
             prefix=_platform.EXECUTABLE_PREFIX,
             suffix=_platform.EXECUTABLE_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            force_build=force_build)
 
         ### Library dependency search paths
         for target in self.dependency_targets:
@@ -364,7 +372,8 @@ class SharedLibrary(Compilable):
             build_type,
             clangpp,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            force_build=False):
 
         super().__init__(
             name=name,
@@ -381,7 +390,8 @@ class SharedLibrary(Compilable):
             prefix=_platform.SHARED_LIBRARY_PREFIX,
             suffix=_platform.SHARED_LIBRARY_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            force_build=force_build)
 
         ### Library dependency search paths
         for target in self.dependency_targets:
@@ -409,7 +419,8 @@ class StaticLibrary(Compilable):
             clangpp,
             clang_ar,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            force_build=False):
 
         super().__init__(
             name=name,
@@ -426,7 +437,8 @@ class StaticLibrary(Compilable):
             prefix=_platform.STATIC_LIBRARY_PREFIX,
             suffix=_platform.STATIC_LIBRARY_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            force_build=force_build)
 
         # ### Include directories
         # self.link_command += self.get_include_directory_command()

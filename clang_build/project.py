@@ -146,6 +146,13 @@ class Project:
             for root in roots:
                 if root not in self.targets_config:
                     self.target_dont_build_list.append(root)
+            # ...
+            if environment.target_list:
+                _LOGGER.info(f'Building targets [{"], [".join(environment.target_list)}].')
+                for target in targets_and_subproject_targets:
+                    if target not in environment.target_list:
+                        self.target_dont_build_list.append(target)
+
             if self.target_dont_build_list:
                 _LOGGER.info(f'Not building target(s) [{"], [".join(self.target_dont_build_list)}].')
         elif is_root_project:
@@ -246,7 +253,8 @@ class Project:
                             environment.buildType,
                             environment.clangpp,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            environment.force_rebuild))
 
                 #
                 # Add a shared library
@@ -263,7 +271,8 @@ class Project:
                             environment.buildType,
                             environment.clangpp,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            environment.force_rebuild))
 
                 #
                 # Add a static library
@@ -281,7 +290,8 @@ class Project:
                             environment.clangpp,
                             environment.clang_ar,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            environment.force_rebuild))
 
                 #
                 # Add a header-only
@@ -334,7 +344,8 @@ class Project:
                             environment.buildType,
                             environment.clangpp,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            environment.force_rebuild))
 
     def get_targets(self, exclude=[]):
         targetlist = []

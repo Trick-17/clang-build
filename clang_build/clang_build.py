@@ -70,13 +70,18 @@ def parse_args(args):
     parser.add_argument('-V', '--verbose',
                         help='activate more detailed output',
                         action='store_true')
-    parser.add_argument('-p', '--progress', help='activates a progress bar output. is overruled by -V and --debug', action='store_true')
+    parser.add_argument('-p', '--progress',
+                        help='activates a progress bar output. is overruled by -V and --debug', action='store_true')
     parser.add_argument('-d', '--directory', type=_Path,
                         help='set the root source directory')
     parser.add_argument('-b', '--build-type', choices=list(_BuildType), type=_BuildType, default=_BuildType.Default,
                         help='set the build type for this project')
-    parser.add_argument('-a', '--all', type=bool, default=False,
-                        help='build every target, irrespective of whether any root target depends on it')
+    parser.add_argument('-a', '--all',
+                        help='build every target, irrespective of whether any root target depends on it', action='store_true')
+    parser.add_argument('-t', '--targets', type=str, default="",
+                        help='only these targets and their dependencies should be built (comma-separated list)')
+    parser.add_argument('-f', '--force-rebuild',
+                        help='whether the targets should be rebuilt', action='store_true')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                         help='set the number of concurrent build jobs')
     parser.add_argument('--debug', help='activates additional debug output, overrides verbosity option.', action='store_true')
@@ -154,8 +159,20 @@ class _Environment:
         self.buildType = args.build_type
         self.logger.info(f'Build type: {self.buildType.name}')
 
-        # Working directory
+        # Whether to build all targets
         self.build_all = args.all
+
+        # List of targets which should be built
+        self.target_list = []
+        if args.targets:
+            if args.all:
+                error_message = f'ERROR: specified target list \'{args.targets}\', but also flag \'--all\''
+                self.logger.error(error_message)
+                raise RuntimeError(error_message)
+            self.target_list = [str(target) for target in args.targets.split(',')]
+
+        # Whether to force a rebuild
+        self.force_rebuild = args.force_rebuild
 
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
