@@ -53,7 +53,9 @@ class SingleSource:
             object_directory,
             include_strings,
             compile_flags,
-            clangpp):
+            clang,
+            clangpp,
+            max_cpp_dialect):
 
         # Get the relative file path
         self.name          = source_file.name
@@ -69,6 +71,10 @@ class SingleSource:
         self.object_file = _Path(object_directory,  relpath, self.source_file.stem + '.o')
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
+        compiler = clangpp
+        if source_file.suffix == ".c":
+            compiler = clang
+            max_cpp_dialect = ''
 
         self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)
 
@@ -78,11 +84,11 @@ class SingleSource:
 
         # prepare everything for dependency file generation
         self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
-        self.dependency_command = [clangpp, '-E', '-MMD', str(self.source_file), '-MF', str(self.depfile)] + flags
+        self.dependency_command = [compiler, max_cpp_dialect, '-E', '-MMD', str(self.source_file), '-MF', str(self.depfile)] + flags
 
         # prepare everything for compilation
         self.object_file.parents[0].mkdir(parents=True, exist_ok=True)
-        self.compile_command = [clangpp, '-c', str(self.source_file), '-o', str(self.object_file)] + flags + platform_flags
+        self.compile_command = [compiler, max_cpp_dialect, '-c', str(self.source_file), '-o', str(self.object_file)] + flags + platform_flags
 
 
     def generate_depfile(self):

@@ -37,6 +37,7 @@ class Target:
             headers,
             include_directories,
             build_type,
+            clang,
             clangpp,
             options=None,
             dependencies=None):
@@ -138,6 +139,7 @@ class Compilable(Target):
             include_directories,
             source_files,
             build_type,
+            clang,
             clangpp,
             link_command,
             output_folder,
@@ -155,6 +157,7 @@ class Compilable(Target):
             headers=headers,
             include_directories=include_directories,
             build_type=build_type,
+            clang=clang,
             clangpp=clangpp,
             options=options,
             dependencies=dependencies)
@@ -188,6 +191,7 @@ class Compilable(Target):
 
 
         # Clang
+        self.clang     = clang
         self.clangpp   = clangpp
 
         # Sources
@@ -201,8 +205,10 @@ class Compilable(Target):
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
             include_strings=self.get_include_directory_command(),
-            compile_flags=[self.dialect] + Target.DEFAULT_COMPILE_FLAGS + self.compile_flags,
-            clangpp=self.clangpp) for source_file in self.source_files]
+            compile_flags=Target.DEFAULT_COMPILE_FLAGS + self.compile_flags,
+            clang  =self.clang,
+            clangpp=self.clangpp,
+            max_cpp_dialect=self.dialect) for source_file in self.source_files]
 
         # If compilation of buildables fail, they will be stored here later
         self.unsuccessful_builds = []
@@ -241,7 +247,7 @@ class Compilable(Target):
 
         # Before-compile step
         if self.before_compile_script:
-            script_file = self.root_directory.joinpath(self.before_compile_script)
+            script_file = self.root_directory.joinpath(self.before_compile_script).resolve()
             _LOGGER.info(f'Pre-compile step of target [{self.name}]: {script_file}')
             original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
@@ -324,6 +330,7 @@ class Executable(Compilable):
             include_directories,
             source_files,
             build_type,
+            clang,
             clangpp,
             options=None,
             dependencies=None,
@@ -337,6 +344,7 @@ class Executable(Compilable):
             include_directories=include_directories,
             source_files=source_files,
             build_type=build_type,
+            clang=clang,
             clangpp=clangpp,
             link_command=[clangpp, '-o'],
             output_folder = _platform.EXECUTABLE_OUTPUT,
@@ -370,6 +378,7 @@ class SharedLibrary(Compilable):
             include_directories,
             source_files,
             build_type,
+            clang,
             clangpp,
             options=None,
             dependencies=None,
@@ -383,6 +392,7 @@ class SharedLibrary(Compilable):
             include_directories=include_directories,
             source_files=source_files,
             build_type=build_type,
+            clang=clang,
             clangpp=clangpp,
             link_command=[clangpp, '-shared', '-o'],
             output_folder = _platform.SHARED_LIBRARY_OUTPUT,
@@ -416,6 +426,7 @@ class StaticLibrary(Compilable):
             include_directories,
             source_files,
             build_type,
+            clang,
             clangpp,
             clang_ar,
             options=None,
@@ -430,6 +441,7 @@ class StaticLibrary(Compilable):
             include_directories=include_directories,
             source_files=source_files,
             build_type=build_type,
+            clang=clang,
             clangpp=clangpp,
             link_command=[clang_ar, 'rc'],
             output_folder = _platform.STATIC_LIBRARY_OUTPUT,

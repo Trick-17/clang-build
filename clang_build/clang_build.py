@@ -89,6 +89,7 @@ def parse_args(args):
 
 
 def _find_clang(logger):
+    clang = _which('clang')
     clangpp = _which('clang++')
     clang_ar = _which('llvm-ar')
     if clangpp:
@@ -101,13 +102,18 @@ def _find_clang(logger):
         error_message = 'Couldn\'t find llvm-ar executable'
         logger.error(error_message)
         raise RuntimeError(error_message)
+    if not clang:
+        error_message = 'Couldn\'t find clang executable'
+        logger.error(error_message)
+        raise RuntimeError(error_message)
 
     logger.info(f'llvm root directory: {llvm_root}')
-    logger.info(f'clang++ executable: {clangpp}')
-    logger.info(f'llvm-ar executable: {clang_ar}')
+    logger.info(f'clang executable:    {clang}')
+    logger.info(f'clang++ executable:  {clangpp}')
+    logger.info(f'llvm-ar executable:  {clang_ar}')
     logger.info(f'Newest supported C++ dialect: {_get_max_supported_compiler_dialect(clangpp)}')
 
-    return clangpp, clang_ar
+    return clang, clangpp, clang_ar
 
 
 
@@ -117,6 +123,7 @@ class _Environment:
         self.logger    = None
         self.progress_disabled = True
         self.buildType = None
+        self.clang     = "clang"
         self.clangpp   = "clang++"
         self.clang_ar  = "llvm-ar"
         # Directory this was called from
@@ -142,7 +149,7 @@ class _Environment:
         self.logger.info(f'clang-build {__version__}')
 
         # Check for clang++ executable
-        self.clangpp, self.clang_ar = _find_clang(self.logger)
+        self.clang, self.clangpp, self.clang_ar = _find_clang(self.logger)
 
         # Working directory
         if args.directory:
@@ -236,6 +243,7 @@ def build(args):
                     files['include_directories'],
                     files['sourcefiles'],
                     environment.buildType,
+                    environment.clang,
                     environment.clangpp))
 
         # Build the targets
