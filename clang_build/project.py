@@ -33,7 +33,7 @@ _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 
 class Project:
-    def __init__(self, config, environment, multiple_projects, is_root_project):
+    def __init__(self, config, environment, multiple_projects, is_root_project, parent_name=""):
 
         self.working_directory = environment.working_directory
         self.is_root_project = is_root_project
@@ -54,6 +54,12 @@ class Project:
         # Re-fetch name if name not specified previously and config was changed
         if not self.name:
             self.name = config.get("name", "")
+
+        # If this is not the root project, it needs to have a name
+        if not is_root_project and not self.name:
+            error_message = f"Subproject name was not specified in the parent project [[{parent_name}]], nor it's config file."
+            _LOGGER.exception(error_message)
+            raise RuntimeError(error_message)
 
         # Project build directory
         self.build_directory = environment.build_directory
@@ -95,7 +101,7 @@ class Project:
         # Generate subprojects of this project
         self.subprojects = []
         if self.subprojects_config:
-            self.subprojects += [Project(config, environment, multiple_projects, False) for config in self.subprojects_config["subproject"]]
+            self.subprojects += [Project(config, environment, multiple_projects, False, self.name) for config in self.subprojects_config["subproject"]]
         self.subproject_names = [project.name if project.name else "anonymous" for project in self.subprojects]
 
         # Use sub-build directories if the project contains multiple targets
