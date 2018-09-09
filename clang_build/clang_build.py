@@ -85,6 +85,8 @@ def parse_args(args):
     parser.add_argument('-j', '--jobs', type=int, default=1,
                         help='set the number of concurrent build jobs')
     parser.add_argument('--debug', help='activates additional debug output, overrides verbosity option.', action='store_true')
+    parser.add_argument('--no-graph',
+                        help='deactivates output of a dependency graph dotfile', action='store_false')
     return parser.parse_args(args=args)
 
 
@@ -188,6 +190,8 @@ class _Environment:
         # Build directory
         self.build_directory = _Path('build')
 
+        # Whether to create a dotfile for graphing dependencies
+        self.create_dependency_dotfile = args.no_graph
 
 
 def build(args):

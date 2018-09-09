@@ -21,7 +21,8 @@ from .target import Executable as _Executable,\
 from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
                               find_roots as _find_roots,\
                               find_non_existent_dependencies as _find_non_existent_dependencies,\
-                              get_dependency_walk as _get_dependency_walk
+                              get_dependency_walk as _get_dependency_walk,\
+                              get_dependency_graph as _get_dependency_graph
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
@@ -91,83 +92,109 @@ class Project:
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
-        # Generate Projects
-        subprojects = []
-        # if targets_config:
-        #     subprojects += [Project(targets_config, environment, multiple_projects)]
-
+        # Generate subprojects of this project
+        self.subprojects = []
         if self.subprojects_config:
-            subprojects += [Project(config, environment, multiple_projects, False) for config in self.subprojects_config["subproject"]]
-
-        self.subprojects = subprojects
-        self.subproject_names = [project.name if project.name else "anonymous" for project in subprojects]
+            self.subprojects += [Project(config, environment, multiple_projects, False) for config in self.subprojects_config["subproject"]]
+        self.subproject_names = [project.name if project.name else "anonymous" for project in self.subprojects]
 
         # Use sub-build directories if the project contains multiple targets
         multiple_targets = False
         if len(self.targets_config.items()) > 1:
             multiple_targets = True
 
+        # TODO: document why this is here
         if not self.targets_config:
             return
 
-        targets_and_subprojects = self.targets_config.copy()
-        for project in subprojects:
-            targets_and_subprojects[project.name] = project.targets_config
-
-        targets_and_subproject_targets = self.targets_config.copy()
-        for project in subprojects:
-            targets_and_subproject_targets.update(project.targets_config)
-
-        # Parse targets from toml file
-        non_existent_dependencies = _find_non_existent_dependencies(targets_and_subprojects)
-        if non_existent_dependencies:
-            error_messages = [f'In [{target}]: the dependency {dependency} does not point to a valid target' for\
-                            target, dependency in non_existent_dependencies]
-
-            error_message = "Project [[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
-            _LOGGER.exception(error_message)
-            raise RuntimeError(error_message)
-
+        # Check this project's targets for circular dependencies
         circular_dependencies = _find_circular_dependencies(self.targets_config)
         if circular_dependencies:
-            error_messages = [f'In {target}: circular dependency -> {dependency}' for\
+            error_messages = [f'In [{target}]: circular dependency -> [{dependency}]' for\
                             target, dependency in circular_dependencies]
 
-            error_message = "Project [[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+            error_message = f"Project [[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
             _LOGGER.exception(error_message)
             raise RuntimeError(error_message)
 
+        # Create a structured dict of target and subproject configs for this project to resolve all dependencies
+        targets_and_subprojects_config = self.targets_config.copy()
+        for project in self.subprojects:
+            targets_and_subprojects_config[project.name] = project.targets_config
+
+        non_existent_dependencies = _find_non_existent_dependencies(targets_and_subprojects_config)
+        if non_existent_dependencies:
+            error_messages = [f'In [[{self.name}]].[{target}]: the dependency [{dependency}] does not point to a valid target of this project or it\'s subprojects' for\
+                            target, dependency in non_existent_dependencies]
+
+            error_message = f"Project [[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+            _LOGGER.exception(error_message)
+            raise RuntimeError(error_message)
+
+        # Create a dict of all target configs for this project and its subprojects
+        # TODO: this approach has the problem that two subprojects cannot have a target with the same name!
+        targets_and_subproject_targets_config = self.targets_config.copy()
+        for project in self.subprojects:
+            targets_and_subproject_targets_config.update(project.targets_config)
+
+        # Unless all should be built, don't build targets which are not in the root project
+        # or a dependency of a target of the root project
         self.target_dont_build_list = []
         if is_root_project and not environment.build_all:
-            ### TODO: the second order roots are not yet detected.
-            ###     i.e. if a target is only depended on by targets which will not be built,
-            ###     it should not be built either
-            roots = _find_roots(targets_and_subproject_targets)
-            for root in roots:
-                if root not in self.targets_config:
-                    self.target_dont_build_list.append(root)
-            # ...
+
+            import networkx as nx
+            G = _get_dependency_graph(targets_and_subproject_targets_config)
+
+            # Root targets (i.e. targets of the root project),
+            # or the specified projects will be retained
+            base_set = set(self.targets_config)
             if environment.target_list:
                 _LOGGER.info(f'Building targets [{"], [".join(environment.target_list)}].')
-                for target in targets_and_subproject_targets:
+                for target in self.targets_config:
                     if target not in environment.target_list:
-                        self.target_dont_build_list.append(target)
+                        base_set -= target
+
+            # Descendants will be retained, too
+            self.target_dont_build_list = set(targets_and_subproject_targets_config)
+            for root_target in base_set:
+                self.target_dont_build_list -= {root_target}
+                self.target_dont_build_list -= nx.algorithms.dag.descendants(G, root_target)
+            self.target_dont_build_list = list(self.target_dont_build_list)
 
             if self.target_dont_build_list:
                 _LOGGER.info(f'Not building target(s) [{"], [".join(self.target_dont_build_list)}].')
+
         elif is_root_project:
             _LOGGER.info(f'Building all targets!')
 
-        target_names_total = _get_dependency_walk(targets_and_subproject_targets)
-        target_names_project = []
-        for name in target_names_total:
-            if name in self.targets_config:
-                target_names_project.append(name)
 
+        # Create a dotfile of the dependency graph
+        if is_root_project and environment.create_dependency_dotfile:
+            create_dotfile = False
+            try:
+                import pydot
+                create_dotfile = True
+            except:
+                _LOGGER.exception(f'Could not create dependency dotfile, as pydot is not installed')
+
+            if create_dotfile:
+                import networkx as nx
+                G = _get_dependency_graph(targets_and_subproject_targets_config)
+
+                # Color the targets which should be built in red
+                for d in set(targets_and_subproject_targets_config) - set(self.target_dont_build_list):
+                    G.node[d]['color'] = 'red'
+
+                _Path(environment.build_directory).mkdir(parents=True, exist_ok=True)
+                nx.drawing.nx_pydot.write_dot(G, str(_Path(environment.build_directory, 'dependencies.dot')))
+
+        # Generate a correctly ordered list of target names
+        target_names_ordered = [name for name in _get_dependency_walk(targets_and_subproject_targets_config) if name in self.targets_config]
+
+        # Generate the list of target instances
         self.target_list = []
-
-        for target_name in _IteratorProgress(target_names_project, environment.progress_disabled, len(target_names_project)):
-            target_node = targets_and_subproject_targets[target_name]
+        for target_name in _IteratorProgress(target_names_ordered, environment.progress_disabled, len(target_names_ordered)):
+            target_node = targets_and_subproject_targets_config[target_name]
             # Directories
             target_build_directory = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)
             target_root_directory  = self.working_directory
@@ -226,17 +253,18 @@ class Project:
                             if subnames[-1] == target.name:
                                 dependencies.append(target)
                                 i = len(subnames)
-                if name in target_names_project:
-                    dependencies.append(self.target_list[target_names_project.index(name)])
+                if name in target_names_ordered:
+                    dependencies.append(self.target_list[target_names_ordered.index(name)])
 
+            # Make sure all dependencies are actually libraries
             executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
-
             if executable_dependencies:
                 exelist = ', '.join([f'[{dep.name}]' for dep in executable_dependencies])
                 error_message = f'Project [[{self.name}]]: Error: The following targets are linking dependencies but were identified as executables:\n    {exelist}'
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
+            # Create specific target if the target type was specified
             if 'target_type' in target_node:
                 #
                 # Add an executable

@@ -55,3 +55,18 @@ def get_dependency_walk(project):
             graph.add_edge(str(nodename), str(subnames[-1]))
 
     return list(reversed(list(_nx.topological_sort(graph))))
+
+def get_dependency_graph(project):
+    graph = _nx.DiGraph()
+    for nodename, node in project.items():
+        dependencies = node.get('dependencies', [])
+        if not dependencies:
+            graph.add_node(str(nodename))
+            continue
+
+        for dependency in dependencies:
+            # Split string at dots
+            subnames = str(dependency).split(".")
+            graph.add_edge(str(nodename), str(subnames[-1]))
+
+    return graph
