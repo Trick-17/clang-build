@@ -19,7 +19,6 @@ from .target import Executable as _Executable,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
 from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
-                              find_roots as _find_roots,\
                               find_non_existent_dependencies as _find_non_existent_dependencies,\
                               get_dependency_walk as _get_dependency_walk,\
                               get_dependency_graph as _get_dependency_graph
