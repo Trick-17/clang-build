@@ -180,7 +180,7 @@ class Project:
                 import pydot
                 create_dotfile = True
             except:
-                _LOGGER.exception(f'Could not create dependency dotfile, as pydot is not installed')
+                _LOGGER.error(f'Could not create dependency dotfile, as pydot is not installed')
 
             if create_dotfile:
                 import networkx as nx

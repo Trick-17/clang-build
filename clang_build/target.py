@@ -216,8 +216,6 @@ class Compilable(Target):
         # Linking setup
         self.link_command = link_command + [str(self.outfile)]
 
-        self.link_command += self.link_flags
-
 
         ## Additional scripts
         self.before_compile_script = ""
@@ -355,13 +353,15 @@ class Executable(Compilable):
             dependencies=dependencies,
             force_build=force_build)
 
+        ### Link self
+        self.link_command += [str(buildable.object_file) for buildable in self.buildables]
+
         ### Library dependency search paths
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
-        ### Link self
-        self.link_command += [str(buildable.object_file) for buildable in self.buildables]
+        self.link_command += self.link_flags
 
         ### Link dependencies
         for target in self.dependency_targets:
@@ -403,13 +403,15 @@ class SharedLibrary(Compilable):
             dependencies=dependencies,
             force_build=force_build)
 
+        ### Link self
+        self.link_command += [str(buildable.object_file) for buildable in self.buildables]
+
         ### Library dependency search paths
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
-        ### Link self
-        self.link_command += [str(buildable.object_file) for buildable in self.buildables]
+        self.link_command += self.link_flags
 
         ### Link dependencies
         for target in self.dependency_targets:
@@ -457,6 +459,7 @@ class StaticLibrary(Compilable):
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
+        self.link_command += self.link_flags
 
         ### Link dependencies
         for target in self.dependency_targets:
