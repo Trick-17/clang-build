@@ -19,9 +19,9 @@ from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 class Target:
-    DEFAULT_COMPILE_FLAGS          = ['-Wall', '-Werror']
+    DEFAULT_COMPILE_FLAGS          = ['-Wall', '-Wextra', '-Wpedantic', '-Werror']
     DEFAULT_RELEASE_COMPILE_FLAGS  = ['-O3', '-DNDEBUG']
-    DEFAULT_DEBUG_COMPILE_FLAGS    = ['-O0', '-g3', '-DDEBUG']
+    DEFAULT_DEBUG_COMPILE_FLAGS    = ['-Og', '-g3', '-DDEBUG']
     DEFAULT_COVERAGE_COMPILE_FLAGS = (
         DEFAULT_DEBUG_COMPILE_FLAGS +
         ['--coverage',
@@ -75,13 +75,13 @@ class Target:
         compile_flags        = []
         compile_flags_debug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
         compile_flags_release = Target.DEFAULT_RELEASE_COMPILE_FLAGS
-        self.linkFlags = []
+        self.link_flags = []
 
         if 'flags' in options:
             compile_flags += options['flags'].get('compile', [])
             compile_flags_release += options['flags'].get('compileRelease', [])
             compile_flags_debug += options['flags'].get('compileDebug', [])
-            self.linkFlags += options['flags'].get('link', [])
+            self.link_flags += options['flags'].get('link', [])
 
         self.compile_flags = compile_flags
         if self.build_type == _BuildType.Release:
@@ -216,7 +216,7 @@ class Compilable(Target):
         # Linking setup
         self.link_command = link_command + [str(self.outfile)]
 
-        self.link_command += self.linkFlags
+        self.link_command += self.link_flags
 
 
         ## Additional scripts
@@ -347,7 +347,7 @@ class Executable(Compilable):
             clang=clang,
             clangpp=clangpp,
             link_command=[clangpp, '-o'],
-            output_folder = _platform.EXECUTABLE_OUTPUT,
+            output_folder=_platform.EXECUTABLE_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
             prefix=_platform.EXECUTABLE_PREFIX,
             suffix=_platform.EXECUTABLE_SUFFIX,
@@ -395,7 +395,7 @@ class SharedLibrary(Compilable):
             clang=clang,
             clangpp=clangpp,
             link_command=[clangpp, '-shared', '-o'],
-            output_folder = _platform.SHARED_LIBRARY_OUTPUT,
+            output_folder=_platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
             suffix=_platform.SHARED_LIBRARY_SUFFIX,
@@ -444,7 +444,7 @@ class StaticLibrary(Compilable):
             clang=clang,
             clangpp=clangpp,
             link_command=[clang_ar, 'rc'],
-            output_folder = _platform.STATIC_LIBRARY_OUTPUT,
+            output_folder=_platform.STATIC_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
             prefix=_platform.STATIC_LIBRARY_PREFIX,
             suffix=_platform.STATIC_LIBRARY_SUFFIX,
