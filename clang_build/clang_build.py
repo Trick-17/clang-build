@@ -133,16 +133,6 @@ class _Environment:
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
         self.working_directory = self.calling_directory
 
-        # Verbosity
-        if not args.debug:
-            if args.verbose:
-                _setup_logger(_logging.INFO)
-            else:
-                # Only file log
-                _setup_logger(None)
-        else:
-            _setup_logger(_logging.DEBUG)
-
         # Progress bar
         if args.progress:
             self.progress_disabled = False
@@ -294,10 +284,23 @@ def build(args):
 
 
 
-def main():
+def _main():
     # Build
     try:
-        build(parse_args(sys.argv[1:]))
+        args = parse_args(sys.argv[1:])
+
+        # Logger verbosity
+        if not args.debug:
+            if args.verbose:
+                _setup_logger(_logging.INFO)
+            else:
+                # Only file log
+                _setup_logger(None)
+        else:
+            _setup_logger(_logging.DEBUG)
+
+        build(args)
+
     except _CompileError as compile_error:
         logger = _logging.getLogger(__name__)
         logger.error('Compilation was unsuccessful:')
@@ -316,4 +319,4 @@ def main():
 
 if __name__ == '__main__':
     _freeze_support()
-    main()
+    _main()
