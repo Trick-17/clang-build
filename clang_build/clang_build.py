@@ -21,8 +21,7 @@ from .target import Executable as _Executable,\
                     SharedLibrary as _SharedLibrary,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
-from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
-                              find_non_existent_dependencies as _find_non_existent_dependencies,\
+from .dependency_tools import find_non_existent_dependencies as _find_non_existent_dependencies,\
                               get_dependency_walk as _get_dependency_walk
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\

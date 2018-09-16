@@ -1,0 +1,25 @@
+name = "mainproject"
+
+[myexe]
+target_type = "executable"
+dependencies = ["qhull.qhullcpp"]
+
+
+[[subproject]]
+name = "qhull"
+url = "https://github.com/qhull/qhull"
+
+[subproject.qhullcpp]
+target_type = "static library"
+dependencies = ["qhullstatic_r"]
+include_directories = ["src"]
+sources = ["src/libqhullcpp/*.cpp"]
+sources_exclude = ["src/libqhullcpp/qt-qhull.cpp", "src/libqhullcpp/usermem_r-cpp.cpp"]
+[subproject.qhullcpp.flags]
+compile = ["-Wno-deprecated-declarations", "-Wno-self-assign"]
+
+[subproject.qhullstatic_r]
+target_type = "static library"
+directory = "src/libqhull_r"
+[subproject.qhullstatic_r.flags]
+compile = ["-Wno-deprecated-declarations"]

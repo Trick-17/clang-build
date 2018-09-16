@@ -85,7 +85,7 @@ class Project:
             self.working_directory = download_directory
 
         # Get subset of config which contains targets not associated to any project name
-        self.targets_config = {key: val for key, val in config.items() if not key == "subproject" and not key == "name"}
+        self.targets_config = {key: val for key, val in config.items() if not key in ["subproject", "name", "url"]}
 
         # Get subsets of config which define projects
         self.subprojects_config = {key: val for key, val in config.items() if key == "subproject"}

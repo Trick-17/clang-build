@@ -141,6 +141,16 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, '"build" is a directory')
 
+    def test_c_library(self):
+        clang_build_try_except(['-d', 'test/c-library', '-V'])
+
+        try:
+            output = subprocess.check_output(['./build/mainproject/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run compiled program')
+
+        self.assertEqual(output, '3 2 0'+os.linesep+'3 1 0')
+
     # def test_openmp(self):
     #     clang_build_try_except(['-d', 'test/openmp', '-V'])
 
