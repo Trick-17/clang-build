@@ -135,7 +135,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/boost-filesystem', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/myexe/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myproject/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
