@@ -154,10 +154,10 @@ class Project:
             # or the specified projects will be retained
             base_set = set(self.targets_config)
             if environment.target_list:
-                _LOGGER.info(f'Building targets [{"], [".join(environment.target_list)}].')
+                _LOGGER.info(f'Only building targets [{"], [".join(environment.target_list)}] out of base set of targets [{"], [".join(base_set)}].')
                 for target in self.targets_config:
                     if target not in environment.target_list:
-                        base_set -= target
+                        base_set -= {target}
 
             # Descendants will be retained, too
             self.target_dont_build_list = set(targets_and_subproject_targets_config)

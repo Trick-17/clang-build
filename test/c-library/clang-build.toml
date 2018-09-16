@@ -5,9 +5,25 @@ target_type = "executable"
 dependencies = ["qhull.qhullcpp"]
 
 
+################# Qhull #################
+
 [[subproject]]
 name = "qhull"
 url = "https://github.com/qhull/qhull"
+
+# Qhull libraries
+
+[subproject.qhull]
+target_type = "shared library"
+directory = "src/libqhull"
+[subproject.qhull.flags]
+compile = ["-Wno-deprecated-declarations"]
+
+[subproject.qhull_r]
+target_type = "shared library"
+directory = "src/libqhull_r"
+[subproject.qhull_r.flags]
+compile = ["-Wno-deprecated-declarations"]
 
 [subproject.qhullcpp]
 target_type = "static library"
@@ -18,8 +34,48 @@ sources_exclude = ["src/libqhullcpp/qt-qhull.cpp", "src/libqhullcpp/usermem_r-cp
 [subproject.qhullcpp.flags]
 compile = ["-Wno-deprecated-declarations", "-Wno-self-assign"]
 
+[subproject.qhullstatic]
+target_type = "static library"
+include_directories = ["src"]
+sources = ["src/libqhull/*.c"]
+[subproject.qhullstatic.flags]
+compile = ["-Wno-deprecated-declarations"]
+
 [subproject.qhullstatic_r]
 target_type = "static library"
-directory = "src/libqhull_r"
+include_directories = ["src"]
+sources = ["src/libqhull_r/*.c"]
 [subproject.qhullstatic_r.flags]
 compile = ["-Wno-deprecated-declarations"]
+
+# Qhull executables
+
+[subproject.qhull-executable]
+output_name = "qhull"
+sources = ["src/qhull/unix_r.c"]
+dependencies = ["qhullstatic_r"]
+
+[subproject.rbox]
+output_name = "qhull"
+sources = ["src/rbox/rbox.c"]
+dependencies = ["qhullstatic"]
+
+[subproject.qconvex]
+output_name = "qhull"
+sources = ["src/qconvex/qconvex.c"]
+dependencies = ["qhullstatic"]
+
+[subproject.qdelaunay]
+output_name = "qhull"
+sources = ["src/qdelaunay/qdelaun.c"]
+dependencies = ["qhullstatic"]
+
+[subproject.qvoronoi]
+output_name = "qhull"
+sources = ["src/qvoronoi/qvoronoi.c"]
+dependencies = ["qhullstatic"]
+
+[subproject.qhalf]
+output_name = "qhull"
+sources = ["src/qhalf/qhalf.c"]
+dependencies = ["qhullstatic"]

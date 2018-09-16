@@ -76,6 +76,8 @@ class TestClangBuild(unittest.TestCase):
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
+        clang_build_try_except(['-d', 'test/mwe', '-V', '-f'])
+
         logger.removeHandler(ch)
 
         self.assertRegex(stream_capture.getvalue(), r'.*Target \[main\] is already compiled.*')
@@ -150,6 +152,14 @@ class TestClangBuild(unittest.TestCase):
             self.fail('Could not run compiled program')
 
         self.assertEqual(output, '3 2 0'+os.linesep+'3 1 0')
+
+    def test_build_all(self):
+        clang_build_try_except(['-d', 'test/c-library', '-V', '-a'])
+
+        try:
+            output = subprocess.check_output(['./build/qhull/qhull-executable/default/bin/qhull', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run a target which should have been built')
 
     # def test_openmp(self):
     #     clang_build_try_except(['-d', 'test/openmp', '-V'])
