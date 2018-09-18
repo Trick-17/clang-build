@@ -11,6 +11,7 @@ from multiprocessing import freeze_support
 from clang_build import clang_build
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
+from clang_build.logging_stream_handler import TqdmHandler as TqdmHandler
 
 def on_rm_error( func, path, exc_info):
     # path contains the path of the file that couldn't be removed
@@ -147,7 +148,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/c-library', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/mainproject/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/mainproject/default/bin/myexe'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run compiled program')
 
@@ -157,7 +158,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/c-library', '-V', '-a'])
 
         try:
-            output = subprocess.check_output(['./build/qhull/qhull-executable/default/bin/qhull', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/qhull/qhull-executable/default/bin/qhull'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run a target which should have been built')
 
@@ -180,6 +181,16 @@ class TestClangBuild(unittest.TestCase):
     #         self.fail('Could not run compiled program')
 
     #     self.assertEqual(output, 'Hello!')
+
+    def setUp(self):
+        logger = logging.getLogger('clang_build')
+        logger.setLevel(logging.INFO)
+        ch = TqdmHandler()
+        formatter = logging.Formatter('%(message)s')
+        ch.setLevel(logging.INFO)
+        ch.setFormatter(formatter)
+        logger.handlers = []
+        logger.addHandler(ch)
 
     def tearDown(self):
         if _Path('build').exists():
