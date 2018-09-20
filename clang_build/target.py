@@ -256,7 +256,7 @@ class Compilable(Target):
             _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
 
         # Execute depfile generation command
-        _LOGGER.info(f'Scan dependencies of target [{self.outname}]')
+        _LOGGER.info(f'Scan dependencies of target [{self.name}]')
         for b in self.needed_buildables:
             _LOGGER.debug(' '.join(b.dependency_command))
         self.needed_buildables = list(_get_build_progress_bar(
@@ -268,7 +268,7 @@ class Compilable(Target):
                 name=self.name))
 
         # Execute compile command
-        _LOGGER.info(f'Compile target [{self.outname}]')
+        _LOGGER.info(f'Compile target [{self.name}]')
         for b in self.needed_buildables:
             _LOGGER.debug(' '.join(b.compile_command))
         self.needed_buildables = list(_get_build_progress_bar(
@@ -295,7 +295,7 @@ class Compilable(Target):
             _os.chdir(original_directory)
             _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
 
-        _LOGGER.info(f'Link target [{self.name}]')
+        _LOGGER.info(f'Link target [{self.name}] -> "{self.outfile}"')
         _LOGGER.debug('    ' + ' '.join(self.link_command))
 
         # Execute link command
