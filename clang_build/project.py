@@ -84,8 +84,17 @@ class Project:
                 _LOGGER.info(f'[[{self.name}]]: external project downloaded')
             self.working_directory = download_directory
 
+            if "version" in config:
+                version = config["version"]
+                try:
+                    _subprocess.run(["git", "checkout", version], cwd=download_directory, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                except _subprocess.CalledProcessError as e:
+                    error_message = f"[{target_name_full}]: error trying to checkout version \'{version}\' from url \'{url}\'. Message " + e.output
+                    _LOGGER.exception(error_message)
+                    raise RuntimeError(error_message)
+
         # Get subset of config which contains targets not associated to any project name
-        self.targets_config = {key: val for key, val in config.items() if not key in ["subproject", "name", "url"]}
+        self.targets_config = {key: val for key, val in config.items() if not key in ["subproject", "name", "url", "version"]}
 
         # Get subsets of config which define projects
         self.subprojects_config = {key: val for key, val in config.items() if key == "subproject"}

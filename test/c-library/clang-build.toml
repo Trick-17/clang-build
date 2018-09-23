@@ -8,8 +8,9 @@ dependencies = ["qhull.qhullcpp", "qhull.qhullstatic_r"]
 ################# Qhull #################
 
 [[subproject]]
-name = "qhull"
-url = "https://github.com/qhull/qhull"
+name    = "qhull"
+url     = "https://github.com/qhull/qhull"
+version = "v7.2.0"
 
 # Qhull libraries
 

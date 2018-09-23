@@ -158,9 +158,11 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/c-library', '-V', '-a'])
 
         try:
-            output = subprocess.check_output(['./build/qhull/qhull-executable/default/bin/qhull'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/qhull/qhull-executable/default/bin/qhull', '-V'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError:
             self.fail('Could not run a target which should have been built')
+
+        self.assertEqual(output, 'qhull_r 7.2.0 (2015.2.r 2016/01/18)')
 
     # def test_openmp(self):
     #     clang_build_try_except(['-d', 'test/openmp', '-V'])
