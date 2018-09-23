@@ -147,11 +147,11 @@ class _Environment:
             self.working_directory = args.directory.resolve()
 
         if not self.working_directory.exists():
-            error_message = f'ERROR: specified non-existent directory [{self.working_directory}]'
+            error_message = f'ERROR: specified non-existent directory \'{self.working_directory}\''
             self.logger.error(error_message)
             raise RuntimeError(error_message)
 
-        self.logger.info(f'Working directory: {self.working_directory}')
+        self.logger.info(f'Working directory: \'{self.working_directory}\'')
 
         # Build type (Default, Release, Debug)
         self.buildType = args.build_type
@@ -195,7 +195,7 @@ def build(args):
         # Check for build configuration toml file
         toml_file = _Path(environment.working_directory, 'clang-build.toml')
         if toml_file.exists():
-            logger.info('Found config file')
+            logger.info(f'Found config file: \'{toml_file}\'')
 
             # Parse config file
             config = toml.load(str(toml_file))
@@ -223,12 +223,13 @@ def build(args):
             files = _get_sources_and_headers({}, environment.working_directory, environment.build_directory)
 
             if not files['sourcefiles']:
-                error_message = f'Error, no sources and no [clang-build.toml] found in folder: {environment.working_directory}'
+                error_message = f'Error, no sources and no \'clang-build.toml\' found in folder \'{environment.working_directory}\''
                 logger.error(error_message)
                 raise RuntimeError(error_message)
             # Create target
             target_list.append(
                 _Executable(
+                    '',
                     'main',
                     environment.working_directory,
                     environment.build_directory.joinpath(environment.buildType.name.lower()),
@@ -259,7 +260,7 @@ def build(args):
         for target in target_list:
             if target.__class__ is not _HeaderOnly:
                 if target.unsuccessful_builds:
-                    errors[target.name] = [source.compile_report for source in target.unsuccessful_builds]
+                    errors[target.full_name] = [source.compile_report for source in target.unsuccessful_builds]
         if errors:
             raise _CompileError('Compilation was unsuccessful', errors)
 
@@ -274,7 +275,7 @@ def build(args):
         for target in target_list:
             if target.__class__ is not _HeaderOnly:
                 if target.unsuccessful_link:
-                    errors[target.name] = target.link_report
+                    errors[target.full_name] = target.link_report
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
 
@@ -304,14 +305,14 @@ def _main():
         logger = _logging.getLogger(__name__)
         logger.error('Compilation was unsuccessful:')
         for target, errors in compile_error.error_dict.items():
-            printout = f'Target [{target}] did not compile. Errors:\n'
+            printout = f'[{target}]: target did not compile. Errors:\n'
             printout += ' '.join(errors)
             logger.error(printout)
     except _LinkError as link_error:
         logger = _logging.getLogger(__name__)
         logger.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
-            printout = f'Target [{target}] did not link. Errors:\n{errors}'
+            printout = f'[{target}]: target did not link. Errors:\n{errors}'
             logger.error(printout)
 
 

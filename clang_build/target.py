@@ -31,6 +31,7 @@ class Target:
 
 
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -51,6 +52,7 @@ class Target:
 
         # Basics
         self.name           = name
+        self.full_name      = f'{project_name}.{name}' if project_name else name
         self.root_directory = _Path(root_directory)
         self.build_type      = build_type
 
@@ -116,10 +118,10 @@ class Target:
 
 class HeaderOnly(Target):
     def link(self):
-        _LOGGER.info(f'Header-only target [{self.name}] does not require linking.')
+        _LOGGER.info(f'[{self.full_name}]: Header-only target does not require linking.')
 
     def compile(self, process_pool, progress_disabled):
-        _LOGGER.info(f'Header-only target [{self.name}] does not require compiling.')
+        _LOGGER.info(f'[{self.full_name}]: Header-only target does not require compiling.')
 
 def generate_depfile_single_source(buildable):
     buildable.generate_depfile()
@@ -132,6 +134,7 @@ def compile_single_source(buildable):
 class Compilable(Target):
 
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -151,6 +154,7 @@ class Compilable(Target):
             force_build=False):
 
         super().__init__(
+            project_name=project_name,
             name=name,
             root_directory=root_directory,
             build_directory=build_directory,
@@ -163,7 +167,7 @@ class Compilable(Target):
             dependencies=dependencies)
 
         if not source_files:
-            error_message = f'ERROR: Targt [{name}] was defined as a {self.__class__} but no source files were found'
+            error_message = f'[{self.full_name}]: ERROR: Target was defined as a {self.__class__} but no source files were found'
             _LOGGER.error(error_message)
             raise RuntimeError(error_message)
 
@@ -238,25 +242,25 @@ class Compilable(Target):
 
         # If the target was not modified, it may not need to compile
         if not self.needed_buildables:
-            _LOGGER.info(f'Target [{self.name}] is already compiled')
+            _LOGGER.info(f'[{self.full_name}]: target is already compiled')
             return
 
-        _LOGGER.info(f'Target [{self.name}] needs to build sources %s', [b.name for b in self.needed_buildables])
+        _LOGGER.info(f'[{self.full_name}]: target needs to build sources %s', [b.name for b in self.needed_buildables])
 
         # Before-compile step
         if self.before_compile_script:
             script_file = self.root_directory.joinpath(self.before_compile_script).resolve()
-            _LOGGER.info(f'Pre-compile step of target [{self.name}]: {script_file}')
+            _LOGGER.info(f'[{self.full_name}]: pre-compile step: \'{script_file}\'')
             original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
             _os.chdir(original_directory)
-            _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
+            _LOGGER.info(f'[{self.full_name}]: finished pre-compile step')
 
         # Execute depfile generation command
-        _LOGGER.info(f'Scan dependencies of target [{self.name}]')
+        _LOGGER.info(f'[{self.full_name}]: scan dependencies')
         for b in self.needed_buildables:
             _LOGGER.debug(' '.join(b.dependency_command))
         self.needed_buildables = list(_get_build_progress_bar(
@@ -268,7 +272,7 @@ class Compilable(Target):
                 name=self.name))
 
         # Execute compile command
-        _LOGGER.info(f'Compile target [{self.name}]')
+        _LOGGER.info(f'[{self.full_name}]: compile')
         for b in self.needed_buildables:
             _LOGGER.debug(' '.join(b.compile_command))
         self.needed_buildables = list(_get_build_progress_bar(
@@ -285,17 +289,17 @@ class Compilable(Target):
     def link(self):
         # Before-link step
         if self.before_link_script:
-            _LOGGER.info(f'Pre-link step of target [{self.name}]')
+            script_file = self.root_directory.joinpath(self.before_link_script)
+            _LOGGER.info(f'[{self.full_name}]: pre-link step: \'{script_file}\'')
             original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
-            script_file = self.root_directory.joinpath(self.before_link_script)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
             _os.chdir(original_directory)
-            _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
+            _LOGGER.info(f'[{self.full_name}]: finished pre-link step')
 
-        _LOGGER.info(f'Link target [{self.name}] -> "{self.outfile}"')
+        _LOGGER.info(f'[{self.full_name}]: link -> "{self.outfile}"')
         _LOGGER.debug('    ' + ' '.join(self.link_command))
 
         # Execute link command
@@ -308,19 +312,20 @@ class Compilable(Target):
 
         ## After-build step
         if self.after_build_script:
-            _LOGGER.info(f'After-build step of target [{self.name}]')
+            script_file = self.root_directory.joinpath(self.after_build_script)
+            _LOGGER.info(f'[{self.full_name}]: after-build step: \'{script_file}\'')
             original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
-            script_file = self.root_directory.joinpath(self.after_build_script)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
             _os.chdir(original_directory)
-            _LOGGER.info(f'Finished after-build step of target [{self.name}]')
+            _LOGGER.info(f'[{self.full_name}]: finished after-build step')
 
 
 class Executable(Compilable):
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -335,6 +340,7 @@ class Executable(Compilable):
             force_build=False):
 
         super().__init__(
+            project_name=project_name,
             name=name,
             root_directory=root_directory,
             build_directory=build_directory,
@@ -371,6 +377,7 @@ class Executable(Compilable):
 
 class SharedLibrary(Compilable):
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -385,6 +392,7 @@ class SharedLibrary(Compilable):
             force_build=False):
 
         super().__init__(
+            project_name=project_name,
             name=name,
             root_directory=root_directory,
             build_directory=build_directory,
@@ -421,6 +429,7 @@ class SharedLibrary(Compilable):
 
 class StaticLibrary(Compilable):
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -436,6 +445,7 @@ class StaticLibrary(Compilable):
             force_build=False):
 
         super().__init__(
+            project_name=project_name,
             name=name,
             root_directory=root_directory,
             build_directory=build_directory,

@@ -81,7 +81,7 @@ class TestClangBuild(unittest.TestCase):
 
         logger.removeHandler(ch)
 
-        self.assertRegex(stream_capture.getvalue(), r'.*Target \[main\] is already compiled.*')
+        self.assertRegex(stream_capture.getvalue(), r'.*\[main\]: target is already compiled*')
         self.assertEqual(output, 'Hello!')
 
     def test_automatic_include_folders(self):

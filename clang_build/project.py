@@ -70,18 +70,18 @@ class Project:
             download_directory = self.build_directory.joinpath('external_sources')
             # Check if directory is already present and non-empty
             if download_directory.exists() and _os.listdir(str(download_directory)):
-                _LOGGER.info(f'External project [[{self.name}]]: sources found in {str(download_directory)}')
+                _LOGGER.info(f'[[{self.name}]]: external project sources found in \'{str(download_directory)}\'')
             # Otherwise we download the sources
             else:
-                _LOGGER.info(f'External project [[{self.name}]]: downloading to {str(download_directory)}')
+                _LOGGER.info(f'[[{self.name}]]: downloading external project to \'{str(download_directory)}\'')
                 download_directory.mkdir(parents=True, exist_ok=True)
                 try:
                     _subprocess.run(["git", "clone", config["url"], str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                 except _subprocess.CalledProcessError as e:
-                    error_message = f"Project [[{self.name}]]: Error trying to download external project [[{self.name}]]. Message " + e.output
+                    error_message = f"[[{self.name}]]: error trying to download external project. Message " + e.output
                     _LOGGER.exception(error_message)
                     raise RuntimeError(error_message)
-                _LOGGER.info(f'External project [[{self.name}]]: downloaded')
+                _LOGGER.info(f'[[{self.name}]]: external project downloaded')
             self.working_directory = download_directory
 
         # Get subset of config which contains targets not associated to any project name
@@ -93,7 +93,7 @@ class Project:
         # An "anonymous" project, i.e. project-less targets, is not allowed together with subprojects
         if self.targets_config and self.subprojects_config:
             if not self.name:
-                error_message = f"Project [[{self.name}]]: Your config file specified one or more projects. In this case you are not allowed to specify targets which do not belong to a project."
+                error_message = f"[[{self.name}]]: the config file specifies one or more projects. In this case it is not allowed to specify targets which do not belong to a project."
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
@@ -115,10 +115,10 @@ class Project:
         # Check this project's targets for circular dependencies
         circular_dependencies = _find_circular_dependencies(self.targets_config)
         if circular_dependencies:
-            error_messages = [f'In [{target}]: circular dependency -> [{dependency}]' for\
+            error_messages = [f'Circular dependency [{target}] -> [{dependency}]' for\
                             target, dependency in circular_dependencies]
 
-            error_message = f"Project [[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+            error_message = f"[[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
             _LOGGER.exception(error_message)
             raise RuntimeError(error_message)
 
@@ -129,10 +129,10 @@ class Project:
 
         non_existent_dependencies = _find_non_existent_dependencies(targets_and_subprojects_config)
         if non_existent_dependencies:
-            error_messages = [f'In [[{self.name}]].[{target}]: the dependency [{dependency}] does not point to a valid target of this project or it\'s subprojects' for\
+            error_messages = [f'[[{self.name}]].[{target}]: the dependency [{dependency}] does not point to a valid target of this project or it\'s subprojects' for\
                             target, dependency in non_existent_dependencies]
 
-            error_message = f"Project [[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
+            error_message = f"[[{self.name}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
             _LOGGER.exception(error_message)
             raise RuntimeError(error_message)
 
@@ -199,6 +199,7 @@ class Project:
         # Generate the list of target instances
         self.target_list = []
         for target_name in _IteratorProgress(target_names_ordered, environment.progress_disabled, len(target_names_ordered)):
+            target_name_full = f'{self.name}.{target_name}' if self.name else target_name
             target_node = targets_and_subproject_targets_config[target_name]
             # Directories
             target_build_directory = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)
@@ -208,21 +209,22 @@ class Project:
             ### TODO: external sources should be fetched before any sources are read in, i.e. even before the first target is created
             external = "url" in target_node
             if external:
+                url = target_node["url"]
                 download_directory = target_build_directory.joinpath('external_sources')
                 # Check if directory is already present and non-empty
                 if download_directory.exists() and _os.listdir(str(download_directory)):
-                    _LOGGER.info(f'External target [{target_name}]: sources found in {str(download_directory)}')
+                    _LOGGER.info(f'[{target_name_full}]: external target sources found in {str(download_directory)}')
                 # Otherwise we download the sources
                 else:
-                    _LOGGER.info(f'External target [{target_name}]: downloading to {str(download_directory)}')
+                    _LOGGER.info(f'[{target_name_full}]: downloading external target to {str(download_directory)}')
                     download_directory.mkdir(parents=True, exist_ok=True)
                     try:
-                        _subprocess.run(["git", "clone", target_node["url"], str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                        _subprocess.run(["git", "clone", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                     except _subprocess.CalledProcessError as e:
-                        error_message = f"Project [[{self.name}]]: Error trying to download external target [{target_name}]. Message " + e.output
+                        error_message = f"[{target_name_full}]: error trying to download external target. " + e.output
                         _LOGGER.exception(error_message)
                         raise RuntimeError(error_message)
-                    _LOGGER.info(f'Project [[{self.name}]]: External target [{target_name}]: downloaded')
+                    _LOGGER.info(f'[{target_name_full}]: external target downloaded')
                 # self.includeDirectories.append(download_directory)
                 target_root_directory = download_directory
 
@@ -231,7 +233,7 @@ class Project:
                     try:
                         _subprocess.run(["git", "checkout", version], cwd=target_root_directory, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                     except _subprocess.CalledProcessError as e:
-                        error_message = f"Error trying to checkout target [{target_name}] version \'{version}\'. Message " + e.output
+                        error_message = f"[{target_name_full}]: error trying to checkout version \'{version}\' from url \'{url}\'. Message " + e.output
                         _LOGGER.exception(error_message)
                         raise RuntimeError(error_message)
 
@@ -265,7 +267,7 @@ class Project:
             executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
             if executable_dependencies:
                 exelist = ', '.join([f'[{dep.name}]' for dep in executable_dependencies])
-                error_message = f'Project [[{self.name}]]: Error: The following targets are linking dependencies but were identified as executables:\n    {exelist}'
+                error_message = f'[[{self.name}]]: ERROR: The following targets are linking dependencies but were identified as executables:\n    {exelist}'
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
@@ -277,6 +279,7 @@ class Project:
                 if target_node['target_type'].lower() == 'executable':
                     self.target_list.append(
                         _Executable(
+                            self.name,
                             target_name,
                             target_root_directory,
                             target_build_directory,
@@ -296,6 +299,7 @@ class Project:
                 elif target_node['target_type'].lower() == 'shared library':
                     self.target_list.append(
                         _SharedLibrary(
+                            self.name,
                             target_name,
                             target_root_directory,
                             target_build_directory,
@@ -315,6 +319,7 @@ class Project:
                 elif target_node['target_type'].lower() == 'static library':
                     self.target_list.append(
                         _StaticLibrary(
+                            self.name,
                             target_name,
                             target_root_directory,
                             target_build_directory,
@@ -334,9 +339,10 @@ class Project:
                 #
                 elif target_node['target_type'].lower() == 'header only':
                     if files['sourcefiles']:
-                        environment.logger.info(f'Source files found for header-only target {target_name}. You may want to check your build configuration.')
+                        environment.logger.info(f'[{target_name_full}]: {len(files["sourcefiles"])} source file(s) found for header-only target. You may want to check your build configuration.')
                     self.target_list.append(
                         _HeaderOnly(
+                            self.name,
                             target_name,
                             target_root_directory,
                             target_build_directory,
@@ -349,16 +355,17 @@ class Project:
                             dependencies))
 
                 else:
-                    error_message = f'Project [[{self.name}]]: ERROR: Unsupported target type: "{target_node["target_type"].lower()}"'
+                    error_message = f'[[{self.name}]]: ERROR: Unsupported target type: "{target_node["target_type"].lower()}"'
                     _LOGGER.exception(error_message)
                     raise RuntimeError(error_message)
 
             # No target specified so must be executable or header only
             else:
                 if not files['sourcefiles']:
-                    environment.logger.info(f'No source files found for target {target_name}. Creating header-only target.')
+                    environment.logger.info(f'[{target_name_full}]: no source files found. Creating header-only target.')
                     self.target_list.append(
                         _HeaderOnly(
+                            self.name,
                             target_name,
                             target_root_directory,
                             target_build_directory,
@@ -370,9 +377,10 @@ class Project:
                             target_node,
                             dependencies))
                 else:
-                    environment.logger.info(f'{len(files["sourcefiles"])} source files found for target {target_name}. Creating executable target.')
+                    environment.logger.info(f'[{target_name_full}]: {len(files["sourcefiles"])} source file(s) found. Creating executable target.')
                     self.target_list.append(
                         _Executable(
+                            self.name,
                             target_name,
                             target_root_directory,
                             target_build_directory,
