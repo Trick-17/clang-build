@@ -70,22 +70,36 @@ def parse_args(args):
                         help='activate more detailed output',
                         action='store_true')
     parser.add_argument('-p', '--progress',
-                        help='activates a progress bar output. is overruled by -V and --debug', action='store_true')
-    parser.add_argument('-d', '--directory', type=_Path,
+                        help='activates a progress bar output',
+                        action='store_true')
+    parser.add_argument('-d', '--directory',
+                        type=_Path,
                         help='set the root source directory')
-    parser.add_argument('-b', '--build-type', choices=list(_BuildType), type=_BuildType, default=_BuildType.Default,
+    parser.add_argument('-b', '--build-type',
+                        choices=list(_BuildType),
+                        type=_BuildType,
+                        default=_BuildType.Default,
                         help='set the build type for this project')
     parser.add_argument('-a', '--all',
-                        help='build every target, irrespective of whether any root target depends on it', action='store_true')
-    parser.add_argument('-t', '--targets', type=str, default="",
+                        help='build every target, irrespective of whether any root target depends on it',
+                        action='store_true')
+    parser.add_argument('-t', '--targets',
+                        type=str,
+                        default="",
                         help='only these targets and their dependencies should be built (comma-separated list)')
     parser.add_argument('-f', '--force-rebuild',
-                        help='whether the targets should be rebuilt', action='store_true')
-    parser.add_argument('-j', '--jobs', type=int, default=1,
+                        help='whether the targets should be rebuilt',
+                        action='store_true')
+    parser.add_argument('-j', '--jobs',
+                        type=int,
+                        default=1,
                         help='set the number of concurrent build jobs')
-    parser.add_argument('--debug', help='activates additional debug output, overrides verbosity option.', action='store_true')
+    parser.add_argument('--debug',
+                        help='activates additional debug output, overrides verbosity option.',
+                        action='store_true')
     parser.add_argument('--no-graph',
-                        help='deactivates output of a dependency graph dotfile', action='store_false')
+                        help='deactivates output of a dependency graph dotfile',
+                        action='store_true')
     return parser.parse_args(args=args)
 
 
@@ -122,7 +136,6 @@ class _Environment:
     def __init__(self, args):
         # Some defaults
         self.logger    = None
-        self.progress_disabled = True
         self.buildType = None
         self.clang     = "clang"
         self.clangpp   = "clang++"
@@ -131,10 +144,6 @@ class _Environment:
         self.calling_directory = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
         self.working_directory = self.calling_directory
-
-        # Progress bar
-        if args.progress:
-            self.progress_disabled = False
 
         self.logger = _logging.getLogger(__name__)
         self.logger.info(f'clang-build {__version__}')
@@ -158,7 +167,7 @@ class _Environment:
         self.logger.info(f'Build type: {self.buildType.name}')
 
         # Whether to build all targets
-        self.build_all = args.all
+        self.build_all = True if args.all else False
 
         # List of targets which should be built
         self.target_list = []
@@ -170,7 +179,7 @@ class _Environment:
             self.target_list = [str(target) for target in args.targets.split(',')]
 
         # Whether to force a rebuild
-        self.force_rebuild = args.force_rebuild
+        self.force_rebuild = True if args.force_rebuild else False
 
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
@@ -179,8 +188,11 @@ class _Environment:
         # Build directory
         self.build_directory = _Path('build')
 
+        # Progress bar
+        self.progress_disabled = False if args.progress else True
+
         # Whether to create a dotfile for graphing dependencies
-        self.create_dependency_dotfile = args.no_graph
+        self.create_dependency_dotfile = False if args.no_graph else True
 
 
 def build(args):

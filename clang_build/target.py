@@ -182,10 +182,6 @@ class Compilable(Target):
         self.depfile_directory = self.build_directory.joinpath('dep').resolve()
         self.output_folder     = self.build_directory.joinpath(output_folder).resolve()
 
-        self.object_directory.mkdir(parents=True, exist_ok=True)
-        self.depfile_directory.mkdir(parents=True, exist_ok=True)
-        self.output_folder.mkdir(parents=True, exist_ok=True)
-
         if 'output_name' in options:
             self.outname = options['output_name']
         else:
@@ -304,6 +300,7 @@ class Compilable(Target):
 
         # Execute link command
         try:
+            self.output_folder.mkdir(parents=True, exist_ok=True)
             self.link_report = _subprocess.check_output(self.link_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
             self.unsuccessful_link = False
         except _subprocess.CalledProcessError as error:

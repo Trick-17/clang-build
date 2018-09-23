@@ -252,14 +252,13 @@ class Project:
                 subnames = name.split(".")
                 if subnames[0] in self.subproject_names:
                     idx = self.subproject_names.index(subnames[0])
-                    # TODO: so far, we are only going one layer deep... this is not enough
+                    # TODO: so far, we are only going one layer deep... this is not enough!
+                    #       Also, this should probably be done differently...
                     subproject = self.subprojects[idx]
-                    for i in range(1, len(subnames)):
-                        subproject = self.subprojects[i-1]
-                        for target in subproject.target_list:
-                            if subnames[-1] == target.name:
-                                dependencies.append(target)
-                                i = len(subnames)
+                    for target in subproject.target_list:
+                        if subnames[-1] == target.name:
+                            dependencies.append(target)
+                            i = len(subnames)
                 if name in target_names_ordered:
                     dependencies.append(self.target_list[target_names_ordered.index(name)])
 
