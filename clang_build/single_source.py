@@ -72,7 +72,7 @@ class SingleSource:
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
         compiler = clangpp
-        if source_file.suffix == ".c":
+        if source_file.suffix in [".c", ".cc", ".m"]:
             compiler = clang
             max_cpp_dialect = ''
 

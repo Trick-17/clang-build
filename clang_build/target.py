@@ -21,7 +21,7 @@ _LOGGER = _logging.getLogger('clang_build.clang_build')
 class Target:
     DEFAULT_COMPILE_FLAGS          = ['-Wall', '-Wextra', '-Wpedantic', '-Werror']
     DEFAULT_RELEASE_COMPILE_FLAGS  = ['-O3', '-DNDEBUG']
-    DEFAULT_DEBUG_COMPILE_FLAGS    = ['-Og', '-g3', '-DDEBUG']
+    DEFAULT_DEBUG_COMPILE_FLAGS    = ['-O0', '-g3', '-DDEBUG']
     DEFAULT_COVERAGE_COMPILE_FLAGS = (
         DEFAULT_DEBUG_COMPILE_FLAGS +
         ['--coverage',
