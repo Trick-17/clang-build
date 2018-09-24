@@ -19,7 +19,7 @@ from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 class Target:
-    DEFAULT_COMPILE_FLAGS          = ['-Wall', '-Werror']
+    DEFAULT_COMPILE_FLAGS          = ['-Wall', '-Wextra', '-Wpedantic', '-Werror']
     DEFAULT_RELEASE_COMPILE_FLAGS  = ['-O3', '-DNDEBUG']
     DEFAULT_DEBUG_COMPILE_FLAGS    = ['-O0', '-g3', '-DDEBUG']
     DEFAULT_COVERAGE_COMPILE_FLAGS = (
@@ -31,12 +31,14 @@ class Target:
 
 
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
             headers,
             include_directories,
             build_type,
+            clang,
             clangpp,
             options=None,
             dependencies=None):
@@ -50,6 +52,7 @@ class Target:
 
         # Basics
         self.name           = name
+        self.full_name      = f'{project_name}.{name}' if project_name else name
         self.root_directory = _Path(root_directory)
         self.build_type      = build_type
 
@@ -74,13 +77,13 @@ class Target:
         compile_flags        = []
         compile_flags_debug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
         compile_flags_release = Target.DEFAULT_RELEASE_COMPILE_FLAGS
-        self.linkFlags = []
+        self.link_flags = []
 
         if 'flags' in options:
             compile_flags += options['flags'].get('compile', [])
             compile_flags_release += options['flags'].get('compileRelease', [])
             compile_flags_debug += options['flags'].get('compileDebug', [])
-            self.linkFlags += options['flags'].get('link', [])
+            self.link_flags += options['flags'].get('link', [])
 
         self.compile_flags = compile_flags
         if self.build_type == _BuildType.Release:
@@ -115,10 +118,10 @@ class Target:
 
 class HeaderOnly(Target):
     def link(self):
-        _LOGGER.info(f'Header-only target [{self.name}] does not require linking.')
+        _LOGGER.info(f'[{self.full_name}]: Header-only target does not require linking.')
 
     def compile(self, process_pool, progress_disabled):
-        _LOGGER.info(f'Header-only target [{self.name}] does not require compiling.')
+        _LOGGER.info(f'[{self.full_name}]: Header-only target does not require compiling.')
 
 def generate_depfile_single_source(buildable):
     buildable.generate_depfile()
@@ -131,6 +134,7 @@ def compile_single_source(buildable):
 class Compilable(Target):
 
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -138,6 +142,7 @@ class Compilable(Target):
             include_directories,
             source_files,
             build_type,
+            clang,
             clangpp,
             link_command,
             output_folder,
@@ -145,21 +150,24 @@ class Compilable(Target):
             prefix,
             suffix,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            force_build=False):
 
         super().__init__(
+            project_name=project_name,
             name=name,
             root_directory=root_directory,
             build_directory=build_directory,
             headers=headers,
             include_directories=include_directories,
             build_type=build_type,
+            clang=clang,
             clangpp=clangpp,
             options=options,
             dependencies=dependencies)
 
         if not source_files:
-            error_message = f'ERROR: Targt [{name}] was defined as a {self.__class__} but no source files were found'
+            error_message = f'[{self.full_name}]: ERROR: Target was defined as a {self.__class__} but no source files were found'
             _LOGGER.error(error_message)
             raise RuntimeError(error_message)
 
@@ -168,13 +176,11 @@ class Compilable(Target):
         if dependencies is None:
             dependencies = []
 
+        self.force_build = force_build
+
         self.object_directory  = self.build_directory.joinpath('obj').resolve()
         self.depfile_directory = self.build_directory.joinpath('dep').resolve()
         self.output_folder     = self.build_directory.joinpath(output_folder).resolve()
-
-        self.object_directory.mkdir(parents=True, exist_ok=True)
-        self.depfile_directory.mkdir(parents=True, exist_ok=True)
-        self.output_folder.mkdir(parents=True, exist_ok=True)
 
         if 'output_name' in options:
             self.outname = options['output_name']
@@ -185,6 +191,7 @@ class Compilable(Target):
 
 
         # Clang
+        self.clang     = clang
         self.clangpp   = clangpp
 
         # Sources
@@ -198,16 +205,16 @@ class Compilable(Target):
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
             include_strings=self.get_include_directory_command(),
-            compile_flags=[self.dialect] + Target.DEFAULT_COMPILE_FLAGS + self.compile_flags,
-            clangpp=self.clangpp) for source_file in self.source_files]
+            compile_flags=Target.DEFAULT_COMPILE_FLAGS + self.compile_flags,
+            clang  =self.clang,
+            clangpp=self.clangpp,
+            max_cpp_dialect=self.dialect) for source_file in self.source_files]
 
         # If compilation of buildables fail, they will be stored here later
         self.unsuccessful_builds = []
 
         # Linking setup
         self.link_command = link_command + [str(self.outfile)]
-
-        self.link_command += self.linkFlags
 
 
         ## Additional scripts
@@ -224,29 +231,32 @@ class Compilable(Target):
     def compile(self, process_pool, progress_disabled):
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        self.needed_buildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
+        if not self.force_build:
+            self.needed_buildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
+        else:
+            self.needed_buildables = self.buildables
 
         # If the target was not modified, it may not need to compile
         if not self.needed_buildables:
-            _LOGGER.info(f'Target [{self.name}] is already compiled')
+            _LOGGER.info(f'[{self.full_name}]: target is already compiled')
             return
 
-        _LOGGER.info(f'Target [{self.name}] needs to build sources %s', [b.name for b in self.needed_buildables])
+        _LOGGER.info(f'[{self.full_name}]: target needs to build sources %s', [b.name for b in self.needed_buildables])
 
         # Before-compile step
         if self.before_compile_script:
-            script_file = self.root_directory.joinpath(self.before_compile_script)
-            _LOGGER.info(f'Pre-compile step of target [{self.name}]: {script_file}')
+            script_file = self.root_directory.joinpath(self.before_compile_script).resolve()
+            _LOGGER.info(f'[{self.full_name}]: pre-compile step: \'{script_file}\'')
             original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
             _os.chdir(original_directory)
-            _LOGGER.info(f'Finished pre-compile step of target [{self.name}]')
+            _LOGGER.info(f'[{self.full_name}]: finished pre-compile step')
 
         # Execute depfile generation command
-        _LOGGER.info(f'Scan dependencies of target [{self.outname}]')
+        _LOGGER.info(f'[{self.full_name}]: scan dependencies')
         for b in self.needed_buildables:
             _LOGGER.debug(' '.join(b.dependency_command))
         self.needed_buildables = list(_get_build_progress_bar(
@@ -258,7 +268,7 @@ class Compilable(Target):
                 name=self.name))
 
         # Execute compile command
-        _LOGGER.info(f'Compile target [{self.outname}]')
+        _LOGGER.info(f'[{self.full_name}]: compile')
         for b in self.needed_buildables:
             _LOGGER.debug(' '.join(b.compile_command))
         self.needed_buildables = list(_get_build_progress_bar(
@@ -275,21 +285,22 @@ class Compilable(Target):
     def link(self):
         # Before-link step
         if self.before_link_script:
-            _LOGGER.info(f'Pre-link step of target [{self.name}]')
+            script_file = self.root_directory.joinpath(self.before_link_script)
+            _LOGGER.info(f'[{self.full_name}]: pre-link step: \'{script_file}\'')
             original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
-            script_file = self.root_directory.joinpath(self.before_link_script)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
             _os.chdir(original_directory)
-            _LOGGER.info(f'Finished pre-link step of target [{self.name}]')
+            _LOGGER.info(f'[{self.full_name}]: finished pre-link step')
 
-        _LOGGER.info(f'Link target [{self.name}]')
+        _LOGGER.info(f'[{self.full_name}]: link -> "{self.outfile}"')
         _LOGGER.debug('    ' + ' '.join(self.link_command))
 
         # Execute link command
         try:
+            self.output_folder.mkdir(parents=True, exist_ok=True)
             self.link_report = _subprocess.check_output(self.link_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
             self.unsuccessful_link = False
         except _subprocess.CalledProcessError as error:
@@ -298,19 +309,20 @@ class Compilable(Target):
 
         ## After-build step
         if self.after_build_script:
-            _LOGGER.info(f'After-build step of target [{self.name}]')
+            script_file = self.root_directory.joinpath(self.after_build_script)
+            _LOGGER.info(f'[{self.full_name}]: after-build step: \'{script_file}\'')
             original_directory = _os.getcwd()
             _os.chdir(self.root_directory)
-            script_file = self.root_directory.joinpath(self.after_build_script)
             with open(script_file) as f:
                 code = compile(f.read(), script_file, 'exec')
                 exec(code, globals(), locals())
             _os.chdir(original_directory)
-            _LOGGER.info(f'Finished after-build step of target [{self.name}]')
+            _LOGGER.info(f'[{self.full_name}]: finished after-build step')
 
 
 class Executable(Compilable):
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -318,11 +330,14 @@ class Executable(Compilable):
             include_directories,
             source_files,
             build_type,
+            clang,
             clangpp,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            force_build=False):
 
         super().__init__(
+            project_name=project_name,
             name=name,
             root_directory=root_directory,
             build_directory=build_directory,
@@ -330,22 +345,26 @@ class Executable(Compilable):
             include_directories=include_directories,
             source_files=source_files,
             build_type=build_type,
+            clang=clang,
             clangpp=clangpp,
             link_command=[clangpp, '-o'],
-            output_folder = _platform.EXECUTABLE_OUTPUT,
+            output_folder=_platform.EXECUTABLE_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
             prefix=_platform.EXECUTABLE_PREFIX,
             suffix=_platform.EXECUTABLE_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            force_build=force_build)
+
+        ### Link self
+        self.link_command += [str(buildable.object_file) for buildable in self.buildables]
 
         ### Library dependency search paths
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
-        ### Link self
-        self.link_command += [str(buildable.object_file) for buildable in self.buildables]
+        self.link_command += self.link_flags
 
         ### Link dependencies
         for target in self.dependency_targets:
@@ -355,6 +374,7 @@ class Executable(Compilable):
 
 class SharedLibrary(Compilable):
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -362,11 +382,14 @@ class SharedLibrary(Compilable):
             include_directories,
             source_files,
             build_type,
+            clang,
             clangpp,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            force_build=False):
 
         super().__init__(
+            project_name=project_name,
             name=name,
             root_directory=root_directory,
             build_directory=build_directory,
@@ -374,22 +397,26 @@ class SharedLibrary(Compilable):
             include_directories=include_directories,
             source_files=source_files,
             build_type=build_type,
+            clang=clang,
             clangpp=clangpp,
             link_command=[clangpp, '-shared', '-o'],
-            output_folder = _platform.SHARED_LIBRARY_OUTPUT,
+            output_folder=_platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
             suffix=_platform.SHARED_LIBRARY_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            force_build=force_build)
+
+        ### Link self
+        self.link_command += [str(buildable.object_file) for buildable in self.buildables]
 
         ### Library dependency search paths
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
-        ### Link self
-        self.link_command += [str(buildable.object_file) for buildable in self.buildables]
+        self.link_command += self.link_flags
 
         ### Link dependencies
         for target in self.dependency_targets:
@@ -399,6 +426,7 @@ class SharedLibrary(Compilable):
 
 class StaticLibrary(Compilable):
     def __init__(self,
+            project_name,
             name,
             root_directory,
             build_directory,
@@ -406,12 +434,15 @@ class StaticLibrary(Compilable):
             include_directories,
             source_files,
             build_type,
+            clang,
             clangpp,
             clang_ar,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            force_build=False):
 
         super().__init__(
+            project_name=project_name,
             name=name,
             root_directory=root_directory,
             build_directory=build_directory,
@@ -419,20 +450,23 @@ class StaticLibrary(Compilable):
             include_directories=include_directories,
             source_files=source_files,
             build_type=build_type,
+            clang=clang,
             clangpp=clangpp,
             link_command=[clang_ar, 'rc'],
-            output_folder = _platform.STATIC_LIBRARY_OUTPUT,
+            output_folder=_platform.STATIC_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
             prefix=_platform.STATIC_LIBRARY_PREFIX,
             suffix=_platform.STATIC_LIBRARY_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            force_build=force_build)
 
         # ### Include directories
         # self.link_command += self.get_include_directory_command()
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
+        self.link_command += self.link_flags
 
         ### Link dependencies
         for target in self.dependency_targets:

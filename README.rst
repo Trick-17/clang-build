@@ -167,7 +167,8 @@ Note:
 
 -  external projects will be copied/downloaded into "build/targetname/external_sources"
 -  you can specify a subdirectory, if the thirdparty code has an unusual structure
--  further granularity is given by ``include_directories`` and ``source_directories``
+-  further granularity is given by ``include_directories`` and ``sources``
+-  `sources`, `headers_exclude` and `sources_exclude` expect a list of globbing patterns or files (not folders!)
 
 .. code:: toml
 
@@ -175,9 +176,8 @@ Note:
     url = "https://github.com/trick-17/mylib"
     version = 1.1 # will try to `git checkout 1.1`
     directory = "sources"           # will point to "build/mylib/external_sources/sources"
-    [mylib.sources]
     include_directories = ["mylib/include"] # will point to "build/mylib/external_sources/sources/mylib/include"
-    source_directories  = ["mylib/src"]     # will point to "build/mylib/external_sources/sources/mylib/src"
+    sources = ["mylib/src/*"]     # will list everything inside "build/mylib/external_sources/sources/mylib/src"
     # Maybe we need to deactivate annoying warnings coming from the library
     [mylib.flags]
     compile = ["-Wno-deprecated-declarations", "-Wno-self-assign"]

@@ -53,22 +53,28 @@ class SingleSource:
             object_directory,
             include_strings,
             compile_flags,
-            clangpp):
+            clang,
+            clangpp,
+            max_cpp_dialect):
 
         # Get the relative file path
-        self.name          = source_file.name
-        self.source_file    = source_file
+        self.name        = source_file.name
+        self.source_file = source_file
 
         # If the source file is in a directory called 'src', we do not create a
         # subdirectory called 'src' in the build folder structure
         relpath = _os.path.relpath(source_file.parents[0], current_target_root_path)
-        if current_target_root_path.joinpath('src').exists():
+        if current_target_root_path.joinpath('src').exists() and  "src" in self.source_file.parts:
             relpath = _os.path.relpath(relpath, 'src')
 
         # Set name, extension and potentially produced output files
         self.object_file = _Path(object_directory,  relpath, self.source_file.stem + '.o')
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
+        compiler = clangpp
+        if source_file.suffix in [".c", ".cc", ".m"]:
+            compiler = clang
+            max_cpp_dialect = ''
 
         self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)
 
@@ -77,18 +83,17 @@ class SingleSource:
         self.compilation_failed = False
 
         # prepare everything for dependency file generation
-        self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
-        self.dependency_command = [clangpp, '-E', '-MMD', str(self.source_file), '-MF', str(self.depfile)] + flags
+        self.dependency_command = [compiler, max_cpp_dialect, '-E', '-MMD', str(self.source_file), '-MF', str(self.depfile)] + flags
 
         # prepare everything for compilation
-        self.object_file.parents[0].mkdir(parents=True, exist_ok=True)
-        self.compile_command = [clangpp, '-c', str(self.source_file), '-o', str(self.object_file)] + flags + platform_flags
+        self.compile_command = [compiler, max_cpp_dialect, '-c', str(self.source_file), '-o', str(self.object_file)] + flags + platform_flags
 
 
     def generate_depfile(self):
         # TODO: logging in multiprocess
         # _LOGGER.debug('    ' + ' '.join(dependency_command))
         try:
+            self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
             self.depfile_report = _subprocess.check_output(self.dependency_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
             self.depfile_failed = False
         except _subprocess.CalledProcessError as error:
@@ -100,6 +105,7 @@ class SingleSource:
         # TODO: logging in multiprocess
         # _LOGGER.debug('    ' + ' '.join(self.compile_command))
         try:
+            self.object_file.parents[0].mkdir(parents=True, exist_ok=True)
             self.compile_report = _subprocess.check_output(self.compile_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
             self.compilation_failed = False
         except _subprocess.CalledProcessError as error:

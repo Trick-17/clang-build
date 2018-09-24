@@ -1,6 +1,6 @@
 #include <iostream>
 
-int main(int argc, char ** argv)
+int main()
 {
     std::cerr << "Hello!" << std::endl;
     return 0;
