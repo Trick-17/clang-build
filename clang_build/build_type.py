@@ -3,10 +3,9 @@ from enum import Enum as _Enum
 class BuildType(_Enum):
     Default        = 'default'
     Release        = 'release'
-    #MinSizeRel     = 2
-    #RelWithDebInfo = 3
+    RelWithDebInfo = 'relwithdebinfo'
     Debug          = 'debug'
-    #Coverage       = 5
+    Coverage       = 'coverage'
 
     def __str__(self):
         return self.value

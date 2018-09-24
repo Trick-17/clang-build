@@ -19,15 +19,13 @@ from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 class Target:
-    DEFAULT_COMPILE_FLAGS          = ['-Wall', '-Wextra', '-Wpedantic', '-Werror']
-    DEFAULT_RELEASE_COMPILE_FLAGS  = ['-O3', '-DNDEBUG']
-    DEFAULT_DEBUG_COMPILE_FLAGS    = ['-O0', '-g3', '-DDEBUG']
-    DEFAULT_COVERAGE_COMPILE_FLAGS = (
-        DEFAULT_DEBUG_COMPILE_FLAGS +
-        ['--coverage',
-         '-fno-inline',
-         '-fno-inline-small-functions',
-         '-fno-default-inline'])
+    DEFAULT_COMPILE_FLAGS                = ['-Wall', '-Wextra', '-Wpedantic', '-Werror']
+    DEFAULT_COMPILE_FLAGS_RELEASE        = ['-O3', '-DNDEBUG']
+    DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO = ['-O3', '-g3', '-DNDEBUG']
+    DEFAULT_COMPILE_FLAGS_DEBUG          = ['-O0', '-g3', '-DDEBUG']
+    DEFAULT_COMPILE_FLAGS_COVERAGE       = DEFAULT_COMPILE_FLAGS_DEBUG + [
+                                            '--coverage',
+                                            '-fno-inline']
 
 
     def __init__(self,
@@ -74,22 +72,31 @@ class Target:
 
         # TODO: parse user-specified target version
 
-        compile_flags        = []
-        compile_flags_debug   = Target.DEFAULT_DEBUG_COMPILE_FLAGS
-        compile_flags_release = Target.DEFAULT_RELEASE_COMPILE_FLAGS
+        compile_flags                = []
+        compile_flags_debug          = Target.DEFAULT_COMPILE_FLAGS_DEBUG
+        compile_flags_release        = Target.DEFAULT_COMPILE_FLAGS_RELEASE
+        compile_flags_relwithdebinfo = Target.DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO
+        compile_flags_coverage       = Target.DEFAULT_COMPILE_FLAGS_COVERAGE
+
         self.link_flags = []
 
         if 'flags' in options:
-            compile_flags += options['flags'].get('compile', [])
-            compile_flags_release += options['flags'].get('compileRelease', [])
-            compile_flags_debug += options['flags'].get('compileDebug', [])
-            self.link_flags += options['flags'].get('link', [])
+            compile_flags                += options['flags'].get('compile', [])
+            compile_flags_release        += options['flags'].get('compile_release', [])
+            compile_flags_debug          += options['flags'].get('compile_debug', [])
+            compile_flags_relwithdebinfo += options['flags'].get('compile_relwithdebinfo', [])
+            compile_flags_coverage       += options['flags'].get('compile_coverage', [])
+            self.link_flags              += options['flags'].get('link', [])
 
         self.compile_flags = compile_flags
         if self.build_type == _BuildType.Release:
             self.compile_flags += compile_flags_release
         if self.build_type == _BuildType.Debug:
             self.compile_flags += compile_flags_debug
+        if self.build_type == _BuildType.RelWithDebInfo:
+            self.compile_flags += compile_flags_relwithdebinfo
+        if self.build_type == _BuildType.Coverage:
+            self.compile_flags += compile_flags_coverage
 
         for target in self.dependency_targets:
             self.compile_flags += target.compile_flags
