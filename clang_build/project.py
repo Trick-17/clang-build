@@ -299,7 +299,7 @@ class Project:
                             environment.clangpp,
                             target_node,
                             dependencies,
-                            environment.force_rebuild))
+                            environment.force_build))
 
                 #
                 # Add a shared library
@@ -319,7 +319,7 @@ class Project:
                             environment.clangpp,
                             target_node,
                             dependencies,
-                            environment.force_rebuild))
+                            environment.force_build))
 
                 #
                 # Add a static library
@@ -340,7 +340,7 @@ class Project:
                             environment.clang_ar,
                             target_node,
                             dependencies,
-                            environment.force_rebuild))
+                            environment.force_build))
 
                 #
                 # Add a header-only
@@ -400,7 +400,7 @@ class Project:
                             environment.clangpp,
                             target_node,
                             dependencies,
-                            environment.force_rebuild))
+                            environment.force_build))
 
     def get_targets(self, exclude=[]):
         targetlist = []

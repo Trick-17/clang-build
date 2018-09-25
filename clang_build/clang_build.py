@@ -87,8 +87,8 @@ def parse_args(args):
                         type=str,
                         default="",
                         help='only these targets and their dependencies should be built (comma-separated list)')
-    parser.add_argument('-f', '--force-rebuild',
-                        help='whether the targets should be rebuilt',
+    parser.add_argument('-f', '--force-build',
+                        help='also build sources which have already been built',
                         action='store_true')
     parser.add_argument('-j', '--jobs',
                         type=int,
@@ -168,6 +168,8 @@ class _Environment:
 
         # Whether to build all targets
         self.build_all = True if args.all else False
+        if self.build_all:
+            self.logger.info('Building all targets...')
 
         # List of targets which should be built
         self.target_list = []
@@ -179,7 +181,9 @@ class _Environment:
             self.target_list = [str(target) for target in args.targets.split(',')]
 
         # Whether to force a rebuild
-        self.force_rebuild = True if args.force_rebuild else False
+        self.force_build = True if args.force_build else False
+        if self.force_build:
+            self.logger.info('Forcing build...')
 
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
@@ -250,7 +254,8 @@ def build(args):
                     files['sourcefiles'],
                     environment.buildType,
                     environment.clang,
-                    environment.clangpp))
+                    environment.clangpp,
+                    force_build=environment.force_build))
 
         # Build the targets
         progress_bar.update()
