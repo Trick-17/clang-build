@@ -2,6 +2,7 @@ from sys import platform as _platform
 
 if _platform == 'linux' or _platform == 'linux2':
     # Linux
+    PLATFORM = 'linux'
     EXECUTABLE_PREFIX = ''
     EXECUTABLE_SUFFIX = ''
     EXECUTABLE_OUTPUT = 'bin'
@@ -16,6 +17,7 @@ if _platform == 'linux' or _platform == 'linux2':
     PLATFORM_EXTRA_FLAGS_STATIC     = ['']
 elif _platform == 'darwin':
     # OS X
+    PLATFORM = 'osx'
     EXECUTABLE_PREFIX = ''
     EXECUTABLE_SUFFIX = ''
     EXECUTABLE_OUTPUT = 'bin'
@@ -30,6 +32,7 @@ elif _platform == 'darwin':
     PLATFORM_EXTRA_FLAGS_STATIC     = ['']
 elif _platform == 'win32':
     # Windows
+    PLATFORM = 'windows'
     EXECUTABLE_PREFIX = ''
     EXECUTABLE_SUFFIX = '.exe'
     EXECUTABLE_OUTPUT = 'bin'

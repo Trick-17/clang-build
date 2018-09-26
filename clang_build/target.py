@@ -72,31 +72,46 @@ class Target:
 
         # TODO: parse user-specified target version
 
-        compile_flags                = []
-        compile_flags_debug          = Target.DEFAULT_COMPILE_FLAGS_DEBUG
-        compile_flags_release        = Target.DEFAULT_COMPILE_FLAGS_RELEASE
-        compile_flags_relwithdebinfo = Target.DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO
-        compile_flags_coverage       = Target.DEFAULT_COMPILE_FLAGS_COVERAGE
-
+        self.compile_flags = Target.DEFAULT_COMPILE_FLAGS
         self.link_flags = []
 
-        if 'flags' in options:
-            compile_flags                += options['flags'].get('compile', [])
-            compile_flags_release        += options['flags'].get('compile_release', [])
-            compile_flags_debug          += options['flags'].get('compile_debug', [])
-            compile_flags_relwithdebinfo += options['flags'].get('compile_relwithdebinfo', [])
-            compile_flags_coverage       += options['flags'].get('compile_coverage', [])
-            self.link_flags              += options['flags'].get('link', [])
-
-        self.compile_flags = compile_flags
         if self.build_type == _BuildType.Release:
-            self.compile_flags += compile_flags_release
-        if self.build_type == _BuildType.Debug:
-            self.compile_flags += compile_flags_debug
-        if self.build_type == _BuildType.RelWithDebInfo:
-            self.compile_flags += compile_flags_relwithdebinfo
-        if self.build_type == _BuildType.Coverage:
-            self.compile_flags += compile_flags_coverage
+            self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_RELEASE
+
+        elif self.build_type == _BuildType.Debug:
+            self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_DEBUG
+
+        elif self.build_type == _BuildType.RelWithDebInfo:
+            self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO
+
+        elif self.build_type == _BuildType.Coverage:
+            self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_COVERAGE
+
+        if 'flags' in options:
+            flags_dicts = [options['flags']]
+
+            if 'osx' in options['flags'] and _platform.PLATFORM == 'osx':
+                flags_dicts.append(options['flags'].get('osx', []))
+            if 'windows' in options['flags'] and _platform.PLATFORM == 'windows':
+                flags_dicts.append(options['flags'].get('windows', []))
+            if 'linux' in options['flags'] and _platform.PLATFORM == 'linux':
+                flags_dicts.append(options['flags'].get('linux', []))
+            for fdict in flags_dicts:
+                self.compile_flags     += fdict.get('compile', [])
+                self.link_flags        += fdict.get('link', [])
+
+                if self.build_type == _BuildType.Release:
+                    self.compile_flags += fdict.get('compile_release', [])
+
+                elif self.build_type == _BuildType.Debug:
+                    self.compile_flags += fdict.get('compile_debug', [])
+
+                elif self.build_type == _BuildType.RelWithDebInfo:
+                    self.compile_flags += fdict.get('compile_relwithdebinfo', [])
+
+                elif self.build_type == _BuildType.Coverage:
+                    self.compile_flags += fdict.get('compile_coverage', [])
+
 
         for target in self.dependency_targets:
             self.compile_flags += target.compile_flags
@@ -212,7 +227,7 @@ class Compilable(Target):
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
             include_strings=self.get_include_directory_command(),
-            compile_flags=Target.DEFAULT_COMPILE_FLAGS + self.compile_flags,
+            compile_flags=self.compile_flags,
             clang  =self.clang,
             clangpp=self.clangpp,
             max_cpp_dialect=self.dialect) for source_file in self.source_files]

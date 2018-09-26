@@ -172,6 +172,24 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'qhull_r 7.2.0 (2015.2.r 2016/01/18)')
 
+    def test_platform_flags(self):
+        clang_build_try_except(['-d', 'test/platform_flags', '-V', '--debug'])
+
+        try:
+            output = subprocess.check_output(['./build/default/bin/myexe'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            self.fail('Could not run compiled program')
+
+        from sys import platform as _platform
+        if _platform == 'linux' or _platform == 'linux2':
+            self.assertEqual(output, 'Hello Linux!')
+        elif _platform == 'darwin':
+            self.assertEqual(output, 'Hello OSX!')
+        elif _platform == 'win32':
+            self.assertEqual(output, 'Hello Windows!')
+        else:
+            raise RuntimeError('Tried to run test_platform_flags on unsupported platform ' + _platform)
+
     # def test_openmp(self):
     #     clang_build_try_except(['-d', 'test/openmp', '-V'])
 
