@@ -72,7 +72,7 @@ class Target:
 
         # TODO: parse user-specified target version
 
-        self.compile_flags = Target.DEFAULT_COMPILE_FLAGS
+        self.compile_flags = []
         self.link_flags = []
 
         if self.build_type == _BuildType.Release:
@@ -87,30 +87,32 @@ class Target:
         elif self.build_type == _BuildType.Coverage:
             self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_COVERAGE
 
+        flags_dicts = []
         if 'flags' in options:
-            flags_dicts = [options['flags']]
+            flags_dicts.append(options.get('flags', []))
 
-            if 'osx' in options['flags'] and _platform.PLATFORM == 'osx':
-                flags_dicts.append(options['flags'].get('osx', []))
-            if 'windows' in options['flags'] and _platform.PLATFORM == 'windows':
-                flags_dicts.append(options['flags'].get('windows', []))
-            if 'linux' in options['flags'] and _platform.PLATFORM == 'linux':
-                flags_dicts.append(options['flags'].get('linux', []))
-            for fdict in flags_dicts:
-                self.compile_flags     += fdict.get('compile', [])
-                self.link_flags        += fdict.get('link', [])
+        if 'osx' in options and _platform.PLATFORM == 'osx':
+            flags_dicts.append(options['osx'].get('flags', []))
+        if 'windows' in options and _platform.PLATFORM == 'windows':
+            flags_dicts.append(options['windows'].get('flags', []))
+        if 'linux' in options and _platform.PLATFORM == 'linux':
+            flags_dicts.append(options['linux'].get('flags', []))
 
-                if self.build_type == _BuildType.Release:
-                    self.compile_flags += fdict.get('compile_release', [])
+        for fdict in flags_dicts:
+            self.compile_flags     += fdict.get('compile', [])
+            self.link_flags        += fdict.get('link', [])
 
-                elif self.build_type == _BuildType.Debug:
-                    self.compile_flags += fdict.get('compile_debug', [])
+            if self.build_type == _BuildType.Release:
+                self.compile_flags += fdict.get('compile_release', [])
 
-                elif self.build_type == _BuildType.RelWithDebInfo:
-                    self.compile_flags += fdict.get('compile_relwithdebinfo', [])
+            elif self.build_type == _BuildType.Debug:
+                self.compile_flags += fdict.get('compile_debug', [])
 
-                elif self.build_type == _BuildType.Coverage:
-                    self.compile_flags += fdict.get('compile_coverage', [])
+            elif self.build_type == _BuildType.RelWithDebInfo:
+                self.compile_flags += fdict.get('compile_relwithdebinfo', [])
+
+            elif self.build_type == _BuildType.Coverage:
+                self.compile_flags += fdict.get('compile_coverage', [])
 
 
         for target in self.dependency_targets:
@@ -227,7 +229,7 @@ class Compilable(Target):
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
             include_strings=self.get_include_directory_command(),
-            compile_flags=self.compile_flags,
+            compile_flags=Target.DEFAULT_COMPILE_FLAGS+self.compile_flags,
             clang  =self.clang,
             clangpp=self.clangpp,
             max_cpp_dialect=self.dialect) for source_file in self.source_files]
