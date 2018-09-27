@@ -47,6 +47,7 @@ class Target:
             dependencies = []
 
         self.dependency_targets = dependencies
+        self.unsuccessful_builds = []
 
         # Basics
         self.name           = name
@@ -56,15 +57,22 @@ class Target:
 
         self.build_directory = build_directory
 
+        # Include directories and headers
+        self.include_directories = []
         self.headers = headers
 
-        self.include_directories = []
-
-        # Include directories
         if self.root_directory.joinpath('include').exists():
             self.include_directories.append(self.root_directory.joinpath('include'))
         self.include_directories += include_directories
 
+        for target in self.dependency_targets:
+            self.include_directories += target.include_directories
+            self.headers += target.headers
+
+        self.include_directories = list(set([dir.resolve() for dir in self.include_directories]))
+        self.headers = list(set(self.headers))
+
+        # C language family dialect
         if 'properties' in options and 'cpp_version' in options['properties']:
             self.dialect = _get_dialect_string(options['properties']['cpp_version'])
         else:
@@ -72,6 +80,7 @@ class Target:
 
         # TODO: parse user-specified target version
 
+        # Regular (private) flags
         self.compile_flags = []
         self.link_flags = []
 
@@ -87,44 +96,72 @@ class Target:
         elif self.build_type == _BuildType.Coverage:
             self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_COVERAGE
 
-        flags_dicts = []
-        if 'flags' in options:
-            flags_dicts.append(options.get('flags', []))
-
-        if 'osx' in options and _platform.PLATFORM == 'osx':
-            flags_dicts.append(options['osx'].get('flags', []))
-        if 'windows' in options and _platform.PLATFORM == 'windows':
-            flags_dicts.append(options['windows'].get('flags', []))
-        if 'linux' in options and _platform.PLATFORM == 'linux':
-            flags_dicts.append(options['linux'].get('flags', []))
-
-        for fdict in flags_dicts:
-            self.compile_flags     += fdict.get('compile', [])
-            self.link_flags        += fdict.get('link', [])
-
-            if self.build_type == _BuildType.Release:
-                self.compile_flags += fdict.get('compile_release', [])
-
-            elif self.build_type == _BuildType.Debug:
-                self.compile_flags += fdict.get('compile_debug', [])
-
-            elif self.build_type == _BuildType.RelWithDebInfo:
-                self.compile_flags += fdict.get('compile_relwithdebinfo', [])
-
-            elif self.build_type == _BuildType.Coverage:
-                self.compile_flags += fdict.get('compile_coverage', [])
-
+        cf, lf = self.parse_flags_options(options, 'flags')
+        self.compile_flags += cf
+        self.link_flags += lf
 
         for target in self.dependency_targets:
-            self.compile_flags += target.compile_flags
-            self.include_directories += target.include_directories
-            self.headers += target.headers
+            # Interface
+            self.compile_flags += target.compile_flags_interface
+            self.link_flags    += target.link_flags_interface
+            # Public
+            self.compile_flags += target.compile_flags_public
+            self.link_flags    += target.link_flags_public
 
         self.compile_flags = list(set(self.compile_flags))
-        self.include_directories = list(set([dir.resolve() for dir in self.include_directories]))
-        self.headers = list(set(self.headers))
 
-        self.unsuccessful_builds = []
+        # Interface flags
+        self.compile_flags_interface = []
+        self.link_flags_interface = []
+
+        cf, lf = self.parse_flags_options(options, 'interface-flags')
+        self.compile_flags_interface += cf
+        self.link_flags_interface += lf
+
+        # Public flags
+        self.compile_flags_public = []
+        self.link_flags_public = []
+
+        cf, lf = self.parse_flags_options(options, 'public-flags')
+        self.compile_flags += cf
+        self.link_flags += lf
+        self.compile_flags_public += cf
+        self.link_flags_public += lf
+
+
+    # Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
+    def parse_flags_options(self, options, flags_kind='flags'):
+        flags_dicts   = []
+        compile_flags = []
+        link_flags    = []
+
+        if flags_kind in options:
+            flags_dicts.append(options.get(flags_kind, {}))
+
+        if 'osx' in options and _platform.PLATFORM == 'osx':
+            flags_dicts.append(options['osx'].get(flags_kind, {}))
+        if 'windows' in options and _platform.PLATFORM == 'windows':
+            flags_dicts.append(options['windows'].get(flags_kind, {}))
+        if 'linux' in options and _platform.PLATFORM == 'linux':
+            flags_dicts.append(options['linux'].get(flags_kind, {}))
+
+        for fdict in flags_dicts:
+            compile_flags     += fdict.get('compile', [])
+            link_flags        += fdict.get('link', [])
+
+            if self.build_type == _BuildType.Release:
+                compile_flags += fdict.get('compile_release', [])
+
+            elif self.build_type == _BuildType.Debug:
+                compile_flags += fdict.get('compile_debug', [])
+
+            elif self.build_type == _BuildType.RelWithDebInfo:
+                compile_flags += fdict.get('compile_relwithdebinfo', [])
+
+            elif self.build_type == _BuildType.Coverage:
+                compile_flags += fdict.get('compile_coverage', [])
+
+        return compile_flags, link_flags
 
     def get_include_directory_command(self):
         ret = []
