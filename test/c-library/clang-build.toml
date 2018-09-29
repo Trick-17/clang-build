@@ -28,7 +28,7 @@ compile = ["-Wno-deprecated-declarations"]
 
 [subproject.qhullcpp]
 target_type = "static library"
-include_directories = ["src"]
+include_directories_public = ["src"]
 sources = ["src/libqhullcpp/*.cpp"]
 sources_exclude = ["src/libqhullcpp/qt-qhull.cpp", "src/libqhullcpp/usermem_r-cpp.cpp"]
 [subproject.qhullcpp.flags]
@@ -36,14 +36,14 @@ compile = ["-Wno-deprecated-declarations", "-Wno-self-assign"]
 
 [subproject.qhullstatic]
 target_type = "static library"
-include_directories = ["src"]
+include_directories_public = ["src"]
 sources = ["src/libqhull/*.c"]
 [subproject.qhullstatic.flags]
 compile = ["-Wno-deprecated-declarations"]
 
 [subproject.qhullstatic_r]
 target_type = "static library"
-include_directories = ["src"]
+include_directories_public = ["src"]
 sources = ["src/libqhull_r/*.c"]
 [subproject.qhullstatic_r.flags]
 compile = ["-Wno-deprecated-declarations"]

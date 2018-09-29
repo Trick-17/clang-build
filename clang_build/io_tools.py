@@ -19,7 +19,7 @@ def _get_files_in_patterns(patterns, exclude_patterns=[], recursive=True):
     return list(set(included) - set(excluded))
 
 def get_sources_and_headers(target_options, target_root_directory, target_build_directory):
-    output = {'headers': [], 'include_directories': [], 'sourcefiles': []}
+    output = {'headers': [], 'include_directories': [], 'include_directories_public': [], 'sourcefiles': []}
 
     # TODO: maybe the output should also include the root dir, build dir and potentially download dir?
     # TODO: should warn when a specified directory does not exist!
@@ -55,6 +55,38 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
     else:
         output['include_directories'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include'), target_root_directory.joinpath('thirdparty')]
         output['headers'] += _get_header_files_in_folders(output['include_directories'], exclude_patterns=exclude_patterns, recursive=False)
+
+    # Options for public include directories
+    include_options_public = []
+    include_options_public += target_options.get('include_directories_public', [])
+
+    if 'osx' in target_options and _platform.PLATFORM == 'osx':
+        include_options_public += target_options['osx'].get('include_directories_public', [])
+    if 'windows' in target_options and _platform.PLATFORM == 'windows':
+        include_options_public += target_options['windows'].get('include_directories_public', [])
+    if 'linux' in target_options and _platform.PLATFORM == 'linux':
+        include_options_public += target_options['linux'].get('include_directories_public', [])
+
+    exclude_options = []
+    exclude_options += target_options.get('headers_exclude', [])
+
+    if 'osx' in target_options and _platform.PLATFORM == 'osx':
+        exclude_options += target_options['osx'].get('headers_exclude', [])
+    if 'windows' in target_options and _platform.PLATFORM == 'windows':
+        exclude_options += target_options['windows'].get('headers_exclude', [])
+    if 'linux' in target_options and _platform.PLATFORM == 'linux':
+        exclude_options += target_options['linux'].get('headers_exclude', [])
+
+    include_patterns = list(set([target_root_directory.joinpath(path) for path in include_options_public]))
+    exclude_patterns = list(set([target_root_directory.joinpath(path) for path in exclude_options]))
+
+    # Find header files
+    if include_patterns:
+        output['include_directories_public'] = include_patterns
+        output['headers'] += _get_header_files_in_folders(output['include_directories_public'], exclude_patterns=exclude_patterns, recursive=True)
+    else:
+        output['include_directories_public'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include')]
+        output['headers'] += _get_header_files_in_folders(output['include_directories_public'], exclude_patterns=exclude_patterns, recursive=False)
 
     # Options for sources
     sources_options = []
@@ -92,8 +124,9 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
         output['sourcefiles'] += _get_source_files_in_folders([target_root_directory], exclude_patterns=exclude_patterns, recursive=False)
 
     # Fill return dict
-    output['include_directories'] = list(set( output['include_directories'] ))
-    output['headers']             = list(set( output['headers'] ))
-    output['sourcefiles']         = list(set( output['sourcefiles'] ))
+    output['include_directories']        = list(set( output['include_directories'] ))
+    output['include_directories_public'] = list(set( output['include_directories_public'] ))
+    output['headers']                    = list(set( output['headers'] ))
+    output['sourcefiles']                = list(set( output['sourcefiles'] ))
 
     return output
