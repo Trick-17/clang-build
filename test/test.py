@@ -42,8 +42,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'Hello!')
 
@@ -54,12 +54,12 @@ class TestClangBuild(unittest.TestCase):
     def test_script_call(self):
         try:
             subprocess.check_output(['clang-build', '-d', 'test/mwe', '-V'], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
             self.fail('Compilation failed')
         try:
             output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'Hello!')
 
@@ -68,8 +68,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
         self.assertEqual(output, 'Hello!')
 
         ### TODO: the following does not seem to work under coverage runs...
@@ -97,8 +97,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'Calculated Magic: 30')
 
@@ -107,8 +107,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'Hello!')
 
@@ -117,8 +117,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'Hello!')
 
@@ -127,8 +127,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'the version is 1.2.0')
 
@@ -137,8 +137,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/mainproject/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'Hello! mylib::triple(3) returned 9')
 
@@ -147,8 +147,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/myproject/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, '"build" is a directory')
 
@@ -157,8 +157,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/mainproject/default/bin/myexe'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, '3 2 0'+os.linesep+'3 1 0')
 
@@ -167,7 +167,7 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/qhull/qhull-executable/default/bin/qhull', '-V'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
             self.fail('Could not run a target which should have been built')
 
         self.assertEqual(output, 'qhull_r 7.2.0 (2015.2.r 2016/01/18)')
@@ -177,8 +177,8 @@ class TestClangBuild(unittest.TestCase):
 
         try:
             output = subprocess.check_output(['./build/default/bin/myexe'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError:
-            self.fail('Could not run compiled program')
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         from sys import platform as _platform
         if _platform == 'linux' or _platform == 'linux2':
@@ -190,23 +190,23 @@ class TestClangBuild(unittest.TestCase):
         else:
             raise RuntimeError('Tried to run test_platform_flags on unsupported platform ' + _platform)
 
-    # def test_openmp(self):
-    #     clang_build_try_except(['-d', 'test/openmp', '-V'])
+    def test_openmp(self):
+        clang_build_try_except(['-d', 'test/openmp', '-V'])
 
-    #     try:
-    #         output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-    #     except subprocess.CalledProcessError:
-    #         self.fail('Could not run compiled program')
+        try:
+            output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
-        # self.assertEqual(output, 'Hello from thread 1, nthreads 8')
+        self.assertRegex(output, r'Hello from thread 1, nthreads*')
 
     # def test_mwe_two_targets(self):
     #     clang_build_try_except(['-d', 'test/multi_target_external', '-V'])
 
     #     try:
     #         output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-    #     except subprocess.CalledProcessError:
-    #         self.fail('Could not run compiled program')
+    #     except subprocess.CalledProcessError as e:
+    #         self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
     #     self.assertEqual(output, 'Hello!')
 
