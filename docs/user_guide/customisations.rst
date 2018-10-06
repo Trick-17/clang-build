@@ -68,9 +68,8 @@ The `toml` file now looks as follows:
 
     [myexe]
         output_name = "MyNextApp-v1.0"
-    [myexe.sources]
         include_directories = ["header_files", "external_header_files"]
-        source_directories = ["sauce"]
+        sources = ["sauce/*.cpp"]
 
 Compiling a library
 -------------------
@@ -80,6 +79,10 @@ the target type in the toml file:
 
 .. code-block:: TOML
 
-    [myexe]
+    [mylib]
         output_name = "MyNextLibrary-v1.0"
-        target_type = "shared library" # or if you want "static library"
+        target_type = "shared library"
+
+    [mylib-static]
+        output_name = "MyNextLibrary-static-v1.0"
+        target_type = "static library"

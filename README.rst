@@ -15,6 +15,7 @@ Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Co
 
 **Motivation:**
 
+-  Building as much as possible from source eases dependency management and ensures stability and reproducibility
 -  Meta build systems are inherently the wrong way to go, either the build system or the compiler should be platform-agnostic (ideally both).
 -  Trying to cover all use-cases is the wrong way to go - there is no need to let people do it the wrong way
 -  CMake is cumbersome, unnecessarily generic and verbose and people should not need a programming/scripting language whose only purpose is to build C++
@@ -26,6 +27,12 @@ Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Co
 -  Simple projects should be simple to build
 -  Build process for reasonable project structures should still be easy
 -  Adding third-party dependencies should be manageable
+
+**What it's not designed to do:**
+
+-  Build anything aside from C language dialects
+-  Be able to adapt to any project structure in the world - certain standards are encouraged
+-  Work smoothly with or locate pre-built libraries and libraries installed by system package managers
 
 **Related resources:**
 

@@ -1,0 +1,49 @@
+Inheritance
+==============================================
+
+
+Include directories
+----------------------------------------------
+
+**`include-directories`**
+
+    A list of private include directories, i.e. accessible only to the target itself.
+
+    Defaults are the target directory and "include".
+
+**`public-include-directories`**
+
+    A list of public include directories, which are accessible to any dependent target.
+    Note that these are forwarded up the dependency graph, i.e. a target adds all of
+    its dependencies' public include directories to its own public include directories.
+
+    "include" is the default public include directory if none are specified
+
+**Example:**
+
+.. code-block:: TOML
+
+    [mylib]
+        include_directories = ["src/mylib/include", "src/mylib/detail/include"]
+        public_include_directories = ["src/mylib/include"]
+
+
+Flags
+----------------------------------------------
+
+The following sections of a target configuration can each contain `compile` and
+`link` lists of flags.
+
+**`flags`**
+
+    Private flags, which are only applied to the target itself.
+
+**`interface-flags`**
+
+    Interface flags are applied to dependent targets, but not the target itself.
+    An example use-case is a static library, which depends on a dynamic library, which can
+    therefore not be linked into the target itself.
+
+**`public-flags`**
+
+    Public flags are applied to the target and any dependent target.
