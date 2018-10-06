@@ -3,9 +3,19 @@ Clang-build
 
 Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Code quality: |codacy| Coverage: |coverage|
 
+.. image:: https://thumbs.gfycat.com/BewitchedAshamedDeermouse-size_restricted.gif
+
+**Find the full documentation at https://clang-build.readthedocs.io**
+
+-  `first steps <https://clang-build.readthedocs.io/en/latest/user_guide/first_steps.html>`_
+-  `customisations <https://clang-build.readthedocs.io/en/latest/user_guide/customisations.html>`_
+-  `multiple targets <https://clang-build.readthedocs.io/en/documentation/user_guide/multiple_targets.html>`_
+-  `multiple projects <https://clang-build.readthedocs.io/en/documentation/user_guide/multiple_projects.html>`_
+-  `defaults <https://clang-build.readthedocs.io/en/documentation/user_guide/defaults.html>`_
 
 **Motivation:**
 
+-  Building as much as possible from source eases dependency management and ensures stability and reproducibility
 -  Meta build systems are inherently the wrong way to go, either the build system or the compiler should be platform-agnostic (ideally both).
 -  Trying to cover all use-cases is the wrong way to go - there is no need to let people do it the wrong way
 -  CMake is cumbersome, unnecessarily generic and verbose and people should not need a programming/scripting language whose only purpose is to build C++
@@ -18,11 +28,17 @@ Linux and OSX test: |Test status Travis| Windows test: |Test status AppVeyor| Co
 -  Build process for reasonable project structures should still be easy
 -  Adding third-party dependencies should be manageable
 
+**What it's not designed to do:**
+
+-  Build anything aside from C language dialects
+-  Be able to adapt to any project structure in the world - certain standards are encouraged
+-  Work smoothly with or locate pre-built libraries and libraries installed by system package managers
+
 **Related resources:**
 
 -  `CppCon 2017: Isabella Muerte "There Will Be Build Systems: I
    Configure Your
-   Milkshake" <https://www.youtube.com/watch?v=7THzO-D0ta4>`__
+   Milkshake" <https://www.youtube.com/watch?v=7THzO-D0ta4>`_
 -  https://medium.com/@corentin.jabot/accio-dependency-manager-b1846e1caf76
 
 
@@ -46,6 +62,15 @@ likely not even need a build file.
 
 clang-build tries to use sane defaults, designed to make most projects very easy to configure
 and even complex projects far easier than with common build or meta-build systems.
+
+
+Real-World Examples
+===================
+
+Examples of real-world used and tested projects, which can be easily be integrated
+into your project using `clang-build`:
+
+-  `test/boost-filesystem <https://github.com/Trick-17/clang-build/tree/master/test/boost-filesystem>`_
 
 
 General Ideas
@@ -165,7 +190,7 @@ Adding external dependencies
 
 Note:
 
--  external projects will be copied/downloaded into "build/targetname/external_sources"
+-  external targets will be copied/downloaded into "build/targetname/external_sources"
 -  you can specify a subdirectory, if the thirdparty code has an unusual structure
 -  further granularity is given by ``include_directories`` and ``sources``
 -  `sources`, `headers_exclude` and `sources_exclude` expect a list of globbing patterns or files (not folders!)
