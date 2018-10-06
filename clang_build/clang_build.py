@@ -21,9 +21,7 @@ from .target import Executable as _Executable,\
                     SharedLibrary as _SharedLibrary,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
-from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
-                              find_non_existent_dependencies as _find_non_existent_dependencies,\
-                              get_dependency_walk as _get_dependency_walk
+from .dependency_tools import find_non_existent_dependencies as _find_non_existent_dependencies
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
@@ -34,7 +32,6 @@ from .errors import LinkError as _LinkError
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
 version_info = _v.version_tuple
-
 
 
 def _setup_logger(log_level=None):
@@ -57,8 +54,6 @@ def _setup_logger(log_level=None):
         logger.addHandler(ch)
 
 
-
-
 _command_line_description = (
 '`clang-build` is a build system to build your C++ projects. It uses the clang '
 'compiler/toolchain in the background and python as the build-system\'s scripting '
@@ -70,18 +65,42 @@ def parse_args(args):
     parser.add_argument('-V', '--verbose',
                         help='activate more detailed output',
                         action='store_true')
-    parser.add_argument('-p', '--progress', help='activates a progress bar output. is overruled by -V and --debug', action='store_true')
-    parser.add_argument('-d', '--directory', type=_Path,
+    parser.add_argument('-p', '--progress',
+                        help='activates a progress bar output',
+                        action='store_true')
+    parser.add_argument('-d', '--directory',
+                        type=_Path,
                         help='set the root source directory')
-    parser.add_argument('-b', '--build-type', choices=list(_BuildType), type=_BuildType, default=_BuildType.Default,
+    parser.add_argument('-b', '--build-type',
+                        choices=list(_BuildType),
+                        type=_BuildType,
+                        default=_BuildType.Default,
                         help='set the build type for this project')
-    parser.add_argument('-j', '--jobs', type=int, default=1,
+    parser.add_argument('-a', '--all',
+                        help='build every target, irrespective of whether any root target depends on it',
+                        action='store_true')
+    parser.add_argument('-t', '--targets',
+                        type=str,
+                        default="",
+                        help='only these targets and their dependencies should be built (comma-separated list)')
+    parser.add_argument('-f', '--force-build',
+                        help='also build sources which have already been built',
+                        action='store_true')
+    parser.add_argument('-j', '--jobs',
+                        type=int,
+                        default=1,
                         help='set the number of concurrent build jobs')
-    parser.add_argument('--debug', help='activates additional debug output, overrides verbosity option.', action='store_true')
+    parser.add_argument('--debug',
+                        help='activates additional debug output, overrides verbosity option.',
+                        action='store_true')
+    parser.add_argument('--no-graph',
+                        help='deactivates output of a dependency graph dotfile',
+                        action='store_true')
     return parser.parse_args(args=args)
 
 
 def _find_clang(logger):
+    clang = _which('clang')
     clangpp = _which('clang++')
     clang_ar = _which('llvm-ar')
     if clangpp:
@@ -94,63 +113,72 @@ def _find_clang(logger):
         error_message = 'Couldn\'t find llvm-ar executable'
         logger.error(error_message)
         raise RuntimeError(error_message)
+    if not clang:
+        error_message = 'Couldn\'t find clang executable'
+        logger.error(error_message)
+        raise RuntimeError(error_message)
 
     logger.info(f'llvm root directory: {llvm_root}')
-    logger.info(f'clang++ executable: {clangpp}')
-    logger.info(f'llvm-ar executable: {clang_ar}')
+    logger.info(f'clang executable:    {clang}')
+    logger.info(f'clang++ executable:  {clangpp}')
+    logger.info(f'llvm-ar executable:  {clang_ar}')
     logger.info(f'Newest supported C++ dialect: {_get_max_supported_compiler_dialect(clangpp)}')
 
-    return clangpp, clang_ar
-
+    return clang, clangpp, clang_ar
 
 
 class _Environment:
     def __init__(self, args):
         # Some defaults
-        self.logger = None
-        self.progress_disabled = True
-        self.buildType  = None
-        self.clangpp  = "clang++"
-        self.clang_ar = "llvm-ar"
+        self.logger    = None
+        self.buildType = None
+        self.clang     = "clang"
+        self.clangpp   = "clang++"
+        self.clang_ar  = "llvm-ar"
         # Directory this was called from
         self.calling_directory = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
         self.working_directory = self.calling_directory
 
-        # Verbosity
-        if not args.debug:
-            if args.verbose:
-                _setup_logger(_logging.INFO)
-            else:
-                # Only file log
-                _setup_logger(None)
-        else:
-            _setup_logger(_logging.DEBUG)
-
-        # Progress bar
-        if args.progress:
-            self.progress_disabled = False
-
         self.logger = _logging.getLogger(__name__)
         self.logger.info(f'clang-build {__version__}')
 
         # Check for clang++ executable
-        self.clangpp, self.clang_ar = _find_clang(self.logger)
+        self.clang, self.clangpp, self.clang_ar = _find_clang(self.logger)
 
         # Working directory
         if args.directory:
             self.working_directory = args.directory.resolve()
 
         if not self.working_directory.exists():
-            error_message = f'ERROR: specified non-existent directory [{self.working_directory}]'
+            error_message = f'ERROR: specified non-existent directory \'{self.working_directory}\''
             self.logger.error(error_message)
             raise RuntimeError(error_message)
 
-        self.logger.info(f'Working directory: {self.working_directory}')
+        self.logger.info(f'Working directory: \'{self.working_directory}\'')
 
         # Build type (Default, Release, Debug)
         self.buildType = args.build_type
         self.logger.info(f'Build type: {self.buildType.name}')
+
+        # Whether to build all targets
+        self.build_all = True if args.all else False
+        if self.build_all:
+            self.logger.info('Building all targets...')
+
+        # List of targets which should be built
+        self.target_list = []
+        if args.targets:
+            if args.all:
+                error_message = f'ERROR: specified target list \'{args.targets}\', but also flag \'--all\''
+                self.logger.error(error_message)
+                raise RuntimeError(error_message)
+            self.target_list = [str(target) for target in args.targets.split(',')]
+
+        # Whether to force a rebuild
+        self.force_build = True if args.force_build else False
+        if self.force_build:
+            self.logger.info('Forcing build...')
 
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
@@ -159,6 +187,11 @@ class _Environment:
         # Build directory
         self.build_directory = _Path('build')
 
+        # Progress bar
+        self.progress_disabled = False if args.progress else True
+
+        # Whether to create a dotfile for graphing dependencies
+        self.create_dependency_dotfile = False if args.no_graph else True
 
 
 def build(args):
@@ -173,7 +206,7 @@ def build(args):
         # Check for build configuration toml file
         toml_file = _Path(environment.working_directory, 'clang-build.toml')
         if toml_file.exists():
-            logger.info('Found config file')
+            logger.info(f'Found config file: \'{toml_file}\'')
 
             # Parse config file
             config = toml.load(str(toml_file))
@@ -187,10 +220,10 @@ def build(args):
                     multiple_projects = True
 
             # Create root project
-            project = _Project(config, environment, multiple_projects)
+            root_project = _Project(config, environment, multiple_projects, is_root_project=True)
 
             # Get list of all targets
-            target_list += project.get_targets()
+            target_list += root_project.get_targets(root_project.target_dont_build_list)
 
             # # Generate list of all targets
             # for project in working_projects:
@@ -201,20 +234,24 @@ def build(args):
             files = _get_sources_and_headers({}, environment.working_directory, environment.build_directory)
 
             if not files['sourcefiles']:
-                error_message = f'Error, no sources and no [clang-build.toml] found in folder: {environment.working_directory}'
+                error_message = f'Error, no sources and no \'clang-build.toml\' found in folder \'{environment.working_directory}\''
                 logger.error(error_message)
                 raise RuntimeError(error_message)
             # Create target
             target_list.append(
                 _Executable(
+                    '',
                     'main',
                     environment.working_directory,
                     environment.build_directory.joinpath(environment.buildType.name.lower()),
                     files['headers'],
                     files['include_directories'],
+                    files['include_directories_public'],
                     files['sourcefiles'],
                     environment.buildType,
-                    environment.clangpp))
+                    environment.clang,
+                    environment.clangpp,
+                    force_build=environment.force_build))
 
         # Build the targets
         progress_bar.update()
@@ -236,7 +273,7 @@ def build(args):
         for target in target_list:
             if target.__class__ is not _HeaderOnly:
                 if target.unsuccessful_builds:
-                    errors[target.name] = [source.compile_report for source in target.unsuccessful_builds]
+                    errors[target.identifier] = [source.compile_report for source in target.unsuccessful_builds]
         if errors:
             raise _CompileError('Compilation was unsuccessful', errors)
 
@@ -251,7 +288,7 @@ def build(args):
         for target in target_list:
             if target.__class__ is not _HeaderOnly:
                 if target.unsuccessful_link:
-                    errors[target.name] = target.link_report
+                    errors[target.identifier] = target.link_report
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
 
@@ -259,27 +296,38 @@ def build(args):
         logger.info('clang-build finished.')
 
 
-
-def main():
+def _main():
     # Build
     try:
-        build(parse_args(sys.argv[1:]))
+        args = parse_args(sys.argv[1:])
+
+        # Logger verbosity
+        if not args.debug:
+            if args.verbose:
+                _setup_logger(_logging.INFO)
+            else:
+                # Only file log
+                _setup_logger(None)
+        else:
+            _setup_logger(_logging.DEBUG)
+
+        build(args)
+
     except _CompileError as compile_error:
         logger = _logging.getLogger(__name__)
         logger.error('Compilation was unsuccessful:')
         for target, errors in compile_error.error_dict.items():
-            printout = f'Target [{target}] did not compile. Errors:\n'
+            printout = f'[{target}]: target did not compile. Errors:\n'
             printout += ' '.join(errors)
             logger.error(printout)
     except _LinkError as link_error:
         logger = _logging.getLogger(__name__)
         logger.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
-            printout = f'Target [{target}] did not link. Errors:\n{errors}'
+            printout = f'[{target}]: target did not link. Errors:\n{errors}'
             logger.error(printout)
-
 
 
 if __name__ == '__main__':
     _freeze_support()
-    main()
+    _main()

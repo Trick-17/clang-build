@@ -27,7 +27,7 @@ where by default `clang-build` will try the target's root directory and an "incl
 
 **Source directories**
 `clang-build`'s source directories will be searched for source files for a target.
-In your project file, you can add a `source_directories` array to specify a target's source directories,
+In your project file, you can add a `sources` array of patterns to specify a target's sources,
 where by default `clang-build` will try the target's root directory and a "src" subdirectory.
 
 
