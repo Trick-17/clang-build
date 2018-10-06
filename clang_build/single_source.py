@@ -20,9 +20,9 @@ def _get_depfile_headers(depfile):
         for line in depStr[colonPos + 1:].splitlines():
             # Remove the newline character ('\'-newline)
             if line.endswith('\\'):
-                line = line[:-1]
+                line = line[:-1].strip()
             # Add header (or source, actually)
-            depfileHeaders.append(_Path(line.strip().replace('\\ ', ' ')).resolve())
+            depfileHeaders += list([_Path(filename).resolve() for filename in _re.split(r'(?<!\\)\s+', line)])
     return depfileHeaders
 
 def _needs_rebuild(object_file, source_file, depfile):

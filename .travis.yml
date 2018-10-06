@@ -1,3 +1,7 @@
+cache:
+  directories:
+  - /usr/local/Cellar
+
 env:
   global:
     - secure: "WDG1lYvH4eJUqtzX/+lA+CRRHuRdjLUvJQDb4OIQ8LhrTS2VNrFtjFOO2L4BPOothwoB7WMBd4Sgd5x4DHilvqYlj8O9Jfe2rBXZbZC73I9weCBezgJ1l2eM7fFkUrnhqW8QOXRI4ALE4bhSwW6y/CMOhkLW++xw0AVlWnF+gLa44V/dPBoaQODkS5Rn/k+vE4cwyyMBLFoTXvCKeyQQZBTZ5t3VV3QLR+gpcti+GfnkAkozBEjUpWGuafu4Z+rsqvvadErP/lihM0QjDxbKv5BXFTpts1ooSj0L4i9ga0qbNuD9sSGpj2TPV8qAomZqaoIsi9PCep4StcyuFhvPKt860WrIvCNi3yBG4N7DfH4rHruOHfDT7bUZtLWJ7qlVwdrs/qz7t0l6VpnInw1WoBFbC7Jbd0qFD/38AzkZ4UKHgh+Zp5gUPdOs5oLgHq59YEzkS/2Lv7dMU98BT5TpcqqJhvzBclW0xqUz3yabgw3rOpVfmiwoVSgtCJfkgJy7xJDd78Mr1JmWOT4/zkZBNTHDnfZtRGNfyEXOeohL6JrtRft1o/qKypsA2pi86H0bAM4j0KBBCpptgpckNvS2vdRUZlBWJRISp/sEEQdoT+u9YIDPpa8Kr1tzbdXLoIV4K+FIW3dvWSkVwL+IFpvQzcpKMWTHKXawzBai42Fccfo="
@@ -16,6 +20,7 @@ matrix:
           - libc++-dev
           - g++-7
           - clang
+          - libiomp-dev
           sources:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
           - sourceline: 'ppa:jonathonf/gcc-7.1'
@@ -25,11 +30,20 @@ matrix:
       os: osx
       env: DEPLOY=false
       osx_image: xcode8
-      before_install:
-        - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
-        - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew upgrade python; fi
-        - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install llvm; fi
-        - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export PATH=/usr/local/opt/llvm/bin:$PATH; fi
+
+before_install:
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew upgrade python; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then curl https://bootstrap.pypa.io/get-pip.py | python3; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export PATH=/usr/local/Cellar/python/3.7.0/Frameworks/Python.framework/Versions/3.7/bin:$PATH; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install llvm; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export PATH=/usr/local/opt/llvm/bin:$PATH; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export LIBRARY_PATH=/usr/local/opt/llvm/lib:$PATH; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo ln -s /usr/lib/libiomp5.so /usr/lib/libomp.so; fi
+  - which clang++ && clang++ --version
+  - which llvm-ar && llvm-ar --version
+  - which python3 && python3 --version
+  - which pip3 && pip3 --version
 
 install:
   - pip3 install setuptools
@@ -37,10 +51,6 @@ install:
   - python3 setup.py develop
 
 script:
-  - which clang++ && clang++ --version
-  - which llvm-ar && llvm-ar --version
-  - which python3 && python3 --version
-  - which pip3    && pip3    --version
   - python3 setup.py test
   - python3 -m coverage run setup.py test
   - python3 -m coverage combine

@@ -21,8 +21,7 @@ from .target import Executable as _Executable,\
                     SharedLibrary as _SharedLibrary,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
-from .dependency_tools import find_non_existent_dependencies as _find_non_existent_dependencies,\
-                              get_dependency_walk as _get_dependency_walk
+from .dependency_tools import find_non_existent_dependencies as _find_non_existent_dependencies
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
@@ -33,7 +32,6 @@ from .errors import LinkError as _LinkError
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
 version_info = _v.version_tuple
-
 
 
 def _setup_logger(log_level=None):
@@ -54,8 +52,6 @@ def _setup_logger(log_level=None):
         ch.setLevel(log_level)
         ch.setFormatter(formatter)
         logger.addHandler(ch)
-
-
 
 
 _command_line_description = (
@@ -87,8 +83,8 @@ def parse_args(args):
                         type=str,
                         default="",
                         help='only these targets and their dependencies should be built (comma-separated list)')
-    parser.add_argument('-f', '--force-rebuild',
-                        help='whether the targets should be rebuilt',
+    parser.add_argument('-f', '--force-build',
+                        help='also build sources which have already been built',
                         action='store_true')
     parser.add_argument('-j', '--jobs',
                         type=int,
@@ -131,7 +127,6 @@ def _find_clang(logger):
     return clang, clangpp, clang_ar
 
 
-
 class _Environment:
     def __init__(self, args):
         # Some defaults
@@ -168,6 +163,8 @@ class _Environment:
 
         # Whether to build all targets
         self.build_all = True if args.all else False
+        if self.build_all:
+            self.logger.info('Building all targets...')
 
         # List of targets which should be built
         self.target_list = []
@@ -179,7 +176,9 @@ class _Environment:
             self.target_list = [str(target) for target in args.targets.split(',')]
 
         # Whether to force a rebuild
-        self.force_rebuild = True if args.force_rebuild else False
+        self.force_build = True if args.force_build else False
+        if self.force_build:
+            self.logger.info('Forcing build...')
 
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
@@ -221,7 +220,7 @@ def build(args):
                     multiple_projects = True
 
             # Create root project
-            root_project = _Project(config, environment, multiple_projects, True)
+            root_project = _Project(config, environment, multiple_projects, is_root_project=True)
 
             # Get list of all targets
             target_list += root_project.get_targets(root_project.target_dont_build_list)
@@ -247,10 +246,12 @@ def build(args):
                     environment.build_directory.joinpath(environment.buildType.name.lower()),
                     files['headers'],
                     files['include_directories'],
+                    files['include_directories_public'],
                     files['sourcefiles'],
                     environment.buildType,
                     environment.clang,
-                    environment.clangpp))
+                    environment.clangpp,
+                    force_build=environment.force_build))
 
         # Build the targets
         progress_bar.update()
@@ -272,7 +273,7 @@ def build(args):
         for target in target_list:
             if target.__class__ is not _HeaderOnly:
                 if target.unsuccessful_builds:
-                    errors[target.full_name] = [source.compile_report for source in target.unsuccessful_builds]
+                    errors[target.identifier] = [source.compile_report for source in target.unsuccessful_builds]
         if errors:
             raise _CompileError('Compilation was unsuccessful', errors)
 
@@ -287,13 +288,12 @@ def build(args):
         for target in target_list:
             if target.__class__ is not _HeaderOnly:
                 if target.unsuccessful_link:
-                    errors[target.full_name] = target.link_report
+                    errors[target.identifier] = target.link_report
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')
-
 
 
 def _main():
@@ -326,7 +326,6 @@ def _main():
         for target, errors in link_error.error_dict.items():
             printout = f'[{target}]: target did not link. Errors:\n{errors}'
             logger.error(printout)
-
 
 
 if __name__ == '__main__':

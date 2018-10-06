@@ -1,0 +1,10 @@
+[myexe]
+
+[myexe.linux.flags]
+compile = ["-DOUTPUT=\"Linux\""]
+
+[myexe.osx.flags]
+compile = ["-DOUTPUT=\"OSX\""]
+
+[myexe.windows.flags]
+compile = ["-DOUTPUT=\"Windows\""]

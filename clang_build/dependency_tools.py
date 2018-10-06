@@ -26,32 +26,21 @@ def find_circular_dependencies(project):
 
     return list(_nx.simple_cycles(graph))
 
-def get_dependency_walk(project):
+def get_dependency_graph(project_identifier, targets_config, subprojects):
     graph = _nx.DiGraph()
-    for nodename, node in project.items():
+    for target_name, node in targets_config.items():
+        target_identifier = f"{project_identifier}.{target_name}" if project_identifier else f"{target_name}"
         dependencies = node.get('dependencies', [])
         if not dependencies:
-            graph.add_node(str(nodename))
+            graph.add_node(str(target_identifier))
             continue
 
         for dependency in dependencies:
-            # Split string at dots
-            subnames = str(dependency).split(".")
-            graph.add_edge(str(nodename), str(subnames[-1]))
+            dependency_identifier = f"{project_identifier}.{dependency}" if project_identifier else f"{dependency}"
+            graph.add_edge(str(target_identifier), str(dependency_identifier))
 
-    return list(reversed(list(_nx.topological_sort(graph))))
-
-def get_dependency_graph(project):
-    graph = _nx.DiGraph()
-    for nodename, node in project.items():
-        dependencies = node.get('dependencies', [])
-        if not dependencies:
-            graph.add_node(str(nodename))
-            continue
-
-        for dependency in dependencies:
-            # Split string at dots
-            subnames = str(dependency).split(".")
-            graph.add_edge(str(nodename), str(subnames[-1]))
+    for project in subprojects:
+        subgraph = get_dependency_graph(project.identifier, project.targets_config, project.subprojects)
+        graph = _nx.compose(graph, subgraph)
 
     return graph

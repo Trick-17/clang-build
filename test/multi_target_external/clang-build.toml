@@ -12,4 +12,4 @@ target_type = "header only"
 url         = "https://github.com/eigenteam/eigen-git-mirror"
 [Eigen.flags]
 compile  = ["-Wno-deprecated-declarations"]
-compileRelease = ["-DEIGEN_NO_DEBUG"]
+compile_release = ["-DEIGEN_NO_DEBUG"]
