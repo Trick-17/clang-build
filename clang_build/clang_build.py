@@ -96,6 +96,23 @@ def parse_args(args):
     parser.add_argument('--no-graph',
                         help='deactivates output of a dependency graph dotfile',
                         action='store_true')
+
+    parser.add_argument('--test',
+                        help='automatically discover and build tests on top of regular targets of the root project',
+                        action='store_true')
+
+    parser.add_argument('--test-recursive',
+                        help='automatically discover and build tests on top of regular targets of all projects. Implies --test',
+                        action='store_true')
+
+    parser.add_argument('--examples',
+                        help='automatically discover and build examples on top of regular targets of the root project',
+                        action='store_true')
+
+    parser.add_argument('--examples-recursive',
+                        help='automatically discover and build examples on top of regular targets of all projects. Implies --examples',
+                        action='store_true')
+
     return parser.parse_args(args=args)
 
 
@@ -179,6 +196,16 @@ class _Environment:
         self.force_build = True if args.force_build else False
         if self.force_build:
             self.logger.info('Forcing build...')
+
+        # Whether to discover and build tests of root project
+        self.test = True if (args.test or args.test_recursive) else False
+        # Whether to discover and build tests of all projects
+        self.test_recursive = True if args.test_recursive else False
+
+        # Whether to discover and build examples of root project
+        self.examples = True if (args.examples or args.examples_recursive) else False
+        # Whether to discover and build examples of all projects
+        self.examples_recursive = True if args.examples_recursive else False
 
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)

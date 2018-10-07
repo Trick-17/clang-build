@@ -6,12 +6,12 @@ from . import platform as _platform
 def _get_header_files_in_folders(folders, exclude_patterns=[], recursive=True):
     delimiter = '/**/' if recursive else '/*'
     patterns  = [str(folder) + delimiter + ext for ext in ('*.hpp', '*.hxx', '*.h') for folder in folders]
-    return _get_files_in_patterns(patterns)
+    return _get_files_in_patterns(patterns, exclude_patterns=exclude_patterns, recursive=recursive)
 
 def _get_source_files_in_folders(folders, exclude_patterns=[], recursive=True):
     delimiter = '/**/' if recursive else '/*'
     patterns  = [str(folder) + delimiter + ext for ext in ('*.cpp', '*.cxx', '*.c') for folder in folders]
-    return _get_files_in_patterns(patterns)
+    return _get_files_in_patterns(patterns, exclude_patterns=exclude_patterns, recursive=recursive)
 
 def _get_files_in_patterns(patterns, exclude_patterns=[], recursive=True):
     included = [_Path(f) for pattern in patterns         for f in _iglob(str(pattern), recursive=recursive) if _Path(f).is_file()]

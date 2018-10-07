@@ -12,6 +12,7 @@ import logging as _logging
 from . import platform as _platform
 from .dialect_check import get_dialect_string as _get_dialect_string
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
+from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .build_type import BuildType as _BuildType
 from .single_source import SingleSource as _SingleSource
 from .progress_bar import get_build_progress_bar as _get_build_progress_bar
@@ -41,8 +42,8 @@ class Target:
             options=None,
             dependencies=None):
 
-        if options is None:
-            options = {}
+        self.options = options if options is not None else {}
+
         if dependencies is None:
             dependencies = []
 
@@ -57,14 +58,38 @@ class Target:
 
         self.build_directory = build_directory
 
+        # Clang
+        self.clang     = clang
+        self.clangpp   = clangpp
+
         # Include directories and headers
         self.include_directories        = []
         self.include_directories_public = []
         self.headers = headers
 
+        self.test_target = None
+
         # Default include path
         if self.root_directory.joinpath('include').exists():
             self.include_directories_public.append(self.root_directory.joinpath('include'))
+
+        # Discover tests
+        self.tests_folder = ""
+        if self.root_directory.joinpath('test').exists():
+            self.tests_folder = self.root_directory.joinpath('test')
+        elif self.root_directory.joinpath('tests').exists():
+            self.tests_folder = self.root_directory.joinpath('tests')
+        if self.tests_folder:
+            _LOGGER.info(f'[{self.identifier}]: found tests folder {str(self.tests_folder)}')
+            
+        # Discover examples
+        self.examples_folder = ""
+        if self.root_directory.joinpath('example').exists():
+            self.examples_folder = self.root_directory.joinpath('example')
+        elif self.root_directory.joinpath('examples').exists():
+            self.examples_folder = self.root_directory.joinpath('examples')
+        if self.examples_folder:
+            _LOGGER.info(f'[{self.identifier}]: found examples folder {str(self.examples_folder)}')
 
         # Parsed directories
         self.include_directories        += include_directories
@@ -85,8 +110,8 @@ class Target:
         self.headers = list(set(self.headers))
 
         # C language family dialect
-        if 'properties' in options and 'cpp_version' in options['properties']:
-            self.dialect = _get_dialect_string(options['properties']['cpp_version'])
+        if 'properties' in self.options and 'cpp_version' in self.options['properties']:
+            self.dialect = _get_dialect_string(self.options['properties']['cpp_version'])
         else:
             self.dialect = _get_max_supported_compiler_dialect(clangpp)
 
@@ -115,7 +140,7 @@ class Target:
         elif self.build_type == _BuildType.Coverage:
             self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_COVERAGE
 
-        cf, lf = self.parse_flags_options(options, 'flags')
+        cf, lf = self.parse_flags_options(self.options, 'flags')
         self.compile_flags += cf
         self.link_flags += lf
 
@@ -148,12 +173,12 @@ class Target:
         self.compile_flags = list(set(self.compile_flags))
 
         # Interface flags
-        cf, lf = self.parse_flags_options(options, 'interface-flags')
+        cf, lf = self.parse_flags_options(self.options, 'interface-flags')
         self.compile_flags_interface += cf
         self.link_flags_interface += lf
 
         # Public flags
-        cf, lf = self.parse_flags_options(options, 'public-flags')
+        cf, lf = self.parse_flags_options(self.options, 'public-flags')
         self.compile_flags += cf
         self.link_flags += lf
         self.compile_flags_public += cf
@@ -206,9 +231,69 @@ class Target:
     def compile(self, process_pool, progress_disabled):
         # Subclasses must implement
         raise NotImplementedError()
+        
+    def create_test_target(self):
+        self.test_target = None
+        if self.tests_folder: # TODO: if self.test
+            # test_identifier = f"{self.identifier}.test" if self.identifier else "test"
+            options = self.options.get("tests", {})
+            files = _get_sources_and_headers(options, self.tests_folder, self.build_directory.joinpath("tests"))
+            dependencies = [self] if self.__class__ is not Executable else []
+            if files['sourcefiles']:
+                self.test_target = Executable(
+                    self.identifier,
+                    "test",
+                    self.tests_folder,
+                    self.build_directory.joinpath("tests"),
+                    files['headers'],
+                    files['include_directories'],
+                    files['include_directories_public'],
+                    files['sourcefiles'],
+                    self.build_type,
+                    self.clang,
+                    self.clangpp,
+                    dependencies=dependencies,
+                    options=options)
+
+    def create_example_targets(self):
+        self.example_targets = []
+        # TODO
 
 
 class HeaderOnly(Target):
+    def __init__(self,
+            project_identifier,
+            name,
+            root_directory,
+            build_directory,
+            headers,
+            include_directories,
+            include_directories_public,
+            build_type,
+            clang,
+            clangpp,
+            options=None,
+            dependencies=None):
+        super().__init__(
+            project_identifier=project_identifier,
+            name=name,
+            root_directory=root_directory,
+            build_directory=build_directory,
+            headers=headers,
+            include_directories=include_directories,
+            include_directories_public=include_directories_public,
+            build_type=build_type,
+            clang=clang,
+            clangpp=clangpp,
+            options=options,
+            dependencies=dependencies)
+
+        ### Create testing target
+        self.create_test_target()
+
+        ### Create example targets
+        self.create_example_targets()
+
     def link(self):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require linking.')
 
@@ -266,27 +351,18 @@ class Compilable(Target):
             _LOGGER.error(error_message)
             raise RuntimeError(error_message)
 
-        if options is None:
-            options = {}
-        if dependencies is None:
-            dependencies = []
-
         self.force_build = force_build
 
         self.object_directory  = self.build_directory.joinpath('obj').resolve()
         self.depfile_directory = self.build_directory.joinpath('dep').resolve()
         self.output_folder     = self.build_directory.joinpath(output_folder).resolve()
 
-        if 'output_name' in options:
-            self.outname = options['output_name']
+        if 'output_name' in self.options:
+            self.outname = self.options['output_name']
         else:
             self.outname = self.name
 
         self.outfile = _Path(self.output_folder, prefix + self.outname + suffix).resolve()
-
-        # Clang
-        self.clang     = clang
-        self.clangpp   = clangpp
 
         # Sources
         self.source_files        = source_files
@@ -314,10 +390,10 @@ class Compilable(Target):
         self.before_compile_script = ""
         self.before_link_script    = ""
         self.after_build_script    = ""
-        if 'scripts' in options: ### TODO: maybe the scripts should be named differently
-            self.before_compile_script = options['scripts'].get('before_compile', "")
-            self.before_link_script    = options['scripts'].get('before_link',    "")
-            self.after_build_script    = options['scripts'].get('after_build',    "")
+        if 'scripts' in self.options: ### TODO: maybe the scripts should be named differently
+            self.before_compile_script = self.options['scripts'].get('before_compile', "")
+            self.before_link_script    = self.options['scripts'].get('before_link',    "")
+            self.after_build_script    = self.options['scripts'].get('after_build',    "")
 
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
@@ -466,6 +542,12 @@ class Executable(Compilable):
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-l'+target.outname]
 
+        ### Create testing target
+        self.create_test_target()
+
+        ### Create example targets
+        self.create_example_targets()
+
 
 class SharedLibrary(Compilable):
     def __init__(self,
@@ -520,6 +602,12 @@ class SharedLibrary(Compilable):
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-l'+target.outname]
 
+        ### Create testing target
+        self.create_test_target()
+
+        ### Create example targets
+        self.create_example_targets()
+
 
 class StaticLibrary(Compilable):
     def __init__(self,
@@ -571,6 +659,13 @@ class StaticLibrary(Compilable):
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += [str(buildable.object_file) for buildable in target.buildables]
+
+        ### Create testing target
+        self.create_test_target()
+
+        ### Create example targets
+        self.create_example_targets()
+
 
 if __name__ == '__main__':
     _freeze_support()
