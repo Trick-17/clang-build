@@ -67,7 +67,7 @@ class Target:
         self.include_directories_public = []
         self.headers = headers
 
-        self.test_target = None
+        self.test_targets = []
 
         # Default include path
         if self.root_directory.joinpath('include').exists():
@@ -232,15 +232,20 @@ class Target:
         # Subclasses must implement
         raise NotImplementedError()
         
-    def create_test_target(self):
-        self.test_target = None
-        if self.tests_folder: # TODO: if self.test
-            # test_identifier = f"{self.identifier}.test" if self.identifier else "test"
-            options = self.options.get("tests", {})
-            files = _get_sources_and_headers(options, self.tests_folder, self.build_directory.joinpath("tests"))
+    def create_test_targets(self):
+        self.test_targets = []
+        if self.tests_folder: # TODO: if self.test and tests_folder should potentially be parsed from the tests_options
+            tests_options = self.options.get("tests", {})
+
+            single_executable = True
+            if tests_options:
+                single_executable = tests_options.get("single_executable", True)
+
+            files = _get_sources_and_headers(tests_options, self.tests_folder, self.build_directory.joinpath("tests"))
             dependencies = [self] if self.__class__ is not Executable else []
-            if files['sourcefiles']:
-                self.test_target = Executable(
+
+            if files['sourcefiles'] and single_executable:
+                self.test_targets = [Executable(
                     self.identifier,
                     "test",
                     self.tests_folder,
@@ -253,7 +258,23 @@ class Target:
                     self.clang,
                     self.clangpp,
                     dependencies=dependencies,
-                    options=options)
+                    options=tests_options)]
+            elif files['sourcefiles']:
+                for sourcefile in files['sourcefiles']:
+                    self.test_targets.append(Executable(
+                        self.identifier,
+                        f"test_{sourcefile.stem}",
+                        self.tests_folder,
+                        self.build_directory.joinpath("tests"),
+                        files['headers'],
+                        files['include_directories'],
+                        files['include_directories_public'],
+                        [sourcefile],
+                        self.build_type,
+                        self.clang,
+                        self.clangpp,
+                        dependencies=dependencies,
+                        options=tests_options))
 
     def create_example_targets(self):
         self.example_targets = []
@@ -289,7 +310,7 @@ class HeaderOnly(Target):
             dependencies=dependencies)
 
         ### Create testing target
-        self.create_test_target()
+        self.create_test_targets()
 
         ### Create example targets
         self.create_example_targets()
@@ -543,7 +564,7 @@ class Executable(Compilable):
                 self.link_command += ['-l'+target.outname]
 
         ### Create testing target
-        self.create_test_target()
+        self.create_test_targets()
 
         ### Create example targets
         self.create_example_targets()
@@ -603,7 +624,7 @@ class SharedLibrary(Compilable):
                 self.link_command += ['-l'+target.outname]
 
         ### Create testing target
-        self.create_test_target()
+        self.create_test_targets()
 
         ### Create example targets
         self.create_example_targets()
@@ -661,7 +682,7 @@ class StaticLibrary(Compilable):
                 self.link_command += [str(buildable.object_file) for buildable in target.buildables]
 
         ### Create testing target
-        self.create_test_target()
+        self.create_test_targets()
 
         ### Create example targets
         self.create_example_targets()

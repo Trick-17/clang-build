@@ -409,7 +409,8 @@ class Project:
         for subproject in self.subprojects:
             targetlist += subproject.get_targets(exclude)
         targetlist += [target for target in self.target_list if target.identifier not in exclude]
-        targetlist += [target.test_target for target in targetlist if target.test_target]
+        for target in targetlist:
+            targetlist += target.test_targets
         return targetlist
 
     def contains_target(self, identifier):
