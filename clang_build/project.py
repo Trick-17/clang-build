@@ -255,7 +255,7 @@ class Project:
                         raise RuntimeError(error_message)
 
             # Build directory for obj, bin etc. should be under build type folder, e.g. default
-            target_build_directory = target_build_directory.joinpath(environment.buildType.name.lower())
+            target_build_directory = target_build_directory.joinpath(environment.build_type.name.lower())
 
             # Sub-directory, if specified
             if 'directory' in target_node:
@@ -291,12 +291,9 @@ class Project:
                             files['include_directories'],
                             files['include_directories_public'],
                             files['sourcefiles'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
+                            environment,
                             target_node,
-                            dependencies,
-                            environment.force_build))
+                            dependencies))
 
                 #
                 # Add a shared library
@@ -312,12 +309,9 @@ class Project:
                             files['include_directories'],
                             files['include_directories_public'],
                             files['sourcefiles'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
+                            environment,
                             target_node,
-                            dependencies,
-                            environment.force_build))
+                            dependencies))
 
                 #
                 # Add a static library
@@ -333,13 +327,9 @@ class Project:
                             files['include_directories'],
                             files['include_directories_public'],
                             files['sourcefiles'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
-                            environment.clang_ar,
+                            environment,
                             target_node,
-                            dependencies,
-                            environment.force_build))
+                            dependencies))
 
                 #
                 # Add a header-only
@@ -356,9 +346,7 @@ class Project:
                             files['headers'],
                             files['include_directories'],
                             files['include_directories_public'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
+                            environment,
                             target_node,
                             dependencies))
 
@@ -380,9 +368,7 @@ class Project:
                             files['headers'],
                             files['include_directories'],
                             files['include_directories_public'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
+                            environment,
                             target_node,
                             dependencies))
                 else:
@@ -397,12 +383,9 @@ class Project:
                             files['include_directories'],
                             files['include_directories_public'],
                             files['sourcefiles'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
+                            environment,
                             target_node,
-                            dependencies,
-                            environment.force_build))
+                            dependencies))
 
     def get_targets(self, exclude=[]):
         targetlist = []

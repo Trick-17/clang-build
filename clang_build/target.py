@@ -36,9 +36,7 @@ class Target:
             headers,
             include_directories,
             include_directories_public,
-            build_type,
-            clang,
-            clangpp,
+            environment,
             options=None,
             dependencies=None):
 
@@ -52,15 +50,11 @@ class Target:
 
         # Basics
         self.name           = name
-        self.identifier      = f'{project_identifier}.{name}' if project_identifier else name
+        self.identifier     = f'{project_identifier}.{name}' if project_identifier else name
         self.root_directory = _Path(root_directory)
-        self.build_type     = build_type
+        self.environment    = environment
 
         self.build_directory = build_directory
-
-        # Clang
-        self.clang     = clang
-        self.clangpp   = clangpp
 
         # Include directories and headers
         self.include_directories        = []
@@ -113,7 +107,7 @@ class Target:
         if 'properties' in self.options and 'cpp_version' in self.options['properties']:
             self.dialect = _get_dialect_string(self.options['properties']['cpp_version'])
         else:
-            self.dialect = _get_max_supported_compiler_dialect(clangpp)
+            self.dialect = _get_max_supported_compiler_dialect(self.environment.clangpp)
 
         # TODO: parse user-specified target version
 
@@ -128,16 +122,16 @@ class Target:
         self.link_flags_public = []
 
         # Regular (private) flags
-        if self.build_type == _BuildType.Release:
+        if self.environment.build_type == _BuildType.Release:
             self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_RELEASE
 
-        elif self.build_type == _BuildType.Debug:
+        elif self.environment.build_type == _BuildType.Debug:
             self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_DEBUG
 
-        elif self.build_type == _BuildType.RelWithDebInfo:
+        elif self.environment.build_type == _BuildType.RelWithDebInfo:
             self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO
 
-        elif self.build_type == _BuildType.Coverage:
+        elif self.environment.build_type == _BuildType.Coverage:
             self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_COVERAGE
 
         cf, lf = self.parse_flags_options(self.options, 'flags')
@@ -204,16 +198,16 @@ class Target:
             compile_flags     += fdict.get('compile', [])
             link_flags        += fdict.get('link', [])
 
-            if self.build_type == _BuildType.Release:
+            if self.environment.build_type == _BuildType.Release:
                 compile_flags += fdict.get('compile_release', [])
 
-            elif self.build_type == _BuildType.Debug:
+            elif self.environment.build_type == _BuildType.Debug:
                 compile_flags += fdict.get('compile_debug', [])
 
-            elif self.build_type == _BuildType.RelWithDebInfo:
+            elif self.environment.build_type == _BuildType.RelWithDebInfo:
                 compile_flags += fdict.get('compile_relwithdebinfo', [])
 
-            elif self.build_type == _BuildType.Coverage:
+            elif self.environment.build_type == _BuildType.Coverage:
                 compile_flags += fdict.get('compile_coverage', [])
 
         return compile_flags, link_flags
@@ -234,17 +228,24 @@ class Target:
         
     def create_test_targets(self):
         self.test_targets = []
-        if self.tests_folder: # TODO: if self.test and tests_folder should potentially be parsed from the tests_options
-            tests_options = self.options.get("tests", {})
 
+        build_tests = False
+        files = []
+        # TODO: tests_folder should potentially be parsed from the tests_options
+        if self.environment.test and self.tests_folder:
+            tests_options = self.options.get("tests", {})
+            files = _get_sources_and_headers(tests_options, self.tests_folder, self.build_directory.joinpath("tests"))
+            if files['sourcefiles']:
+                build_tests = True
+
+        if build_tests:
             single_executable = True
             if tests_options:
                 single_executable = tests_options.get("single_executable", True)
 
-            files = _get_sources_and_headers(tests_options, self.tests_folder, self.build_directory.joinpath("tests"))
             dependencies = [self] if self.__class__ is not Executable else []
 
-            if files['sourcefiles'] and single_executable:
+            if single_executable:
                 self.test_targets = [Executable(
                     self.identifier,
                     "test",
@@ -254,12 +255,10 @@ class Target:
                     files['include_directories'],
                     files['include_directories_public'],
                     files['sourcefiles'],
-                    self.build_type,
-                    self.clang,
-                    self.clangpp,
+                    self.environment,
                     dependencies=dependencies,
                     options=tests_options)]
-            elif files['sourcefiles']:
+            else:
                 for sourcefile in files['sourcefiles']:
                     self.test_targets.append(Executable(
                         self.identifier,
@@ -270,9 +269,7 @@ class Target:
                         files['include_directories'],
                         files['include_directories_public'],
                         [sourcefile],
-                        self.build_type,
-                        self.clang,
-                        self.clangpp,
+                        self.environment,
                         dependencies=dependencies,
                         options=tests_options))
 
@@ -290,9 +287,7 @@ class HeaderOnly(Target):
             headers,
             include_directories,
             include_directories_public,
-            build_type,
-            clang,
-            clangpp,
+            environment,
             options=None,
             dependencies=None):
         super().__init__(
@@ -303,9 +298,7 @@ class HeaderOnly(Target):
             headers=headers,
             include_directories=include_directories,
             include_directories_public=include_directories_public,
-            build_type=build_type,
-            clang=clang,
-            clangpp=clangpp,
+            environment=environment,
             options=options,
             dependencies=dependencies)
 
@@ -341,17 +334,14 @@ class Compilable(Target):
             include_directories,
             include_directories_public,
             source_files,
-            build_type,
-            clang,
-            clangpp,
+            environment,
             link_command,
             output_folder,
             platform_flags,
             prefix,
             suffix,
             options=None,
-            dependencies=None,
-            force_build=False):
+            dependencies=None):
 
         super().__init__(
             project_identifier=project_identifier,
@@ -361,9 +351,7 @@ class Compilable(Target):
             headers=headers,
             include_directories=include_directories,
             include_directories_public=include_directories_public,
-            build_type=build_type,
-            clang=clang,
-            clangpp=clangpp,
+            environment=environment,
             options=options,
             dependencies=dependencies)
 
@@ -371,8 +359,6 @@ class Compilable(Target):
             error_message = f'[{self.identifier}]: ERROR: Target was defined as a {self.__class__} but no source files were found'
             _LOGGER.error(error_message)
             raise RuntimeError(error_message)
-
-        self.force_build = force_build
 
         self.object_directory  = self.build_directory.joinpath('obj').resolve()
         self.depfile_directory = self.build_directory.joinpath('dep').resolve()
@@ -397,8 +383,8 @@ class Compilable(Target):
             object_directory=self.object_directory,
             include_strings=self.get_include_directory_command(),
             compile_flags=Target.DEFAULT_COMPILE_FLAGS+self.compile_flags,
-            clang  =self.clang,
-            clangpp=self.clangpp,
+            clang  =self.environment.clang,
+            clangpp=self.environment.clangpp,
             max_cpp_dialect=self.dialect) for source_file in self.source_files]
 
         # If compilation of buildables fail, they will be stored here later
@@ -421,7 +407,7 @@ class Compilable(Target):
     def compile(self, process_pool, progress_disabled):
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        if not self.force_build:
+        if not self.environment.force_build:
             self.needed_buildables = [buildable for buildable in self.buildables if buildable.needs_rebuild]
         else:
             self.needed_buildables = self.buildables
@@ -520,12 +506,9 @@ class Executable(Compilable):
             include_directories,
             include_directories_public,
             source_files,
-            build_type,
-            clang,
-            clangpp,
+            environment,
             options=None,
-            dependencies=None,
-            force_build=False):
+            dependencies=None):
 
         super().__init__(
             project_identifier=project_identifier,
@@ -536,17 +519,14 @@ class Executable(Compilable):
             include_directories=include_directories,
             include_directories_public=include_directories_public,
             source_files=source_files,
-            build_type=build_type,
-            clang=clang,
-            clangpp=clangpp,
-            link_command=[clangpp, '-o'],
+            environment=environment,
+            link_command=[environment.clangpp, '-o'],
             output_folder=_platform.EXECUTABLE_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
             prefix=_platform.EXECUTABLE_PREFIX,
             suffix=_platform.EXECUTABLE_SUFFIX,
             options=options,
-            dependencies=dependencies,
-            force_build=force_build)
+            dependencies=dependencies)
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
@@ -580,12 +560,9 @@ class SharedLibrary(Compilable):
             include_directories,
             include_directories_public,
             source_files,
-            build_type,
-            clang,
-            clangpp,
+            environment,
             options=None,
-            dependencies=None,
-            force_build=False):
+            dependencies=None):
 
         super().__init__(
             project_identifier=project_identifier,
@@ -596,17 +573,14 @@ class SharedLibrary(Compilable):
             include_directories=include_directories,
             include_directories_public=include_directories_public,
             source_files=source_files,
-            build_type=build_type,
-            clang=clang,
-            clangpp=clangpp,
-            link_command=[clangpp, '-shared', '-o'],
+            environment=environment,
+            link_command=[environment.clangpp, '-shared', '-o'],
             output_folder=_platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
             suffix=_platform.SHARED_LIBRARY_SUFFIX,
             options=options,
-            dependencies=dependencies,
-            force_build=force_build)
+            dependencies=dependencies)
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
@@ -640,13 +614,9 @@ class StaticLibrary(Compilable):
             include_directories,
             include_directories_public,
             source_files,
-            build_type,
-            clang,
-            clangpp,
-            clang_ar,
+            environment,
             options=None,
-            dependencies=None,
-            force_build=False):
+            dependencies=None):
 
         super().__init__(
             project_identifier=project_identifier,
@@ -657,17 +627,14 @@ class StaticLibrary(Compilable):
             include_directories=include_directories,
             include_directories_public=include_directories_public,
             source_files=source_files,
-            build_type=build_type,
-            clang=clang,
-            clangpp=clangpp,
-            link_command=[clang_ar, 'rc'],
+            environment=environment,
+            link_command=[environment.clang_ar, 'rc'],
             output_folder=_platform.STATIC_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
             prefix=_platform.STATIC_LIBRARY_PREFIX,
             suffix=_platform.STATIC_LIBRARY_SUFFIX,
             options=options,
-            dependencies=dependencies,
-            force_build=force_build)
+            dependencies=dependencies)
 
         # ### Include directories
         # self.link_command += self.get_include_directory_command()

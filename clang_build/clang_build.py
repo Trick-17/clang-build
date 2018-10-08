@@ -148,7 +148,7 @@ class _Environment:
     def __init__(self, args):
         # Some defaults
         self.logger    = None
-        self.buildType = None
+        self.build_type = None
         self.clang     = "clang"
         self.clangpp   = "clang++"
         self.clang_ar  = "llvm-ar"
@@ -175,8 +175,8 @@ class _Environment:
         self.logger.info(f'Working directory: \'{self.working_directory}\'')
 
         # Build type (Default, Release, Debug)
-        self.buildType = args.build_type
-        self.logger.info(f'Build type: {self.buildType.name}')
+        self.build_type = args.build_type
+        self.logger.info(f'Build type: {self.build_type.name}')
 
         # Whether to build all targets
         self.build_all = True if args.all else False
@@ -270,15 +270,12 @@ def build(args):
                     '',
                     'main',
                     environment.working_directory,
-                    environment.build_directory.joinpath(environment.buildType.name.lower()),
+                    environment.build_directory.joinpath(environment.build_type.name.lower()),
                     files['headers'],
                     files['include_directories'],
                     files['include_directories_public'],
                     files['sourcefiles'],
-                    environment.buildType,
-                    environment.clang,
-                    environment.clangpp,
-                    force_build=environment.force_build))
+                    environment))
 
         # Build the targets
         progress_bar.update()
