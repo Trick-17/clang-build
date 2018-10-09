@@ -49,8 +49,9 @@ class Target:
         self.unsuccessful_builds = []
 
         # Basics
+        self.project_identifier = project_identifier
         self.name           = name
-        self.identifier     = f'{project_identifier}.{name}' if project_identifier else name
+        self.identifier     = f'{self.project_identifier}.{name}' if self.project_identifier else name
         self.root_directory = _Path(root_directory)
         self.environment    = environment
 
@@ -226,7 +227,7 @@ class Target:
         # Subclasses must implement
         raise NotImplementedError()
         
-    def create_test_targets(self):
+    def create_test_targets(self, target_list):
         self.test_targets = []
 
         build_tests = False
@@ -244,6 +245,9 @@ class Target:
                 single_executable = tests_options.get("single_executable", True)
 
             dependencies = [self] if self.__class__ is not Executable else []
+            for dependency_name in tests_options.get("dependencies", []):
+                identifier = self.project_identifier + "." + dependency_name
+                dependencies += [target for target in target_list if target.identifier == identifier]
 
             if single_executable:
                 self.test_targets = [Executable(
@@ -273,7 +277,7 @@ class Target:
                         dependencies=dependencies,
                         options=tests_options))
 
-    def create_example_targets(self):
+    def create_example_targets(self, target_list):
         self.example_targets = []
         # TODO
 
@@ -301,12 +305,6 @@ class HeaderOnly(Target):
             environment=environment,
             options=options,
             dependencies=dependencies)
-
-        ### Create testing target
-        self.create_test_targets()
-
-        ### Create example targets
-        self.create_example_targets()
 
     def link(self):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require linking.')
@@ -543,12 +541,6 @@ class Executable(Compilable):
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-l'+target.outname]
 
-        ### Create testing target
-        self.create_test_targets()
-
-        ### Create example targets
-        self.create_example_targets()
-
 
 class SharedLibrary(Compilable):
     def __init__(self,
@@ -597,12 +589,6 @@ class SharedLibrary(Compilable):
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-l'+target.outname]
 
-        ### Create testing target
-        self.create_test_targets()
-
-        ### Create example targets
-        self.create_example_targets()
-
 
 class StaticLibrary(Compilable):
     def __init__(self,
@@ -647,12 +633,6 @@ class StaticLibrary(Compilable):
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += [str(buildable.object_file) for buildable in target.buildables]
-
-        ### Create testing target
-        self.create_test_targets()
-
-        ### Create example targets
-        self.create_example_targets()
 
 
 if __name__ == '__main__':
