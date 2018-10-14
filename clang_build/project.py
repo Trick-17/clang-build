@@ -119,6 +119,7 @@ class Project:
             return
 
         # Check this project's targets for circular dependencies
+        # TODO: it is fine for N-1 header only libraries to be in a circular dependency of N libraries
         circular_dependencies = _find_circular_dependencies(self.targets_config)
         if circular_dependencies:
             error_messages = [f'Circular dependency [{target}] -> [{dependency}]' for\

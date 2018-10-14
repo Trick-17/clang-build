@@ -76,6 +76,8 @@ class Target:
             self.tests_folder = self.root_directory.joinpath('tests')
         if self.tests_folder:
             _LOGGER.info(f'[{self.identifier}]: found tests folder {str(self.tests_folder)}')
+        else:
+            self.tests_folder = self.root_directory
             
         # Discover examples
         self.examples_folder = ""
@@ -85,6 +87,8 @@ class Target:
             self.examples_folder = self.root_directory.joinpath('examples')
         if self.examples_folder:
             _LOGGER.info(f'[{self.identifier}]: found examples folder {str(self.examples_folder)}')
+        else:
+            self.examples_folder = self.root_directory
 
         # Parsed directories
         self.include_directories        += include_directories
@@ -233,11 +237,12 @@ class Target:
         build_tests = False
         files = []
         # TODO: tests_folder should potentially be parsed from the tests_options
-        if self.environment.test and self.tests_folder:
+        if self.environment.test:
             tests_options = self.options.get("tests", {})
-            files = _get_sources_and_headers(tests_options, self.tests_folder, self.build_directory.joinpath("tests"))
-            if files['sourcefiles']:
-                build_tests = True
+            if self.tests_folder or tests_options["sources"]:
+                files = _get_sources_and_headers(tests_options, self.tests_folder, self.build_directory.joinpath("tests"))
+                if files['sourcefiles']:
+                    build_tests = True
 
         if build_tests:
             single_executable = True
