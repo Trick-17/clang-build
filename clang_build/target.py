@@ -73,10 +73,6 @@ class Target:
 
         # Include directories of dependencies
         for target in self.dependency_targets:
-            # Header only include directories are always public
-            if target.__class__ is HeaderOnly:
-                self.include_directories += target.include_directories
-
             self.include_directories += target.include_directories_public
             # Public include directories are forwarded
             self.include_directories_public += target.include_directories_public
@@ -112,29 +108,7 @@ class Target:
 
         for target in self.dependency_targets:
             # Header only libraries will forward all non-private flags
-            if self.__class__ is HeaderOnly:
-                # Interface
-                self.compile_flags_interface += target.compile_flags_interface
-                self.link_flags_interface    += target.link_flags_interface
-                # Public
-                self.compile_flags_public += target.compile_flags_public
-                self.link_flags_public    += target.link_flags_public
-            # Static libraries will forward interface flags and apply public flags
-            elif self.__class__ is StaticLibrary:
-                # Interface
-                self.compile_flags_interface += target.compile_flags_interface
-                self.link_flags_interface    += target.link_flags_interface
-                # Public
-                self.compile_flags += target.compile_flags_public
-                self.link_flags    += target.link_flags_public
-            # Shared libraries and executables will not forward flags
-            else:
-                # Interface
-                self.compile_flags += target.compile_flags_interface
-                self.link_flags    += target.link_flags_interface
-                # Public
-                self.compile_flags += target.compile_flags_public
-                self.link_flags    += target.link_flags_public
+            self.add_target_flags(target)
 
         self.compile_flags = list(set(self.compile_flags))
 
@@ -149,6 +123,14 @@ class Target:
         self.link_flags += lf
         self.compile_flags_public += cf
         self.link_flags_public += lf
+
+    def add_target_flags(self, target):
+        # Apply interface
+        self.compile_flags += target.compile_flags_interface
+        self.link_flags    += target.link_flags_interface
+        # Apply public
+        self.compile_flags += target.compile_flags_public
+        self.link_flags    += target.link_flags_public
 
     # Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
     def parse_flags_options(self, options, flags_kind='flags'):
@@ -186,6 +168,41 @@ class Target:
 
 
 class HeaderOnly(Target):
+    def __init__(self,
+            project_identifier,
+            name,
+            root_directory,
+            build_directory,
+            headers,
+            include_directories,
+            include_directories_public,
+            build_type,
+            clang,
+            clangpp,
+            options=None,
+            dependencies=None):
+        super().__init__(
+            project_identifier=project_identifier,
+            name=name,
+            root_directory=root_directory,
+            build_directory=build_directory,
+            headers=headers,
+            include_directories=[],
+            include_directories_public=include_directories_public+include_directories,
+            build_type=build_type,
+            clang=clang,
+            clangpp=clangpp,
+            options=options,
+            dependencies=dependencies)
+
+    def add_target_flags(self, target):
+        # Forward interface
+        self.compile_flags_interface += target.compile_flags_interface
+        self.link_flags_interface    += target.link_flags_interface
+        # Forward public
+        self.compile_flags_public += target.compile_flags_public
+        self.link_flags_public    += target.link_flags_public
+
     def link(self):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require linking.')
 
@@ -548,6 +565,14 @@ class StaticLibrary(Compilable):
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += [str(buildable.object_file) for buildable in target.buildables]
+
+    def add_target_flags(self, target):
+        # Forward interface
+        self.compile_flags_interface += target.compile_flags_interface
+        self.link_flags_interface    += target.link_flags_interface
+        # Apply public
+        self.compile_flags += target.compile_flags_public
+        self.link_flags    += target.link_flags_public
 
 if __name__ == '__main__':
     _freeze_support()
