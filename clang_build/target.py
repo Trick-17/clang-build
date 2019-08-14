@@ -103,7 +103,8 @@ class Target:
         self.link_flags_public = []
 
         # Regular (private) flags
-        self.compile_flags += Target.COMPILE_FLAGS.get(self.build_type)
+        if self.build_type != _BuildType.Default:
+            self.compile_flags += Target.COMPILE_FLAGS.get(self.build_type)
 
         cf, lf = self.parse_flags_options(options, 'flags')
         self.compile_flags += cf
@@ -158,28 +159,14 @@ class Target:
         if flags_kind in options:
             flags_dicts.append(options.get(flags_kind, {}))
 
-        if 'osx' in options and _platform.PLATFORM == 'osx':
-            flags_dicts.append(options['osx'].get(flags_kind, {}))
-        if 'windows' in options and _platform.PLATFORM == 'windows':
-            flags_dicts.append(options['windows'].get(flags_kind, {}))
-        if 'linux' in options and _platform.PLATFORM == 'linux':
-            flags_dicts.append(options['linux'].get(flags_kind, {}))
+        flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
 
         for fdict in flags_dicts:
             compile_flags     += fdict.get('compile', [])
             link_flags        += fdict.get('link', [])
 
-            if self.build_type == _BuildType.Release:
-                compile_flags += fdict.get('compile_release', [])
-
-            elif self.build_type == _BuildType.Debug:
-                compile_flags += fdict.get('compile_debug', [])
-
-            elif self.build_type == _BuildType.RelWithDebInfo:
-                compile_flags += fdict.get('compile_relwithdebinfo', [])
-
-            elif self.build_type == _BuildType.Coverage:
-                compile_flags += fdict.get('compile_coverage', [])
+            if self.build_type != _BuildType.Default:
+                compile_flags += fdict.get(f'compile_{self.build_type}', [])
 
         return compile_flags, link_flags
 
