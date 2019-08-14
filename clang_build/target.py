@@ -81,8 +81,8 @@ class Target:
             # Public include directories are forwarded
             self.include_directories_public += target.include_directories_public
 
-        self.include_directories = list(set([dir.resolve() for dir in self.include_directories]))
-        self.headers = list(set(self.headers))
+        self.include_directories = list(dict.fromkeys(dir.resolve() for dir in self.include_directories))
+        self.headers = list(dict.fromkeys(self.headers))
 
         # C language family dialect
         if 'properties' in options and 'cpp_version' in options['properties']:
@@ -145,7 +145,7 @@ class Target:
                 self.compile_flags += target.compile_flags_public
                 self.link_flags    += target.link_flags_public
 
-        self.compile_flags = list(set(self.compile_flags))
+        self.compile_flags = list(dict.fromkeys(self.compile_flags))
 
         # Interface flags
         cf, lf = self.parse_flags_options(options, 'interface-flags')
