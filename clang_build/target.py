@@ -19,13 +19,13 @@ from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 class Target:
-    DEFAULT_COMPILE_FLAGS                = ['-Wall', '-Wextra', '-Wpedantic', '-Werror']
-    DEFAULT_COMPILE_FLAGS_RELEASE        = ['-O3', '-DNDEBUG']
-    DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO = ['-O3', '-g3', '-DNDEBUG']
-    DEFAULT_COMPILE_FLAGS_DEBUG          = ['-O0', '-g3', '-DDEBUG']
-    DEFAULT_COMPILE_FLAGS_COVERAGE       = DEFAULT_COMPILE_FLAGS_DEBUG + [
-                                            '--coverage',
-                                            '-fno-inline']
+    COMPILE_FLAGS = {
+        _BuildType.Default : ['-Wall', '-Wextra', '-Wpedantic', '-Werror'],
+        _BuildType.Release : ['-O3', '-DNDEBUG'],
+        _BuildType.RelWithDebInfo : ['-O3', '-g3', '-DNDEBUG'],
+        _BuildType.Debug : ['-O0', '-g3', '-DDEBUG'],
+        _BuildType.Coverage : ['-O0', '-g3', '-DDEBUG', '--coverage', '-fno-inline'],
+    }
 
     def __init__(self,
             project_identifier,
@@ -103,17 +103,7 @@ class Target:
         self.link_flags_public = []
 
         # Regular (private) flags
-        if self.build_type == _BuildType.Release:
-            self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_RELEASE
-
-        elif self.build_type == _BuildType.Debug:
-            self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_DEBUG
-
-        elif self.build_type == _BuildType.RelWithDebInfo:
-            self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO
-
-        elif self.build_type == _BuildType.Coverage:
-            self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_COVERAGE
+        self.compile_flags += Target.COMPILE_FLAGS.get(self.build_type)
 
         cf, lf = self.parse_flags_options(options, 'flags')
         self.compile_flags += cf
@@ -299,7 +289,7 @@ class Compilable(Target):
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
             include_strings=self.get_include_directory_command(),
-            compile_flags=Target.DEFAULT_COMPILE_FLAGS+self.compile_flags,
+            compile_flags=Target.COMPILE_FLAGS[_BuildType.Default]+self.compile_flags,
             clang  =self.clang,
             clangpp=self.clangpp,
             max_cpp_dialect=self.dialect) for source_file in self.source_files]
