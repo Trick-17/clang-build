@@ -29,7 +29,7 @@ matrix:
     - language: cpp
       os: osx
       env: DEPLOY=false
-      osx_image: xcode8
+      osx_image: xcode10
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi

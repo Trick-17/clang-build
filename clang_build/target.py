@@ -193,12 +193,6 @@ class Target:
 
         return compile_flags, link_flags
 
-    def get_include_directory_command(self):
-        ret = []
-        for dir in self.include_directories:
-            ret += ['-I',  str(dir.resolve())]
-        return ret
-
     def link(self):
         # Subclasses must implement
         raise NotImplementedError()
@@ -292,13 +286,17 @@ class Compilable(Target):
         self.source_files        = source_files
 
         # Buildables which this Target contains
+        self.include_directories_command = []
+        for dir in self.include_directories:
+            self.include_directories_command += ['-I',  str(dir.resolve())]
+
         self.buildables = [_SingleSource(
             source_file=source_file,
             platform_flags=platform_flags,
             current_target_root_path=self.root_directory,
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
-            include_strings=self.get_include_directory_command(),
+            include_strings=self.include_directories_command,
             compile_flags=Target.DEFAULT_COMPILE_FLAGS+self.compile_flags,
             clang  =self.clang,
             clangpp=self.clangpp,
@@ -559,9 +557,6 @@ class StaticLibrary(Compilable):
             options=options,
             dependencies=dependencies,
             force_build=force_build)
-
-        # ### Include directories
-        # self.link_command += self.get_include_directory_command()
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
