@@ -30,13 +30,16 @@ matrix:
       os: osx
       env: DEPLOY=false
       osx_image: xcode10
+      addons:
+        homebrew:
+          packages:
+          - llvm
+          update: true
 
-before_install: # these might be chached, so we add `|| true`
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew upgrade python || true; fi
+before_install:
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew upgrade python || true; fi # this might be chached, so we add `|| true`
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then curl https://bootstrap.pypa.io/get-pip.py | python3; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export PATH=/usr/local/Cellar/python/3.7.0/Frameworks/Python.framework/Versions/3.7/bin:$PATH; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install llvm || true; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export PATH=/usr/local/opt/llvm/bin:$PATH; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export LIBRARY_PATH=/usr/local/opt/llvm/lib:$PATH; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo ln -s /usr/lib/libiomp5.so /usr/lib/libomp.so; fi
