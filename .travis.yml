@@ -12,7 +12,7 @@ matrix:
     - language: python
       os: linux
       env: DEPLOY=true
-      python: 3.7
+      python: 3.6
       addons:
         apt:
           packages:
