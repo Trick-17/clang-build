@@ -5,7 +5,6 @@ clang-build:
 
 import logging as _logging
 from pathlib import Path as _Path
-import textwrap as _textwrap
 import sys
 from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
@@ -18,10 +17,7 @@ from .dialect_check import get_max_supported_compiler_dialect as _get_max_suppor
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
 from .target import Executable as _Executable,\
-                    SharedLibrary as _SharedLibrary,\
-                    StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
-from .dependency_tools import find_non_existent_dependencies as _find_non_existent_dependencies
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
