@@ -29,15 +29,30 @@ def find_circular_dependencies(project):
 def get_dependency_graph(project_identifier, targets_config, subprojects):
     graph = _nx.DiGraph()
     for target_name, node in targets_config.items():
+        # Target dependencies
         target_identifier = f"{project_identifier}.{target_name}" if project_identifier else f"{target_name}"
         dependencies = node.get('dependencies', [])
-        if not dependencies:
-            graph.add_node(str(target_identifier))
-            continue
-
         for dependency in dependencies:
             dependency_identifier = f"{project_identifier}.{dependency}" if project_identifier else f"{dependency}"
             graph.add_edge(str(target_identifier), str(dependency_identifier))
+
+        # Target tests dependencies
+        tests_dependencies = [target_name] + node.get('tests', {}).get('dependencies', [])
+        target_tests_identifier = f"{project_identifier}.{target_name}.tests" if project_identifier else f"{target_name}.tests"
+        for dependency in tests_dependencies:
+            dependency_identifier = f"{project_identifier}.{dependency}" if project_identifier else f"{dependency}"
+            graph.add_edge(str(target_tests_identifier), str(dependency_identifier))
+
+        # Target examples dependencies
+        examples_dependencies = [target_name] + node.get('examples', {}).get('dependencies', [])
+        target_examples_identifier = f"{project_identifier}.{target_name}.examples" if project_identifier else f"{target_name}.examples"
+        for dependency in examples_dependencies:
+            dependency_identifier = f"{project_identifier}.{dependency}" if project_identifier else f"{dependency}"
+            graph.add_edge(str(target_examples_identifier), str(dependency_identifier))
+
+        # # If there is no edge to this node, we add it manually
+        # if not dependencies and not tests_dependencies and not examples_dependencies:
+        #     graph.add_node(str(target_identifier))
 
     for project in subprojects:
         subgraph = get_dependency_graph(project.identifier, project.targets_config, project.subprojects)

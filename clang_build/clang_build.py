@@ -279,11 +279,14 @@ def build(args):
 
         # Create tests and examples
         test_target_list = []
+        example_target_list = []
         for target in target_list:
             target.create_test_targets(target_list)
             test_target_list += target.test_targets
             target.create_example_targets(target_list)
+            example_target_list += target.example_targets
         target_list += test_target_list
+        target_list += example_target_list
 
         # Build the targets
         progress_bar.update()

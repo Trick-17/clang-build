@@ -31,7 +31,13 @@ _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 
 class Project:
-    def __init__(self, config, environment, multiple_projects, is_root_project, parent_working_dir="", parent_identifier=""):
+    def __init__(self,
+        config,
+        environment,
+        multiple_projects,
+        is_root_project,
+        parent_working_dir="",
+        parent_identifier=""):
 
         self.working_directory = environment.working_directory
         if parent_working_dir:
@@ -180,6 +186,21 @@ class Project:
                 root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
                 self.target_dont_build_list -= {root_identifier}
                 self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
+
+            # Retain targets on which tests depend
+            if environment.test:
+                for identifier in _nx.algorithms.dag.descendants(dependency_graph, root_identifier):
+                    for test_identifier in dependency_graph.predecessors(identifier):
+                        if test_identifier == f"{identifier}.tests":
+                            self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, test_identifier)
+
+            # Retain targets on which examples depend
+            if environment.examples:
+                for identifier in _nx.algorithms.dag.descendants(dependency_graph, root_identifier):
+                    for example_identifier in dependency_graph.predecessors(identifier):
+                        if example_identifier == f"{identifier}.examples":
+                            self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, example_identifier)
+
             self.target_dont_build_list = list(self.target_dont_build_list)
 
             if self.target_dont_build_list:
@@ -203,10 +224,29 @@ class Project:
                 for root_name in base_set:
                     root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
                     dependency_graph.node[root_identifier]['color'] = 'red'
+                    if environment.test:
+                        dependency_graph.node[f"{root_identifier}.tests"]['color'] = 'red'
+                    if environment.examples:
+                        dependency_graph.node[f"{root_identifier}.examples"]['color'] = 'red'
+
                     for node in _nx.algorithms.dag.descendants(dependency_graph, root_identifier):
                         dependency_graph.node[node]['color'] = 'red'
+                        if environment.test_recursive:
+                            node_test = f"{node}.tests"
+                            dependency_graph.node[node_test]['color'] = 'red'
+                            for dependency_node in _nx.algorithms.dag.descendants(dependency_graph, node_test):
+                                dependency_graph.node[dependency_node]['color'] = 'red'
+                                dependency_graph.node[f"{dependency_node}.tests"]['color'] = 'red'
+                        if environment.examples_recursive:
+                            node_example = f"{node}.examples"
+                            dependency_graph.node[node_example]['color'] = 'red'
+                            for dependency_node in _nx.algorithms.dag.descendants(dependency_graph, node_example):
+                                dependency_graph.node[dependency_node]['color'] = 'red'
+                                dependency_graph.node[f"{dependency_node}.examples"]['color'] = 'red'
+
 
                 _Path(environment.build_directory).mkdir(parents=True, exist_ok=True)
+                ### TODO: per-project subgraphs?
                 _nx.drawing.nx_pydot.write_dot(dependency_graph, str(_Path(environment.build_directory, 'dependencies.dot')))
 
         # Generate a list of target identifiers of this project
@@ -395,6 +435,7 @@ class Project:
         targetlist += [target for target in self.target_list if target.identifier not in exclude]
         for target in targetlist:
             targetlist += target.test_targets
+            targetlist += target.example_targets
         return targetlist
 
     def contains_target(self, identifier):

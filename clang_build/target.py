@@ -63,6 +63,7 @@ class Target:
         self.headers = headers
 
         self.test_targets = []
+        self.example_targets = []
 
         # Default include path
         if self.root_directory.joinpath('include').exists():
@@ -76,8 +77,10 @@ class Target:
             self.tests_folder = self.root_directory.joinpath('tests')
         if self.tests_folder:
             _LOGGER.info(f'[{self.identifier}]: found tests folder {str(self.tests_folder)}')
-        else:
-            self.tests_folder = self.root_directory
+        # If there is no tests folder, but sources were specified, the root directory is used
+        elif self.environment.test:
+            if "sources" in self.options.get("tests", {}):
+                self.tests_folder = self.root_directory
             
         # Discover examples
         self.examples_folder = ""
@@ -87,8 +90,9 @@ class Target:
             self.examples_folder = self.root_directory.joinpath('examples')
         if self.examples_folder:
             _LOGGER.info(f'[{self.identifier}]: found examples folder {str(self.examples_folder)}')
-        else:
-            self.examples_folder = self.root_directory
+        elif self.environment.examples:
+            if "sources" in self.options.get("examples", {}):
+                self.examples_folder = self.root_directory
 
         # Parsed directories
         self.include_directories        += include_directories
@@ -239,7 +243,7 @@ class Target:
         # TODO: tests_folder should potentially be parsed from the tests_options
         if self.environment.test:
             tests_options = self.options.get("tests", {})
-            if self.tests_folder or tests_options["sources"]:
+            if self.tests_folder or "sources" in tests_options:
                 files = _get_sources_and_headers(tests_options, self.tests_folder, self.build_directory.joinpath("tests"))
                 if files['sourcefiles']:
                     build_tests = True
@@ -284,7 +288,36 @@ class Target:
 
     def create_example_targets(self, target_list):
         self.example_targets = []
-        # TODO
+
+        build_examples = False
+        files = []
+        # TODO: examples_folder should potentially be parsed from the examples_options
+        if self.environment.examples:
+            examples_options = self.options.get("examples", {})
+            if self.examples_folder or "sources" in examples_options:
+                files = _get_sources_and_headers(examples_options, self.examples_folder, self.build_directory.joinpath("examples"))
+                if files['sourcefiles']:
+                    build_examples = True
+
+        if build_examples:
+            dependencies = [self] if self.__class__ is not Executable else []
+            for dependency_name in examples_options.get("dependencies", []):
+                identifier = self.project_identifier + "." + dependency_name
+                dependencies += [target for target in target_list if target.identifier == identifier]
+
+            for sourcefile in files['sourcefiles']:
+                self.example_targets.append(Executable(
+                    self.identifier,
+                    f"example_{sourcefile.stem}",
+                    self.examples_folder,
+                    self.build_directory.joinpath("examples"),
+                    files['headers'],
+                    files['include_directories'],
+                    files['include_directories_public'],
+                    [sourcefile],
+                    self.environment,
+                    dependencies=dependencies,
+                    options=examples_options))
 
 
 class HeaderOnly(Target):
