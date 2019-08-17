@@ -5,27 +5,20 @@ a list of buildables that comprise it's compile and link steps.
 
 import os as _os
 import textwrap as _textwrap
-import sys
 from pathlib import Path as _Path
 import subprocess as _subprocess
-from multiprocessing import freeze_support as _freeze_support
 import logging as _logging
 
 import toml
 import networkx as _nx
-from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
-from .build_type import BuildType as _BuildType
 from .target import Executable as _Executable,\
                     SharedLibrary as _SharedLibrary,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
 from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
-                              find_non_existent_dependencies as _find_non_existent_dependencies,\
                               get_dependency_graph as _get_dependency_graph
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
-from .progress_bar import CategoryProgress as _CategoryProgress,\
-                          IteratorProgress as _IteratorProgress
-from .logging_stream_handler import TqdmHandler as _TqdmHandler
+from .progress_bar import IteratorProgress as _IteratorProgress
 
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
