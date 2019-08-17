@@ -255,7 +255,7 @@ class Target:
 
             dependencies = [self] if self.__class__ is not Executable else []
             for dependency_name in tests_options.get("dependencies", []):
-                identifier = self.project_identifier + "." + dependency_name
+                identifier = f"{self.project_identifier}.{dependency_name}" if self.project_identifier else f"{dependency_name}"
                 dependencies += [target for target in target_list if target.identifier == identifier]
 
             if single_executable:
@@ -302,7 +302,7 @@ class Target:
         if build_examples:
             dependencies = [self] if self.__class__ is not Executable else []
             for dependency_name in examples_options.get("dependencies", []):
-                identifier = self.project_identifier + "." + dependency_name
+                identifier = f"{self.project_identifier}.{dependency_name}" if self.project_identifier else f"{dependency_name}"
                 dependencies += [target for target in target_list if target.identifier == identifier]
 
             for sourcefile in files['sourcefiles']:

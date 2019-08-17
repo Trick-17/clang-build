@@ -28,6 +28,10 @@ def find_circular_dependencies(project):
 
 def get_dependency_graph(project_identifier, targets_config, subprojects):
     graph = _nx.DiGraph()
+
+    # Set general attributes
+    graph.graph['graph'] = dict(rankdir="BT") # top-level targets at top, leaves at bottom
+
     for target_name, node in targets_config.items():
         # Target dependencies
         target_identifier = f"{project_identifier}.{target_name}" if project_identifier else f"{target_name}"
