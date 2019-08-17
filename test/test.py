@@ -210,6 +210,23 @@ class TestClangBuild(unittest.TestCase):
 
     #     self.assertEqual(output, 'Hello!')
 
+    def test_tests_examples(self):
+        clang_build_try_except(['-d', 'test/tests_examples', '-V', '--test', '--examples'])
+
+        try:
+            output = subprocess.check_output(['./build/mylib/default/tests/bin/test'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
+
+        self.assertRegex(output, r'.*All tests passed.*')
+
+        try:
+            output = subprocess.check_output(['./build/mylib/default/examples/bin/example_example'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
+
+        self.assertRegex(output, r'.*Calling `mylib::magic_function\(1, 2\)` returns `5`')
+
     def setUp(self):
         logger = logging.getLogger('clang_build')
         logger.setLevel(logging.INFO)
