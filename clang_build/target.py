@@ -81,7 +81,7 @@ class Target:
         elif self.environment.test:
             if "sources" in self.options.get("tests", {}):
                 self.tests_folder = self.root_directory
-            
+
         # Discover examples
         self.examples_folder = ""
         if self.root_directory.joinpath('example').exists():
@@ -228,7 +228,7 @@ class Target:
     def compile(self, process_pool, progress_disabled):
         # Subclasses must implement
         raise NotImplementedError()
-        
+
     def create_test_targets(self, target_list):
         self.test_targets = []
 
