@@ -40,10 +40,18 @@ The following sections of a target configuration can each contain `compile` and
 
 **`interface-flags`**
 
-    Interface flags are applied to dependent targets, but not the target itself.
+    Interface flags are potentially applied to dependent targets, but not the target itself.
     An example use-case is a static library, which depends on a dynamic library, which can
     therefore not be linked into the target itself.
+
+    Executables and shared libraries will apply the interface flags of their dependencies
+    to themselves and will not forward them.
+
+    Header only and static libraries will not apply their dependencies' interface flags to
+    themselves, but will forward them (i.e. add them to their own `interface-flags`).
 
 **`public-flags`**
 
     Public flags are applied to the target and any dependent target.
+
+    Public flags are always forwarded (i.e. added to a target's own `public-flags`).
