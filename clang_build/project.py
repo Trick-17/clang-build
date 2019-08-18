@@ -82,7 +82,10 @@ class Project:
                 _LOGGER.info(f'[[{self.identifier}]]: downloading external project to \'{str(download_directory)}\'')
                 download_directory.mkdir(parents=True, exist_ok=True)
                 try:
-                    _subprocess.run(["git", "clone", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                    if environment.clone_recursive:
+                        _subprocess.run(["git", "clone", "--recurse-submodules", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                    else:
+                        _subprocess.run(["git", "clone", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                 except _subprocess.CalledProcessError as e:
                     error_message = f"[[{self.identifier}]]: error trying to download external project. Message " + e.output
                     _LOGGER.exception(error_message)
@@ -229,7 +232,10 @@ class Project:
                     _LOGGER.info(f'[{target_identifier}]: downloading external target to {str(download_directory)}')
                     download_directory.mkdir(parents=True, exist_ok=True)
                     try:
-                        _subprocess.run(["git", "clone", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                        if environment.clone_recursive:
+                            _subprocess.run(["git", "clone", "--recurse-submodules", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                        else:
+                            _subprocess.run(["git", "clone", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                     except _subprocess.CalledProcessError as e:
                         error_message = f"[{target_identifier}]: error trying to download external target. " + e.output
                         _LOGGER.exception(error_message)
