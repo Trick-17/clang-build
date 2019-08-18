@@ -115,49 +115,44 @@ class Target:
         elif self.build_type == _BuildType.Coverage:
             self.compile_flags += Target.DEFAULT_COMPILE_FLAGS_COVERAGE
 
-        cf, lf = self.parse_flags_options(options, 'flags')
-        self.compile_flags += cf
-        self.link_flags += lf
-
+        # Dependencies' flags
         for target in self.dependency_targets:
-            # Header only libraries will forward all non-private flags
-            if self.__class__ is HeaderOnly:
-                # Interface
+            # Public flags are always applied and forwarded
+            self.compile_flags += target.compile_flags_public
+            self.link_flags += target.link_flags_public
+            self.compile_flags_public += target.compile_flags_public
+            self.link_flags_public    += target.link_flags_public
+
+            # Header only and static libraries will forward interface flags
+            if self.__class__ is HeaderOnly or self.__class__ is StaticLibrary:
                 self.compile_flags_interface += target.compile_flags_interface
                 self.link_flags_interface    += target.link_flags_interface
-                # Public
-                self.compile_flags_public += target.compile_flags_public
-                self.link_flags_public    += target.link_flags_public
-            # Static libraries will forward interface flags and apply public flags
-            elif self.__class__ is StaticLibrary:
-                # Interface
-                self.compile_flags_interface += target.compile_flags_interface
-                self.link_flags_interface    += target.link_flags_interface
-                # Public
-                self.compile_flags += target.compile_flags_public
-                self.link_flags    += target.link_flags_public
-            # Shared libraries and executables will not forward flags
+            # Shared libraries and executables will apply interface flags
             else:
                 # Interface
                 self.compile_flags += target.compile_flags_interface
                 self.link_flags    += target.link_flags_interface
-                # Public
-                self.compile_flags += target.compile_flags_public
-                self.link_flags    += target.link_flags_public
 
-        self.compile_flags = list(set(self.compile_flags))
+        # Own flags
+        cf, lf = self.parse_flags_options(options, 'flags')
+        self.compile_flags += cf
+        self.link_flags += lf
 
-        # Interface flags
+        # Own interface flags
         cf, lf = self.parse_flags_options(options, 'interface-flags')
         self.compile_flags_interface += cf
         self.link_flags_interface += lf
 
-        # Public flags
+        # Own public flags
         cf, lf = self.parse_flags_options(options, 'public-flags')
         self.compile_flags += cf
         self.link_flags += lf
         self.compile_flags_public += cf
         self.link_flags_public += lf
+
+        # Make flags unique
+        self.compile_flags = list(set(self.compile_flags))
+        self.link_flags    = list(set(self.link_flags))
 
     # Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
     def parse_flags_options(self, options, flags_kind='flags'):
