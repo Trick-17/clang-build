@@ -71,6 +71,20 @@ The `toml` file now looks as follows:
         include_directories = ["header_files", "external_header_files"]
         sources = ["sauce/*.cpp"]
 
+Custom sources
+-------------------
+
+As shown above, you can specify patterns under the `sources` keyword.
+This can also be used to specify in detail which sources to include and
+the additional `sources_exclude` keyword allows excluding pattern matches
+from the list of source files that will be compiled.
+
+.. code-block:: TOML
+
+    [myexe]
+        sources = ["src/main.cpp", "src/config.cpp", "src/backend_*.cpp"]
+        sources_exclude = ["src/backend_unused.cpp"]
+
 Compiling a library
 -------------------
 
