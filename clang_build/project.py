@@ -181,7 +181,7 @@ class Project:
                 self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
 
             # Retain targets on which tests depend
-            if environment.test:
+            if environment.tests:
                 for identifier in _nx.algorithms.dag.descendants(dependency_graph, root_identifier):
                     for test_identifier in dependency_graph.predecessors(identifier):
                         if test_identifier == f"{identifier}.tests":
@@ -217,14 +217,14 @@ class Project:
                 for root_name in base_set:
                     root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
                     dependency_graph.node[root_identifier]['color'] = 'red'
-                    if environment.test:
+                    if environment.tests:
                         dependency_graph.node[f"{root_identifier}.tests"]['color'] = 'red'
                     if environment.examples:
                         dependency_graph.node[f"{root_identifier}.examples"]['color'] = 'red'
 
                     for node in _nx.algorithms.dag.descendants(dependency_graph, root_identifier):
                         dependency_graph.node[node]['color'] = 'red'
-                        if environment.test_recursive:
+                        if environment.tests_recursive:
                             node_test = f"{node}.tests"
                             dependency_graph.node[node_test]['color'] = 'red'
                             for dependency_node in _nx.algorithms.dag.descendants(dependency_graph, node_test):
@@ -298,8 +298,13 @@ class Project:
             # Sources
             files = _get_sources_and_headers(target_node, target_root_directory, target_build_directory)
 
+            # Names
+            target_tests_identifier = f'{target_identifier}.tests'
+            target_examples_identifier = f'{target_identifier}.examples'
             # Dependencies
             dependencies = [self.fetch_from_target_list(dependency_identifier) for dependency_identifier in dependency_graph.successors(target_identifier)]
+            dependencies_tests = [self.fetch_from_target_list(dependency_identifier) for dependency_identifier in dependency_graph.successors(target_tests_identifier)]
+            dependencies_examples = [self.fetch_from_target_list(dependency_identifier) for dependency_identifier in dependency_graph.successors(target_examples_identifier)]
 
             # Make sure all dependencies are actually libraries
             executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
@@ -327,7 +332,9 @@ class Project:
                             files['sourcefiles'],
                             environment,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            dependencies_tests,
+                            dependencies_examples))
 
                 #
                 # Add a shared library
@@ -345,7 +352,9 @@ class Project:
                             files['sourcefiles'],
                             environment,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            dependencies_tests,
+                            dependencies_examples))
 
                 #
                 # Add a static library
@@ -363,7 +372,9 @@ class Project:
                             files['sourcefiles'],
                             environment,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            dependencies_tests,
+                            dependencies_examples))
 
                 #
                 # Add a header-only
@@ -382,7 +393,9 @@ class Project:
                             files['include_directories_public'],
                             environment,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            dependencies_tests,
+                            dependencies_examples))
 
                 else:
                     error_message = f'[[{self.identifier}]]: ERROR: Unsupported target type: "{target_node["target_type"].lower()}"'
@@ -404,7 +417,9 @@ class Project:
                             files['include_directories_public'],
                             environment,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            dependencies_tests,
+                            dependencies_examples))
                 else:
                     environment.logger.info(f'[{target_identifier}]: {len(files["sourcefiles"])} source file(s) found. Creating executable target.')
                     self.target_list.append(
@@ -419,14 +434,17 @@ class Project:
                             files['sourcefiles'],
                             environment,
                             target_node,
-                            dependencies))
+                            dependencies,
+                            dependencies_tests,
+                            dependencies_examples))
 
     def get_targets(self, exclude=[]):
         targetlist = []
         for subproject in self.subprojects:
             targetlist += subproject.get_targets(exclude)
-        targetlist += [target for target in self.target_list if target.identifier not in exclude]
-        for target in targetlist:
+        own_targets = [target for target in self.target_list if target.identifier not in exclude]
+        targetlist += own_targets
+        for target in own_targets:
             targetlist += target.test_targets
             targetlist += target.example_targets
         return targetlist

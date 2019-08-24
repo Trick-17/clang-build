@@ -93,12 +93,12 @@ def parse_args(args):
                         help='deactivates output of a dependency graph dotfile',
                         action='store_true')
 
-    parser.add_argument('--test',
+    parser.add_argument('--tests',
                         help='automatically discover and build tests on top of regular targets of the root project',
                         action='store_true')
 
-    parser.add_argument('--test-recursive',
-                        help='automatically discover and build tests on top of regular targets of all projects. Implies --test',
+    parser.add_argument('--tests-recursive',
+                        help='automatically discover and build tests on top of regular targets of all projects. Implies --tests',
                         action='store_true')
 
     parser.add_argument('--examples',
@@ -194,9 +194,9 @@ class _Environment:
             self.logger.info('Forcing build...')
 
         # Whether to discover and build tests of root project
-        self.test = True if (args.test or args.test_recursive) else False
+        self.tests = True if (args.tests or args.tests_recursive) else False
         # Whether to discover and build tests of all projects
-        self.test_recursive = True if args.test_recursive else False
+        self.tests_recursive = True if args.tests_recursive else False
 
         # Whether to discover and build examples of root project
         self.examples = True if (args.examples or args.examples_recursive) else False

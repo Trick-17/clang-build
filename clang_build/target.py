@@ -38,14 +38,24 @@ class Target:
             include_directories_public,
             environment,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            dependencies_tests=None,
+            dependencies_examples=None):
 
         self.options = options if options is not None else {}
 
         if dependencies is None:
             dependencies = []
+        if dependencies_tests is None:
+            dependencies_tests = []
+        if dependencies_examples is None:
+            dependencies_examples = []
 
         self.dependency_targets = dependencies
+        self.dependency_targets_tests = [self] if self.__class__ is not Executable else []
+        self.dependency_targets_tests += [target for target in dependencies_tests if target is not None]
+        self.dependency_targets_examples = [self] if self.__class__ is not Executable else []
+        self.dependency_targets_examples += [target for target in dependencies_examples if target is not None]
         self.unsuccessful_builds = []
 
         # Basics
@@ -78,7 +88,7 @@ class Target:
         if self.tests_folder:
             _LOGGER.info(f'[{self.identifier}]: found tests folder {str(self.tests_folder)}')
         # If there is no tests folder, but sources were specified, the root directory is used
-        elif self.environment.test:
+        elif self.environment.tests:
             if "sources" in self.options.get("tests", {}):
                 self.tests_folder = self.root_directory
 
@@ -233,25 +243,23 @@ class Target:
         self.test_targets = []
 
         build_tests = False
-        files = []
+        files = {}
         # TODO: tests_folder should potentially be parsed from the tests_options
-        if self.environment.test:
+        if self.environment.tests:
             tests_options = self.options.get("tests", {})
-            if self.tests_folder or "sources" in tests_options:
+            if self.tests_folder and not "sources" in tests_options:
                 files = _get_sources_and_headers(tests_options, self.tests_folder, self.build_directory.joinpath("tests"))
-                if files['sourcefiles']:
-                    build_tests = True
+            elif "sources" in tests_options:
+                files = _get_sources_and_headers(tests_options, self.root_directory, self.build_directory.joinpath("tests"))
+            if files['sourcefiles']:
+                build_tests = True
 
         if build_tests:
             single_executable = True
             if tests_options:
                 single_executable = tests_options.get("single_executable", True)
 
-            dependencies = [self] if self.__class__ is not Executable else []
-            for dependency_name in tests_options.get("dependencies", []):
-                identifier = f"{self.project_identifier}.{dependency_name}" if self.project_identifier else f"{dependency_name}"
-                dependencies += [target for target in target_list if target.identifier == identifier]
-
+            # Add the tests themselves
             if single_executable:
                 self.test_targets = [Executable(
                     self.identifier,
@@ -263,7 +271,7 @@ class Target:
                     files['include_directories_public'],
                     files['sourcefiles'],
                     self.environment,
-                    dependencies=dependencies,
+                    dependencies=self.dependency_targets_tests,
                     options=tests_options)]
             else:
                 for sourcefile in files['sourcefiles']:
@@ -277,27 +285,35 @@ class Target:
                         files['include_directories_public'],
                         [sourcefile],
                         self.environment,
-                        dependencies=dependencies,
+                        dependencies=self.dependency_targets_tests,
                         options=tests_options))
+            # Add the dependencies of the tests
+            self.test_targets += self.dependency_targets_tests
 
     def create_example_targets(self, target_list):
         self.example_targets = []
 
         build_examples = False
-        files = []
+        files = {}
         # TODO: examples_folder should potentially be parsed from the examples_options
         if self.environment.examples:
             examples_options = self.options.get("examples", {})
-            if self.examples_folder or "sources" in examples_options:
+            if self.examples_folder and not "sources" in examples_options:
                 files = _get_sources_and_headers(examples_options, self.examples_folder, self.build_directory.joinpath("examples"))
-                if files['sourcefiles']:
-                    build_examples = True
+            elif "sources" in examples_options:
+                files = _get_sources_and_headers(examples_options, self.root_directory, self.build_directory.joinpath("examples"))
+            if files['sourcefiles']:
+                build_examples = True
 
         if build_examples:
             dependencies = [self] if self.__class__ is not Executable else []
             for dependency_name in examples_options.get("dependencies", []):
                 identifier = f"{self.project_identifier}.{dependency_name}" if self.project_identifier else f"{dependency_name}"
                 dependencies += [target for target in target_list if target.identifier == identifier]
+                dependencies += [target for target in self.dependency_targets_examples if target.identifier == identifier]
+
+            if not dependencies:
+                missing_dependencies += identifier
 
             for sourcefile in files['sourcefiles']:
                 self.example_targets.append(Executable(
@@ -325,7 +341,9 @@ class HeaderOnly(Target):
             include_directories_public,
             environment,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            dependencies_tests=None,
+            dependencies_examples=None):
         super().__init__(
             project_identifier=project_identifier,
             name=name,
@@ -336,7 +354,9 @@ class HeaderOnly(Target):
             include_directories_public=include_directories_public,
             environment=environment,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            dependencies_tests=dependencies_tests,
+            dependencies_examples=dependencies_examples)
 
     def link(self):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require linking.')
@@ -371,7 +391,9 @@ class Compilable(Target):
             prefix,
             suffix,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            dependencies_tests=None,
+            dependencies_examples=None):
 
         super().__init__(
             project_identifier=project_identifier,
@@ -383,7 +405,9 @@ class Compilable(Target):
             include_directories_public=include_directories_public,
             environment=environment,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            dependencies_tests=dependencies_tests,
+            dependencies_examples=dependencies_examples)
 
         if not source_files:
             error_message = f'[{self.identifier}]: ERROR: Target was defined as a {self.__class__} but no source files were found'
@@ -542,7 +566,9 @@ class Executable(Compilable):
             source_files,
             environment,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            dependencies_tests=None,
+            dependencies_examples=None):
 
         super().__init__(
             project_identifier=project_identifier,
@@ -560,7 +586,9 @@ class Executable(Compilable):
             prefix=_platform.EXECUTABLE_PREFIX,
             suffix=_platform.EXECUTABLE_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            dependencies_tests=dependencies_tests,
+            dependencies_examples=dependencies_examples)
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
@@ -590,7 +618,9 @@ class SharedLibrary(Compilable):
             source_files,
             environment,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            dependencies_tests=None,
+            dependencies_examples=None):
 
         super().__init__(
             project_identifier=project_identifier,
@@ -608,7 +638,9 @@ class SharedLibrary(Compilable):
             prefix=_platform.SHARED_LIBRARY_PREFIX,
             suffix=_platform.SHARED_LIBRARY_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            dependencies_tests=dependencies_tests,
+            dependencies_examples=dependencies_examples)
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
@@ -638,7 +670,9 @@ class StaticLibrary(Compilable):
             source_files,
             environment,
             options=None,
-            dependencies=None):
+            dependencies=None,
+            dependencies_tests=None,
+            dependencies_examples=None):
 
         super().__init__(
             project_identifier=project_identifier,
@@ -656,7 +690,9 @@ class StaticLibrary(Compilable):
             prefix=_platform.STATIC_LIBRARY_PREFIX,
             suffix=_platform.STATIC_LIBRARY_SUFFIX,
             options=options,
-            dependencies=dependencies)
+            dependencies=dependencies,
+            dependencies_tests=dependencies_tests,
+            dependencies_examples=dependencies_examples)
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]

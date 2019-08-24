@@ -6,7 +6,6 @@ It has not yet been tested on Linux and building the Vulkan
 backend has not yet been attempted.
 
 .. code-block:: TOML
-
     name = "glfw"
     url = "https://github.com/glfw/glfw"
 
@@ -48,10 +47,11 @@ backend has not yet been attempted.
                 compile = ["-Wno-unused-parameter", "-Wno-sign-compare", "-Wno-missing-field-initializers"]
 
         [glfw.examples]
-            # sources_exclude = ["test.c"]
             dependencies = ["glad"]
             [glfw.examples.flags]
-                compile = ["-Wno-unused-parameter"]#, "-Wno-sign-compare", "-Wno-missing-field-initializers"]
+                compile = ["-Wno-unused-parameter"]
+            [glfw.examples.windows.flags]
+                compile = ["-Wno-deprecated-declarations"]
 
     [glad]
         target_type = "static library"
@@ -77,6 +77,8 @@ backend has not yet been attempted.
         sources = ["deps/tinycthread.c"]
         [tinycthread.flags]
             compile = ["-Wno-unused-parameter"]
+        [tinycthread.windows.flags]
+            compile = ["-Wno-deprecated-declarations"]
         [tinycthread.tests]
             sources_exclude = ["*"]
         [tinycthread.examples]
