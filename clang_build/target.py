@@ -249,7 +249,7 @@ class Target:
             tests_options = self.options.get("tests", {})
             if self.tests_folder and not "sources" in tests_options:
                 files = _get_sources_and_headers(tests_options, self.tests_folder, self.build_directory.joinpath("tests"))
-            elif "sources" in tests_options:
+            else:
                 files = _get_sources_and_headers(tests_options, self.root_directory, self.build_directory.joinpath("tests"))
             if files['sourcefiles']:
                 build_tests = True
@@ -300,7 +300,7 @@ class Target:
             examples_options = self.options.get("examples", {})
             if self.examples_folder and not "sources" in examples_options:
                 files = _get_sources_and_headers(examples_options, self.examples_folder, self.build_directory.joinpath("examples"))
-            elif "sources" in examples_options:
+            else:
                 files = _get_sources_and_headers(examples_options, self.root_directory, self.build_directory.joinpath("examples"))
             if files['sourcefiles']:
                 build_examples = True
