@@ -211,7 +211,7 @@ class TestClangBuild(unittest.TestCase):
     #     self.assertEqual(output, 'Hello!')
 
     def test_tests_examples(self):
-        clang_build_try_except(['-d', 'test/tests_examples', '-V', '--test', '--examples'])
+        clang_build_try_except(['-d', 'test/tests_examples', '-V', '--tests', '--examples'])
 
         try:
             output = subprocess.check_output(['./build/mylib/default/tests/bin/test'], stderr=subprocess.STDOUT).decode('utf-8').strip()
