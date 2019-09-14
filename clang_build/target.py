@@ -81,8 +81,8 @@ class Target:
             # Public include directories are forwarded
             self.include_directories_public += target.include_directories_public
 
-        self.include_directories = list(set([dir.resolve() for dir in self.include_directories]))
-        self.headers = list(set(self.headers))
+        self.include_directories = list(dict.fromkeys(dir.resolve() for dir in self.include_directories))
+        self.headers = list(dict.fromkeys(self.headers))
 
         # C language family dialect
         if 'properties' in options and 'cpp_version' in options['properties']:
@@ -151,8 +151,8 @@ class Target:
         self.link_flags_public += lf
 
         # Make flags unique
-        self.compile_flags = list(set(self.compile_flags))
-        self.link_flags    = list(set(self.link_flags))
+        self.compile_flags = list(dict.fromkeys(self.compile_flags))
+        self.link_flags    = list(dict.fromkeys(self.link_flags))
 
     # Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
     def parse_flags_options(self, options, flags_kind='flags'):

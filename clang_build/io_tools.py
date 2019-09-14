@@ -45,8 +45,8 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
     if 'linux' in target_options and _platform.PLATFORM == 'linux':
         exclude_options += target_options['linux'].get('headers_exclude', [])
 
-    include_patterns = list(set([target_root_directory.joinpath(path) for path in include_options]))
-    exclude_patterns = list(set([target_root_directory.joinpath(path) for path in exclude_options]))
+    include_patterns = list(set(target_root_directory.joinpath(path) for path in include_options))
+    exclude_patterns = list(set(target_root_directory.joinpath(path) for path in exclude_options))
 
     # Find header files
     if include_patterns:
@@ -77,8 +77,8 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
     if 'linux' in target_options and _platform.PLATFORM == 'linux':
         exclude_options += target_options['linux'].get('headers_exclude', [])
 
-    include_patterns = list(set([target_root_directory.joinpath(path) for path in include_options_public]))
-    exclude_patterns = list(set([target_root_directory.joinpath(path) for path in exclude_options]))
+    include_patterns = list(set(target_root_directory.joinpath(path) for path in include_options_public))
+    exclude_patterns = list(set(target_root_directory.joinpath(path) for path in exclude_options))
 
     # Find header files
     if include_patterns:
@@ -109,8 +109,8 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
     if 'linux' in target_options and _platform.PLATFORM == 'linux':
         exclude_options += target_options['linux'].get('sources_exclude', [])
 
-    sources_patterns = list(set([target_root_directory.joinpath(path) for path in sources_options]))
-    exclude_patterns = list(set([target_root_directory.joinpath(path) for path in exclude_options]))
+    sources_patterns = list(set(target_root_directory.joinpath(path) for path in sources_options))
+    exclude_patterns = list(set(target_root_directory.joinpath(path) for path in exclude_options))
 
     # Find source files from patterns
     if sources_patterns:

@@ -164,13 +164,13 @@ class Project:
                 _LOGGER.info(f'Only building targets [{"], [".join(environment.target_list)}] out of base set of targets [{"], [".join(base_set)}].')
                 for target in self.targets_config:
                     if target not in environment.target_list:
-                        base_set -= {target}
+                        base_set.remove(target)
 
             # Descendants will be retained, too
             self.target_dont_build_list = set(dependency_graph.nodes())
             for root_name in base_set:
                 root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
-                self.target_dont_build_list -= {root_identifier}
+                self.target_dont_build_list.remove(root_identifier)
                 self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
             self.target_dont_build_list = list(self.target_dont_build_list)
 
@@ -179,7 +179,7 @@ class Project:
 
         elif is_root_project:
             _LOGGER.info(f'Building all targets!')
-            base_set = set({})
+            base_set = set()
 
         # Create a dotfile of the dependency graph
         if is_root_project and environment.create_dependency_dotfile:
