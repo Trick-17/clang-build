@@ -5,27 +5,20 @@ a list of buildables that comprise it's compile and link steps.
 
 import os as _os
 import textwrap as _textwrap
-import sys
 from pathlib import Path as _Path
 import subprocess as _subprocess
-from multiprocessing import freeze_support as _freeze_support
 import logging as _logging
 
 import toml
 import networkx as _nx
-from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
-from .build_type import BuildType as _BuildType
 from .target import Executable as _Executable,\
                     SharedLibrary as _SharedLibrary,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
 from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
-                              find_non_existent_dependencies as _find_non_existent_dependencies,\
                               get_dependency_graph as _get_dependency_graph
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
-from .progress_bar import CategoryProgress as _CategoryProgress,\
-                          IteratorProgress as _IteratorProgress
-from .logging_stream_handler import TqdmHandler as _TqdmHandler
+from .progress_bar import IteratorProgress as _IteratorProgress
 
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
@@ -171,13 +164,13 @@ class Project:
                 _LOGGER.info(f'Only building targets [{"], [".join(environment.target_list)}] out of base set of targets [{"], [".join(base_set)}].')
                 for target in self.targets_config:
                     if target not in environment.target_list:
-                        base_set -= {target}
+                        base_set.remove(target)
 
             # Descendants will be retained, too
             self.target_dont_build_list = set(dependency_graph.nodes())
             for root_name in base_set:
                 root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
-                self.target_dont_build_list -= {root_identifier}
+                self.target_dont_build_list.remove(root_identifier)
                 self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
             self.target_dont_build_list = list(self.target_dont_build_list)
 
@@ -186,7 +179,7 @@ class Project:
 
         elif is_root_project:
             _LOGGER.info(f'Building all targets!')
-            base_set = set({})
+            base_set = set()
 
         # Create a dotfile of the dependency graph
         if is_root_project and environment.create_dependency_dotfile:

@@ -77,8 +77,8 @@ class Target:
             # Public include directories are forwarded
             self.include_directories_public += target.include_directories_public
 
-        self.include_directories = list(set([dir.resolve() for dir in self.include_directories]))
-        self.headers = list(set(self.headers))
+        self.include_directories = list(dict.fromkeys(dir.resolve() for dir in self.include_directories))
+        self.headers = list(dict.fromkeys(self.headers))
 
         # C language family dialect
         if 'properties' in options and 'cpp_version' in options['properties']:
@@ -102,35 +102,39 @@ class Target:
         if self.build_type != _BuildType.Default:
             self.compile_flags += Target.COMPILE_FLAGS.get(self.build_type)
 
-        cf, lf = self.parse_flags_options(options, 'flags')
-        self.compile_flags += cf
-        self.link_flags += lf
-
+        # Dependencies' flags
         for target in self.dependency_targets:
             # Header only libraries will forward all non-private flags
             self.add_target_flags(target)
 
-        self.compile_flags = list(set(self.compile_flags))
+        # Own flags
+        cf, lf = self.parse_flags_options(options, 'flags')
+        self.compile_flags += cf
+        self.link_flags += lf
 
-        # Interface flags
+        # Own interface flags
         cf, lf = self.parse_flags_options(options, 'interface-flags')
         self.compile_flags_interface += cf
         self.link_flags_interface += lf
 
-        # Public flags
+        # Own public flags
         cf, lf = self.parse_flags_options(options, 'public-flags')
         self.compile_flags += cf
         self.link_flags += lf
         self.compile_flags_public += cf
         self.link_flags_public += lf
 
+        # Make flags unique
+        self.compile_flags = list(dict.fromkeys(self.compile_flags))
+        self.link_flags    = list(dict.fromkeys(self.link_flags))
+
     def add_target_flags(self, target):
-        # Apply interface
-        self.compile_flags += target.compile_flags_interface
-        self.link_flags    += target.link_flags_interface
         # Apply public
         self.compile_flags += target.compile_flags_public
         self.link_flags    += target.link_flags_public
+        # forward public
+        self.compile_flags_public += target.compile_flags_public
+        self.link_flags_public    += target.link_flags_public
 
     # Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
     def parse_flags_options(self, options, flags_kind='flags'):
@@ -151,12 +155,6 @@ class Target:
                 compile_flags += fdict.get(f'compile_{self.build_type}', [])
 
         return compile_flags, link_flags
-
-    def get_include_directory_command(self):
-        ret = []
-        for dir in self.include_directories:
-            ret += ['-I',  str(dir.resolve())]
-        return ret
 
     def link(self):
         # Subclasses must implement
@@ -199,9 +197,6 @@ class HeaderOnly(Target):
         # Forward interface
         self.compile_flags_interface += target.compile_flags_interface
         self.link_flags_interface    += target.link_flags_interface
-        # Forward public
-        self.compile_flags_public += target.compile_flags_public
-        self.link_flags_public    += target.link_flags_public
 
     def link(self):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require linking.')
@@ -286,14 +281,18 @@ class Compilable(Target):
         self.source_files        = source_files
 
         # Buildables which this Target contains
+        self.include_directories_command = []
+        for dir in self.include_directories:
+            self.include_directories_command += ['-I',  str(dir.resolve())]
+
         self.buildables = [_SingleSource(
             source_file=source_file,
             platform_flags=platform_flags,
             current_target_root_path=self.root_directory,
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
-            include_strings=self.get_include_directory_command(),
-            compile_flags=Target.COMPILE_FLAGS[_BuildType.Default]+self.compile_flags,
+            include_strings=self.include_directories_command,
+            compile_flags=Target.COMPILE_FLAGS[_BuildType.Default]+self.compile_flags
             clang  =self.clang,
             clangpp=self.clangpp,
             max_cpp_dialect=self.dialect) for source_file in self.source_files]
@@ -312,6 +311,12 @@ class Compilable(Target):
             self.before_compile_script = options['scripts'].get('before_compile', "")
             self.before_link_script    = options['scripts'].get('before_link',    "")
             self.after_build_script    = options['scripts'].get('after_build',    "")
+
+
+    def add_target_flags(self, target):
+        # Apply Interface
+        self.compile_flags += target.compile_flags_interface
+        self.link_flags    += target.link_flags_interface
 
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
@@ -554,9 +559,6 @@ class StaticLibrary(Compilable):
             dependencies=dependencies,
             force_build=force_build)
 
-        # ### Include directories
-        # self.link_command += self.get_include_directory_command()
-
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
         self.link_command += self.link_flags
@@ -570,9 +572,6 @@ class StaticLibrary(Compilable):
         # Forward interface
         self.compile_flags_interface += target.compile_flags_interface
         self.link_flags_interface    += target.link_flags_interface
-        # Apply public
-        self.compile_flags += target.compile_flags_public
-        self.link_flags    += target.link_flags_public
 
 if __name__ == '__main__':
     _freeze_support()

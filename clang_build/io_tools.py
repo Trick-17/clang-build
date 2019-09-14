@@ -35,8 +35,8 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
 
     exclude_options += target_options.get(_platform.PLATFORM, {}).get('headers_exclude', [])
 
-    include_patterns = list(set([target_root_directory.joinpath(path) for path in include_options]))
-    exclude_patterns = list(set([target_root_directory.joinpath(path) for path in exclude_options]))
+    include_patterns = list(set(target_root_directory.joinpath(path) for path in include_options))
+    exclude_patterns = list(set(target_root_directory.joinpath(path) for path in exclude_options))
 
     # Find header files
     if include_patterns:
@@ -52,7 +52,8 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
 
     include_options_public += target_options.get(_platform.PLATFORM, {}).get('include_directories_public', [])
 
-    include_patterns = list(set([target_root_directory.joinpath(path) for path in include_options_public]))
+    include_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in include_options_public))
+    exclude_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in exclude_options))
 
     # Find header files
     if include_patterns:
@@ -72,9 +73,9 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
     exclude_options += target_options.get('sources_exclude', [])
 
     exclude_options += target_options.get(_platform.PLATFORM, {}).get('sources_exclude', [])
-    
-    sources_patterns = list(set([target_root_directory.joinpath(path) for path in sources_options]))
-    exclude_patterns = list(set([target_root_directory.joinpath(path) for path in exclude_options]))
+
+    sources_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in sources_options))
+    exclude_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in exclude_options))
 
     # Find source files from patterns
     if sources_patterns:
