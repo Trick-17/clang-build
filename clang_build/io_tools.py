@@ -89,9 +89,9 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
         output['sourcefiles'] += _get_source_files_in_folders([target_root_directory], exclude_patterns=exclude_patterns, recursive=False)
 
     # Fill return dict
-    output['include_directories']        = list(set( output['include_directories'] ))
-    output['include_directories_public'] = list(set( output['include_directories_public'] ))
-    output['headers']                    = list(set( output['headers'] ))
-    output['sourcefiles']                = list(set( output['sourcefiles'] ))
+    output['include_directories']        = list(dict.fromkeys( output['include_directories'] ))
+    output['include_directories_public'] = list(dict.fromkeys( output['include_directories_public'] ))
+    output['headers']                    = list(dict.fromkeys( output['headers'] ))
+    output['sourcefiles']                = list(dict.fromkeys( output['sourcefiles'] ))
 
     return output

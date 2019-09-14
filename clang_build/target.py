@@ -292,7 +292,7 @@ class Compilable(Target):
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
             include_strings=self.include_directories_command,
-            compile_flags=Target.COMPILE_FLAGS[_BuildType.Default]+self.compile_flags
+            compile_flags=Target.COMPILE_FLAGS[_BuildType.Default]+self.compile_flags,
             clang  =self.clang,
             clangpp=self.clangpp,
             max_cpp_dialect=self.dialect) for source_file in self.source_files]
