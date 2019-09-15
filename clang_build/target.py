@@ -37,7 +37,6 @@ class Target:
             include_directories_public,
             build_type,
             clang,
-            clangpp,
             options=None,
             dependencies=None):
 
@@ -54,6 +53,7 @@ class Target:
         self.identifier      = f'{project_identifier}.{name}' if project_identifier else name
         self.root_directory = _Path(root_directory)
         self.build_type     = build_type
+        self.clang          = clang
 
         self.build_directory = build_directory
 
@@ -88,7 +88,7 @@ class Target:
         if 'properties' in options and 'cpp_version' in options['properties']:
             self.dialect = _get_dialect_string(options['properties']['cpp_version'])
         else:
-            self.dialect = _get_max_supported_compiler_dialect(clangpp)
+            self.dialect = clang.max_cpp_dialect
 
         # TODO: parse user-specified target version
 
@@ -198,6 +198,36 @@ class Target:
 
 
 class HeaderOnly(Target):
+    def __init__(self,
+            project_identifier,
+            name,
+            root_directory,
+            build_directory,
+            headers,
+            include_directories,
+            include_directories_public,
+            build_type,
+            clang,
+            options=None,
+            dependencies=None):
+        super().__init__(
+            project_identifier=project_identifier,
+            name=name,
+            root_directory=root_directory,
+            build_directory=build_directory,
+            headers=headers,
+            include_directories=[],
+            include_directories_public=include_directories_public+include_directories,
+            build_type=build_type,
+            clang=clang,
+            options=options,
+            dependencies=dependencies)
+
+    def add_target_flags(self, target):
+        # Forward interface
+        self.compile_flags_interface += target.compile_flags_interface
+        self.link_flags_interface    += target.link_flags_interface
+
     def link(self):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require linking.')
 
@@ -226,7 +256,6 @@ class Compilable(Target):
             source_files,
             build_type,
             clang,
-            clangpp,
             link_command,
             output_folder,
             platform_flags,
@@ -246,7 +275,6 @@ class Compilable(Target):
             include_directories_public=include_directories_public,
             build_type=build_type,
             clang=clang,
-            clangpp=clangpp,
             options=options,
             dependencies=dependencies)
 
@@ -273,10 +301,6 @@ class Compilable(Target):
 
         self.outfile = _Path(self.output_folder, prefix + self.outname + suffix).resolve()
 
-        # Clang
-        self.clang     = clang
-        self.clangpp   = clangpp
-
         # Sources
         self.source_files        = source_files
 
@@ -292,9 +316,8 @@ class Compilable(Target):
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
             include_strings=self.include_directories_command,
-            compile_flags=Target.DEFAULT_COMPILE_FLAGS+self.compile_flags,
-            clang  =self.clang,
-            clangpp=self.clangpp,
+            compile_flags=Target.COMPILE_FLAGS[_BuildType.Default]+self.compile_flags,
+            clang  = self.clang,
             max_cpp_dialect=self.dialect) for source_file in self.source_files]
 
         # If compilation of buildables fail, they will be stored here later
@@ -418,7 +441,6 @@ class Executable(Compilable):
             source_files,
             build_type,
             clang,
-            clangpp,
             options=None,
             dependencies=None,
             force_build=False):
@@ -434,8 +456,7 @@ class Executable(Compilable):
             source_files=source_files,
             build_type=build_type,
             clang=clang,
-            clangpp=clangpp,
-            link_command=[clangpp, '-o'],
+            link_command=clang.link_command_executable,
             output_folder=_platform.EXECUTABLE_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
             prefix=_platform.EXECUTABLE_PREFIX,
@@ -472,7 +493,6 @@ class SharedLibrary(Compilable):
             source_files,
             build_type,
             clang,
-            clangpp,
             options=None,
             dependencies=None,
             force_build=False):
@@ -488,8 +508,7 @@ class SharedLibrary(Compilable):
             source_files=source_files,
             build_type=build_type,
             clang=clang,
-            clangpp=clangpp,
-            link_command=[clangpp, '-shared', '-o'],
+            link_command=clang.link_command_shared_library,
             output_folder=_platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
@@ -526,8 +545,6 @@ class StaticLibrary(Compilable):
             source_files,
             build_type,
             clang,
-            clangpp,
-            clang_ar,
             options=None,
             dependencies=None,
             force_build=False):
@@ -543,8 +560,7 @@ class StaticLibrary(Compilable):
             source_files=source_files,
             build_type=build_type,
             clang=clang,
-            clangpp=clangpp,
-            link_command=[clang_ar, 'rc'],
+            link_command=clang.link_command_static_library,
             output_folder=_platform.STATIC_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
             prefix=_platform.STATIC_LIBRARY_PREFIX,

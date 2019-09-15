@@ -54,7 +54,6 @@ class SingleSource:
             include_strings,
             compile_flags,
             clang,
-            clangpp,
             max_cpp_dialect):
 
         # Get the relative file path
@@ -71,9 +70,9 @@ class SingleSource:
         self.object_file = _Path(object_directory,  relpath, self.source_file.stem + '.o')
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
-        compiler = clangpp
+        compiler = str(clang.clangpp)
         if source_file.suffix in [".c", ".cc", ".m"]:
-            compiler = clang
+            compiler = str(clang.clang)
             max_cpp_dialect = ''
 
         self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)

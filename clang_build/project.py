@@ -286,7 +286,6 @@ class Project:
                             files['sourcefiles'],
                             environment.buildType,
                             environment.clang,
-                            environment.clangpp,
                             target_node,
                             dependencies,
                             environment.force_build))
@@ -307,7 +306,6 @@ class Project:
                             files['sourcefiles'],
                             environment.buildType,
                             environment.clang,
-                            environment.clangpp,
                             target_node,
                             dependencies,
                             environment.force_build))
@@ -328,8 +326,6 @@ class Project:
                             files['sourcefiles'],
                             environment.buildType,
                             environment.clang,
-                            environment.clangpp,
-                            environment.clang_ar,
                             target_node,
                             dependencies,
                             environment.force_build))
@@ -351,7 +347,6 @@ class Project:
                             files['include_directories_public'],
                             environment.buildType,
                             environment.clang,
-                            environment.clangpp,
                             target_node,
                             dependencies))
 
@@ -375,7 +370,6 @@ class Project:
                             files['include_directories_public'],
                             environment.buildType,
                             environment.clang,
-                            environment.clangpp,
                             target_node,
                             dependencies))
                 else:
@@ -392,7 +386,6 @@ class Project:
                             files['sourcefiles'],
                             environment.buildType,
                             environment.clang,
-                            environment.clangpp,
                             target_node,
                             dependencies,
                             environment.force_build))

@@ -9,11 +9,9 @@ import sys
 from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
-from shutil import which as _which
 import toml
 from pbr.version import VersionInfo as _VersionInfo
 
-from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
 from .target import Executable as _Executable,\
@@ -24,6 +22,7 @@ from .progress_bar import CategoryProgress as _CategoryProgress,\
 from .logging_stream_handler import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
+from .clang import Clang as _Clang
 
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
@@ -94,43 +93,11 @@ def parse_args(args):
                         action='store_true')
     return parser.parse_args(args=args)
 
-
-def _find_clang(logger):
-    clang = _which('clang')
-    clangpp = _which('clang++')
-    clang_ar = _which('llvm-ar')
-    if clangpp:
-        llvm_root = _Path(clangpp).parents[0]
-    else:
-        error_message = 'Couldn\'t find clang++ executable'
-        logger.error(error_message)
-        raise RuntimeError(error_message)
-    if not clang_ar:
-        error_message = 'Couldn\'t find llvm-ar executable'
-        logger.error(error_message)
-        raise RuntimeError(error_message)
-    if not clang:
-        error_message = 'Couldn\'t find clang executable'
-        logger.error(error_message)
-        raise RuntimeError(error_message)
-
-    logger.info(f'llvm root directory: {llvm_root}')
-    logger.info(f'clang executable:    {clang}')
-    logger.info(f'clang++ executable:  {clangpp}')
-    logger.info(f'llvm-ar executable:  {clang_ar}')
-    logger.info(f'Newest supported C++ dialect: {_get_max_supported_compiler_dialect(clangpp)}')
-
-    return clang, clangpp, clang_ar
-
-
 class _Environment:
     def __init__(self, args):
         # Some defaults
         self.logger    = None
         self.buildType = None
-        self.clang     = "clang"
-        self.clangpp   = "clang++"
-        self.clang_ar  = "llvm-ar"
         # Directory this was called from
         self.calling_directory = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
@@ -140,14 +107,14 @@ class _Environment:
         self.logger.info(f'clang-build {__version__}')
 
         # Check for clang++ executable
-        self.clang, self.clangpp, self.clang_ar = _find_clang(self.logger)
+        self.clang = _Clang()
 
         # Working directory
         if args.directory:
             self.working_directory = args.directory.resolve()
 
         if not self.working_directory.exists():
-            error_message = f'ERROR: specified non-existent directory \'{self.working_directory}\''
+            error_message = f'ERROR: specified non-existent directory \'{self.working_directory}\' as working directory'
             self.logger.error(error_message)
             raise RuntimeError(error_message)
 
@@ -246,7 +213,6 @@ def build(args):
                     files['sourcefiles'],
                     environment.buildType,
                     environment.clang,
-                    environment.clangpp,
                     force_build=environment.force_build))
 
         # Build the targets
