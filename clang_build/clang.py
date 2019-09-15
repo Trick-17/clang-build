@@ -9,7 +9,19 @@ _UNSUPPORTED_DIALECT_MESSAGE = "error: invalid value 'c++{0:02d}'"
 
 
 def _get_dialect_string(year):
-    """Convert a year to a CLI dialect option for clangpp."""
+    """Convert a year to a CLI dialect option for clangpp.
+
+    Parameters
+    ----------
+    year : int
+        The last two digits of a year (e.g. 17 for 2017)
+
+    Returns
+    -------
+    dialect_CLI_flag : str
+        The corresponding CLI flag of the given year.
+
+    """
     return "-std=c++{:02d}".format(year)
 
 
@@ -23,6 +35,11 @@ def _check_dialect(year, clangpp):
         The last two digits of a year (e.g. 17 to check for C++17)
     clangpp : pathlib.Path
         The path to an existing C++ clang compiler executable
+
+    Returns
+    -------
+    bool
+        True if the dialect exists, false otherwise.
 
     """
     std_opt = _get_dialect_string(year)
@@ -54,6 +71,12 @@ def _get_max_supported_compiler_dialect(clangpp):
     ----------
     clangpp : str
         The path to an existing C++ clang compiler executable
+
+    Returns
+    -------
+    dialect_CLI_flag : str
+        Returns the latest dialect the given compiler
+        supports. The fallback mode is ``C++98``.
 
     """
     supported_dialects = []
