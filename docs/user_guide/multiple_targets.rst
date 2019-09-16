@@ -54,6 +54,7 @@ folders, too.
 
 External GitHub target
 ----------------------
+
 Maybe you have a dependency on an external library on GitHub like Eigen. In this case we can use Clang Build's
 feature to automatically download the library for you. If this is your folder structure:
 
@@ -63,9 +64,6 @@ feature to automatically download the library for you. If this is your folder st
     ├── include
     |   ├── cool_features.hpp
     |   └── math_lib.hpp
-    ├── thirdparty
-    |   ├── collaborator1_interface.hpp
-    |   └── collaborator2_interface.hpp
     ├── src
     |   ├── cool_features.cpp
     |   └── my_app.cpp
