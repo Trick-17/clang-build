@@ -83,23 +83,19 @@ What should be trivial
 This would be things that require only the invocation of ``clang-build``
 and no build file.
 
--  build a hello world program (i.e anything with single main and
-   without non-std dependencies)
--  build a reasonable MWE with local dependencies (potentially folder
-   structure with e.g. ``src``, ``include/MWE`` and
-   ``include/thirdparty``)
--  include stdlib
+-  build any hello world program or other MWE, given a reasonable folder
+   structure (i.e anything with a main and without non-std dependencies)
 -  include anything that can be found by sane default search
 -  using command line arguments:
--  specify root/source folder
--  set build type from (last used should be cached/remembered)
--  set build verbosity
+    -  specify root/source and build directories
+    -  set build type (last used should be cached/remembered)
+    -  set verbosity
 
 Sane defaults and default behaviour:
 
 -  platform-independence
 -  build into a "build/" directory, not into toplevel
--  for multiple targets build into "build/target"
+-  for multiple targets build each into its own "build/targetname"
 -  default search paths for different platforms, including also e.g.
    "./include", "./lib", "./build/lib", "/usr/local/...", ...
 
@@ -111,22 +107,22 @@ This would be things that only require a minimal TOML project file
 -  add dependency / external project from source folder or remote (e.g.
    github)
 -  header-only should be trivial
--  for a regular (not too complicated) library it should be easy to
+-  for a library with a good folder structure, it should be easy to
    write a build config
 -  create a library from one subfolder, an executable from another and
    link them
 -  setting target-specific (note: defaults should be sane!)
--  source file extensions
--  source directories
--  compile and link flags
--  optional version
--  dependencies (which may include non-targets, e.g. configuration
-   steps)
--  properties (required c++ version, definitions/\ ``#define``\ s, ...)
+    -  source file extensions
+    -  source directories
+    -  compile and link flags
+    -  optional version
+    -  dependencies (which may include non-targets, e.g. configuration
+    steps)
+    -  properties (required c++ version, definitions/\ ``#define``\ s, ...)
 -  access to flag "lists" such as flags for
--  coverage
--  cuda
--  openmp
+    -  coverage
+    -  cuda
+    -  openmp
 -  set target-specific flags, include folders, etc. which should not be
    propagated to dependency parents as "private"
 

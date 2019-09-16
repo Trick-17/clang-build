@@ -53,7 +53,7 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
         output['include_directories'] = include_patterns
         output['headers'] += _get_header_files_in_folders(output['include_directories'], exclude_patterns=exclude_patterns, recursive=True)
     else:
-        output['include_directories'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include'), target_root_directory.joinpath('thirdparty')]
+        output['include_directories'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include')]
         output['headers'] += _get_header_files_in_folders(output['include_directories'], exclude_patterns=exclude_patterns, recursive=False)
 
     # Options for public include directories
