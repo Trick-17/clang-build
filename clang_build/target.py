@@ -4,6 +4,7 @@ a list of buildables that comprise it's compile and link steps.
 '''
 
 import os as _os
+from abc import abstractmethod
 from pathlib import Path as _Path
 import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
@@ -128,13 +129,26 @@ class Target:
         self.compile_flags = list(dict.fromkeys(self.compile_flags))
         self.link_flags    = list(dict.fromkeys(self.link_flags))
 
-    def add_target_flags(self, target):
-        # Apply public
+
+    def apply_public_flags(self, target):
         self.compile_flags += target.compile_flags_public
-        self.link_flags    += target.link_flags_public
-        # forward public
+        self.link_flags += target.link_flags_public
+
+    def forward_public_flags(self, target):
         self.compile_flags_public += target.compile_flags_public
         self.link_flags_public    += target.link_flags_public
+
+    def apply_interface_flags(self, target):
+        self.compile_flags += target.compile_flags_interface
+        self.link_flags += target.link_flags_interface
+
+    def forward_interface_flags(self, target):
+        self.compile_flags_interface += target.compile_flags_interface
+        self.link_flags_interface += target.link_flags_interface
+
+    @abstractmethod
+    def add_target_flags(self, target):
+        pass
 
     # Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
     def parse_flags_options(self, options, flags_kind='flags'):
@@ -156,13 +170,13 @@ class Target:
 
         return compile_flags, link_flags
 
+    @abstractmethod
     def link(self):
-        # Subclasses must implement
-        raise NotImplementedError()
+        pass
 
+    @abstractmethod
     def compile(self, process_pool, progress_disabled):
-        # Subclasses must implement
-        raise NotImplementedError()
+        pass
 
 
 class HeaderOnly(Target):
@@ -193,16 +207,16 @@ class HeaderOnly(Target):
             options=options,
             dependencies=dependencies)
 
-    def add_target_flags(self, target):
-        # Forward interface
-        self.compile_flags_interface += target.compile_flags_interface
-        self.link_flags_interface    += target.link_flags_interface
-
     def link(self):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require linking.')
 
     def compile(self, process_pool, progress_disabled):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require compiling.')
+
+    def add_target_flags(self, target):
+        self.apply_public_flags(target)
+        self.forward_public_flags(target)
+        self.forward_interface_flags(target)
 
 def generate_depfile_single_source(buildable):
     buildable.generate_depfile()
@@ -311,12 +325,6 @@ class Compilable(Target):
             self.before_compile_script = options['scripts'].get('before_compile', "")
             self.before_link_script    = options['scripts'].get('before_link',    "")
             self.after_build_script    = options['scripts'].get('after_build',    "")
-
-
-    def add_target_flags(self, target):
-        # Apply Interface
-        self.compile_flags += target.compile_flags_interface
-        self.link_flags    += target.link_flags_interface
 
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
@@ -465,6 +473,10 @@ class Executable(Compilable):
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-l'+target.outname]
 
+    def add_target_flags(self, target):
+        self.apply_public_flags(target)
+        self.forward_public_flags(target)
+        self.apply_interface_flags(target)
 
 class SharedLibrary(Compilable):
     def __init__(self,
@@ -519,6 +531,10 @@ class SharedLibrary(Compilable):
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-l'+target.outname]
 
+    def add_target_flags(self, target):
+        self.apply_public_flags(target)
+        self.forward_public_flags(target)
+        self.apply_interface_flags(target)
 
 class StaticLibrary(Compilable):
     def __init__(self,
@@ -569,9 +585,9 @@ class StaticLibrary(Compilable):
                 self.link_command += [str(buildable.object_file) for buildable in target.buildables]
 
     def add_target_flags(self, target):
-        # Forward interface
-        self.compile_flags_interface += target.compile_flags_interface
-        self.link_flags_interface    += target.link_flags_interface
+        self.apply_public_flags(target)
+        self.forward_public_flags(target)
+        self.forward_interface_flags(target)
 
 if __name__ == '__main__':
     _freeze_support()
