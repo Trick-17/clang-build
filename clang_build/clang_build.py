@@ -4,6 +4,7 @@ clang-build:
 '''
 
 import logging as _logging
+from glob import iglob as _iglob
 from pathlib import Path as _Path
 import sys
 from multiprocessing import Pool as _Pool
@@ -17,6 +18,7 @@ from .dialect_check import get_max_supported_compiler_dialect as _get_max_suppor
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
 from .target import Executable as _Executable,\
+                    SharedLibrary as _SharedLibrary,\
                     HeaderOnly as _HeaderOnly
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
@@ -200,7 +202,7 @@ def build(args):
     # Create container of environment variables
     environment = _Environment(args)
 
-    with _CategoryProgress(['Configure', 'Compile', 'Link'], environment.progress_disabled) as progress_bar:
+    with _CategoryProgress(['Configure', 'Compile', 'Link', 'Package'], environment.progress_disabled) as progress_bar:
         target_list = []
         logger = environment.logger
         processpool = environment.processpool
@@ -257,7 +259,6 @@ def build(args):
 
         # Build the targets
         progress_bar.update()
-
         logger.info('Compile')
 
         for target in _IteratorProgress(target_list, environment.progress_disabled, len(target_list), lambda x: x.name):
@@ -293,6 +294,31 @@ def build(args):
                     errors[target.identifier] = target.link_report
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
+
+        # Package
+        progress_bar.update()
+        logger.info('Package')
+        
+        import shutil
+        for target in target_list:
+            if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
+                for dependency in target.dependency_targets:
+                    if dependency.__class__ is _SharedLibrary:
+                        libname = dependency.outname
+                        builddir = _Path(dependency.build_directory).joinpath("bin").resolve()
+                        files = [_Path(f) for f in _iglob(f"{builddir}/{libname}.*", recursive=False) if _Path(f).is_file()]
+                        for file in files:
+                            shutil.copy(file, _Path(target.build_directory).joinpath("bin"))
+
+        # # TODO
+        # # Check for packaging errors
+        # errors = {}
+        # for target in target_list:
+        #     if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
+        #         if target.unsuccessful_package:
+        #             errors[target.identifier] = target.package_report
+        # if errors:
+        #     raise _PackageError('Packaging was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')
