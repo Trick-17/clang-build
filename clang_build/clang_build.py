@@ -97,6 +97,9 @@ def parse_args(args):
     parser.add_argument('--no-recursive-clone',
                         help='deactivates recursive cloning of git submodules',
                         action='store_true')
+    parser.add_argument('--bundle',
+                        help='automatically gather dependencies into the binary directories of targets',
+                        action='store_true')
     return parser.parse_args(args=args)
 
 
@@ -131,11 +134,11 @@ def _find_clang(logger):
 class _Environment:
     def __init__(self, args):
         # Some defaults
-        self.logger    = None
-        self.buildType = None
-        self.clang     = "clang"
-        self.clangpp   = "clang++"
-        self.clang_ar  = "llvm-ar"
+        self.logger     = None
+        self.build_type = None
+        self.clang      = "clang"
+        self.clangpp    = "clang++"
+        self.clang_ar   = "llvm-ar"
         # Directory this was called from
         self.calling_directory = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
@@ -159,8 +162,8 @@ class _Environment:
         self.logger.info(f'Working directory: \'{self.working_directory}\'')
 
         # Build type (Default, Release, Debug)
-        self.buildType = args.build_type
-        self.logger.info(f'Build type: {self.buildType.name}')
+        self.build_type = args.build_type
+        self.logger.info(f'Build type: {self.build_type.name}')
 
         # Whether to build all targets
         self.build_all = True if args.all else False
@@ -197,12 +200,21 @@ class _Environment:
         # Whether to recursively clone submodules when cloning with git
         self.clone_recursive = False if args.no_recursive_clone else True
 
+        # Whether to bundle binaries
+        self.bundle = True if args.bundle else False
+        if self.bundle:
+            self.logger.info('Bundling of binary dependencies is activated')
+
 
 def build(args):
     # Create container of environment variables
     environment = _Environment(args)
 
-    with _CategoryProgress(['Configure', 'Compile', 'Link', 'Package'], environment.progress_disabled) as progress_bar:
+    categories = ['Configure', 'Compile', 'Link']
+    if environment.bundle:
+        categories.append('Bundle')
+
+    with _CategoryProgress(categories, environment.progress_disabled) as progress_bar:
         target_list = []
         logger = environment.logger
         processpool = environment.processpool
@@ -244,18 +256,15 @@ def build(args):
             # Create target
             target_list.append(
                 _Executable(
+                    environment,
                     '',
                     'main',
                     environment.working_directory,
-                    environment.build_directory.joinpath(environment.buildType.name.lower()),
+                    environment.build_directory.joinpath(environment.build_type.name.lower()),
                     files['headers'],
                     files['include_directories'],
                     files['include_directories_public'],
-                    files['sourcefiles'],
-                    environment.buildType,
-                    environment.clang,
-                    environment.clangpp,
-                    force_build=environment.force_build))
+                    files['sourcefiles'],))
 
         # Build the targets
         progress_bar.update()
@@ -295,30 +304,30 @@ def build(args):
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
 
-        # Package
-        progress_bar.update()
-        logger.info('Package')
-        
-        import shutil
-        for target in target_list:
-            if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
-                for dependency in target.dependency_targets:
-                    if dependency.__class__ is _SharedLibrary:
-                        libname = dependency.outname
-                        builddir = _Path(dependency.build_directory).joinpath("bin").resolve()
-                        files = [_Path(f) for f in _iglob(f"{builddir}/{libname}.*", recursive=False) if _Path(f).is_file()]
-                        for file in files:
-                            shutil.copy(file, _Path(target.build_directory).joinpath("bin"))
+        # Bundle
+        if environment.bundle:
+            progress_bar.update()
+            logger.info('Bundle')
+            import shutil
+            for target in target_list:
+                if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
+                    for dependency in target.dependency_targets:
+                        if dependency.__class__ is _SharedLibrary:
+                            libname = dependency.outname
+                            folder = dependency.output_folder
+                            files = [_Path(f) for f in _iglob(f"{folder}/*{libname}.*", recursive=False) if _Path(f).is_file()]
+                            for file in files:
+                                shutil.copy(file, _Path(target.build_directory).joinpath("bin"))
 
-        # # TODO
-        # # Check for packaging errors
-        # errors = {}
-        # for target in target_list:
-        #     if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
-        #         if target.unsuccessful_package:
-        #             errors[target.identifier] = target.package_report
-        # if errors:
-        #     raise _PackageError('Packaging was unsuccessful', errors)
+            # # TODO
+            # # Check for packaging errors
+            # errors = {}
+            # for target in target_list:
+            #     if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
+            #         if target.unsuccessful_package:
+            #             errors[target.identifier] = target.package_report
+            # if errors:
+            #     raise _PackageError('Packaging was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')

@@ -173,7 +173,8 @@ class Project:
             self.target_dont_build_list = set(dependency_graph.nodes())
             for root_name in base_set:
                 root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
-                self.target_dont_build_list.remove(root_identifier)
+                if root_identifier in self.target_dont_build_list:
+                    self.target_dont_build_list.remove(root_identifier)
                 self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
             self.target_dont_build_list = list(self.target_dont_build_list)
 
@@ -254,7 +255,7 @@ class Project:
                         raise RuntimeError(error_message)
 
             # Build directory for obj, bin etc. should be under build type folder, e.g. default
-            target_build_directory = target_build_directory.joinpath(environment.buildType.name.lower())
+            target_build_directory = target_build_directory.joinpath(environment.build_type.name.lower())
 
             # Sub-directory, if specified
             if 'directory' in target_node:
@@ -282,6 +283,7 @@ class Project:
                 if target_node['target_type'].lower() == 'executable':
                     self.target_list.append(
                         _Executable(
+                            environment,
                             self.identifier,
                             target_name,
                             target_root_directory,
@@ -290,12 +292,8 @@ class Project:
                             files['include_directories'],
                             files['include_directories_public'],
                             files['sourcefiles'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
                             target_node,
-                            dependencies,
-                            environment.force_build))
+                            dependencies))
 
                 #
                 # Add a shared library
@@ -303,6 +301,7 @@ class Project:
                 elif target_node['target_type'].lower() == 'shared library':
                     self.target_list.append(
                         _SharedLibrary(
+                            environment,
                             self.identifier,
                             target_name,
                             target_root_directory,
@@ -311,12 +310,8 @@ class Project:
                             files['include_directories'],
                             files['include_directories_public'],
                             files['sourcefiles'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
                             target_node,
-                            dependencies,
-                            environment.force_build))
+                            dependencies))
 
                 #
                 # Add a static library
@@ -324,6 +319,7 @@ class Project:
                 elif target_node['target_type'].lower() == 'static library':
                     self.target_list.append(
                         _StaticLibrary(
+                            environment,
                             self.identifier,
                             target_name,
                             target_root_directory,
@@ -332,13 +328,8 @@ class Project:
                             files['include_directories'],
                             files['include_directories_public'],
                             files['sourcefiles'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
-                            environment.clang_ar,
                             target_node,
-                            dependencies,
-                            environment.force_build))
+                            dependencies))
 
                 #
                 # Add a header-only
@@ -348,6 +339,7 @@ class Project:
                         environment.logger.info(f'[{target_identifier}]: {len(files["sourcefiles"])} source file(s) found for header-only target. You may want to check your build configuration.')
                     self.target_list.append(
                         _HeaderOnly(
+                            environment,
                             self.identifier,
                             target_name,
                             target_root_directory,
@@ -355,9 +347,6 @@ class Project:
                             files['headers'],
                             files['include_directories'],
                             files['include_directories_public'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
                             target_node,
                             dependencies))
 
@@ -372,6 +361,7 @@ class Project:
                     environment.logger.info(f'[{target_identifier}]: no source files found. Creating header-only target.')
                     self.target_list.append(
                         _HeaderOnly(
+                            environment,
                             self.identifier,
                             target_name,
                             target_root_directory,
@@ -379,15 +369,13 @@ class Project:
                             files['headers'],
                             files['include_directories'],
                             files['include_directories_public'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
                             target_node,
                             dependencies))
                 else:
                     environment.logger.info(f'[{target_identifier}]: {len(files["sourcefiles"])} source file(s) found. Creating executable target.')
                     self.target_list.append(
                         _Executable(
+                            environment,
                             self.identifier,
                             target_name,
                             target_root_directory,
@@ -396,12 +384,8 @@ class Project:
                             files['include_directories'],
                             files['include_directories_public'],
                             files['sourcefiles'],
-                            environment.buildType,
-                            environment.clang,
-                            environment.clangpp,
                             target_node,
-                            dependencies,
-                            environment.force_build))
+                            dependencies))
 
     def get_targets(self, exclude=[]):
         targetlist = []
