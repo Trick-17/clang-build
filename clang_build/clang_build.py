@@ -10,7 +10,7 @@ import sys
 from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
-from shutil import which as _which
+import shutil as _shutil
 import toml
 from pbr.version import VersionInfo as _VersionInfo
 
@@ -104,9 +104,9 @@ def parse_args(args):
 
 
 def _find_clang(logger):
-    clang = _which('clang')
-    clangpp = _which('clang++')
-    clang_ar = _which('llvm-ar')
+    clang    = _shutil.which('clang')
+    clangpp  = _shutil.which('clang++')
+    clang_ar = _shutil.which('llvm-ar')
     if clangpp:
         llvm_root = _Path(clangpp).parents[0]
     else:
@@ -308,16 +308,11 @@ def build(args):
         if environment.bundle:
             progress_bar.update()
             logger.info('Bundle')
-            import shutil
             for target in target_list:
                 if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
                     for dependency in target.dependency_targets:
                         if dependency.__class__ is _SharedLibrary:
-                            libname = dependency.outname
-                            folder = dependency.output_folder
-                            files = [_Path(f) for f in _iglob(f"{folder}/*{libname}.*", recursive=False) if _Path(f).is_file()]
-                            for file in files:
-                                shutil.copy(file, _Path(target.build_directory).joinpath("bin"))
+                            _shutil.copy(dependency.outfile, target.output_folder)
 
             # # TODO
             # # Check for packaging errors

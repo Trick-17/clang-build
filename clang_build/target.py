@@ -449,11 +449,11 @@ class Executable(Compilable):
 
         ### Bundling requires extra flags
         if self.environment.bundle:
+            ### Search for libraries relative to the executable
             if _platform.PLATFORM == 'osx':
-                ### Search relative to the executable
                 self.link_command += ['-Wl,-rpath,@executable_path']
             elif _platform.PLATFORM == 'linux':
-                pass
+                self.link_command += ['-Wl,-rpath,$ORIGIN']
             elif _platform.PLATFORM == 'windows':
                 pass
 
