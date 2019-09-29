@@ -14,6 +14,7 @@ import shutil as _shutil
 import toml
 from pbr.version import VersionInfo as _VersionInfo
 
+from . import platform as _platform
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
@@ -313,6 +314,11 @@ def build(args):
                     for dependency in target.dependency_targets:
                         if dependency.__class__ is _SharedLibrary:
                             _shutil.copy(dependency.outfile, target.output_folder)
+                            if _platform.PLATFORM == 'windows':
+                                expfile = _Path(str(dependency.outfile)[:-3] + "exp")
+                                libfile = _Path(str(dependency.outfile)[:-3] + "lib")
+                                _shutil.copy(expfile, target.output_folder)
+                                _shutil.copy(libfile, target.output_folder)
 
             # # TODO
             # # Check for packaging errors
