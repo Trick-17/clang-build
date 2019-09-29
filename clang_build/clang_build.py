@@ -4,7 +4,6 @@ clang-build:
 '''
 
 import logging as _logging
-from glob import iglob as _iglob
 from pathlib import Path as _Path
 import sys
 from multiprocessing import Pool as _Pool
