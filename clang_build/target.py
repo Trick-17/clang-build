@@ -255,9 +255,10 @@ class Compilable(Target):
         if dependencies is None:
             dependencies = []
 
-        self.object_directory  = self.build_directory.joinpath('obj').resolve()
-        self.depfile_directory = self.build_directory.joinpath('dep').resolve()
-        self.output_folder     = self.build_directory.joinpath(output_folder).resolve()
+        self.object_directory       = self.build_directory.joinpath('obj').resolve()
+        self.depfile_directory      = self.build_directory.joinpath('dep').resolve()
+        self.output_folder          = self.build_directory.joinpath(output_folder).resolve()
+        self.redistributable_folder = self.build_directory.joinpath('redistributable')
 
         if 'output_name' in options:
             self.outname = options['output_name']

@@ -100,6 +100,9 @@ def parse_args(args):
     parser.add_argument('--bundle',
                         help='automatically gather dependencies into the binary directories of targets',
                         action='store_true')
+    parser.add_argument('--redistributable',
+                        help='Automatically create redistributable bundles from binary bundles. Implies `--bundle`',
+                        action='store_true')
     return parser.parse_args(args=args)
 
 
@@ -205,6 +208,12 @@ class _Environment:
         if self.bundle:
             self.logger.info('Bundling of binary dependencies is activated')
 
+        # Whether to create redistributable bundles
+        self.redistributable = True if args.redistributable else False
+        if self.redistributable:
+            self.bundle = True
+            self.logger.info('Redistributable bundling of binary dependencies is activated')
+
 
 def build(args):
     # Create container of environment variables
@@ -212,7 +221,9 @@ def build(args):
 
     categories = ['Configure', 'Compile', 'Link']
     if environment.bundle:
-        categories.append('Bundle')
+        categories.append('Generate bundle')
+    if environment.redistributable:
+        categories.append('Generate redistributable')
 
     with _CategoryProgress(categories, environment.progress_disabled) as progress_bar:
         target_list = []
@@ -307,7 +318,7 @@ def build(args):
         # Bundle
         if environment.bundle:
             progress_bar.update()
-            logger.info('Bundle')
+            logger.info('Generate bundle')
             for target in target_list:
                 if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
                     for dependency in target.dependency_targets:
@@ -328,6 +339,47 @@ def build(args):
             #             errors[target.identifier] = target.package_report
             # if errors:
             #     raise _PackageError('Packaging was unsuccessful', errors)
+
+        if environment.redistributable:
+            progress_bar.update()
+            logger.info('Generate redistributable')
+            for target in [target for target in target_list if target.__class__ is _Executable]:
+                if _platform.PLATFORM == 'osx':
+                    appfolder = target.redistributable_folder.joinpath(f"{target.outname}.app")
+                    appfolder.joinpath('Contents', 'MacOS').mkdir(parents=True, exist_ok=True)
+                    with appfolder.joinpath('Contents', 'Info.plist').open(mode='w') as plist:
+                        plist.write(f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleGetInfoString</key>
+  <string>{target.outname}</string>
+  <key>CFBundleExecutable</key>
+  <string>{target.outname}</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.your-company-name.www</string>
+  <key>CFBundleName</key>
+  <string>{target.outname}</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.0</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>IFMajorVersion</key>
+  <integer>0</integer>
+  <key>IFMinorVersion</key>
+  <integer>0</integer>
+</dict>
+</plist>""")
+                    _shutil.copy(target.outfile, appfolder.joinpath('Contents', 'MacOS'))
+                    for dependency in target.dependency_targets:
+                        if dependency.__class__ is _SharedLibrary:
+                            _shutil.copy(dependency.outfile, appfolder.joinpath('Contents', 'MacOS'))
+                elif _platform.PLATFORM == 'linux':
+                    self.redistributable_folder.mkdir(parents=True, exist_ok=True)
+                elif _platform.PLATFORM == 'windows':
+                    self.redistributable_folder.mkdir(parents=True, exist_ok=True)
 
         progress_bar.update()
         logger.info('clang-build finished.')
