@@ -214,7 +214,6 @@ class HeaderOnly(Target):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require compiling.')
 
     def add_target_flags(self, target):
-        self.apply_public_flags(target)
         self.forward_public_flags(target)
         self.forward_interface_flags(target)
 
