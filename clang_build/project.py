@@ -103,7 +103,7 @@ class Project:
                     raise RuntimeError(error_message)
 
         # Get subset of config which contains targets not associated to any project name
-        self.targets_config = {key: val for key, val in config.items() if not key in ["subproject", "name", "url", "version"]}
+        self.targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name", "url", "version"]}
 
         # Use sub-build directories if the project contains multiple targets
         multiple_targets = False

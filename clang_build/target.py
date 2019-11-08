@@ -448,14 +448,14 @@ class Executable(Compilable):
 
         ### Library dependency search paths
         for target in self.dependency_targets:
-            if not target.__class__ is HeaderOnly:
+            if target.__class__ is not HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
         self.link_command += self.link_flags
 
         ### Link dependencies
         for target in self.dependency_targets:
-            if not target.__class__ is HeaderOnly:
+            if target.__class__ is not HeaderOnly:
                 self.link_command += ['-l'+target.outname]
 
         ### Bundling requires extra flags
@@ -559,14 +559,14 @@ class SharedLibrary(Compilable):
 
         ### Library dependency search paths
         for target in self.dependency_targets:
-            if not target.__class__ is HeaderOnly:
+            if target.__class__ is not HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
         self.link_command += self.link_flags
 
         ### Link dependencies
         for target in self.dependency_targets:
-            if not target.__class__ is HeaderOnly:
+            if target.__class__ is not HeaderOnly:
                 self.link_command += ['-l'+target.outname]
 
         ### Bundling requires some link flags

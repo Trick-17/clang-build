@@ -237,7 +237,7 @@ def build(args):
             config = toml.load(str(toml_file))
 
             # Determine if there are multiple projects
-            targets_config = {key: val for key, val in config.items() if not key == "subproject" and not key == "name"}
+            targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name"]}
             subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
             multiple_projects = False
             if subprojects_config:
