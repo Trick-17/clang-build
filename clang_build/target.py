@@ -22,8 +22,10 @@ class Target:
     DEFAULT_COMPILE_FLAGS                = ['-Wall', '-Wextra', '-Wpedantic', '-Wshadow', '-Werror']
     DEFAULT_COMPILE_FLAGS_RELEASE        = ['-O3', '-DNDEBUG']
     DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO = ['-O3', '-g3', '-DNDEBUG']
-    DEFAULT_COMPILE_FLAGS_DEBUG          = ['-Og', '-g3', '-DDEBUG']
-    DEFAULT_EXE_LINK_FLAGS_DEBUG         = []
+    DEFAULT_COMPILE_FLAGS_DEBUG          = ['-Og', '-g3', '-DDEBUG',
+                                            '-fno-optimize-sibling-calls', '-fno-omit-frame-pointer',
+                                            '-fsanitize=address', '-fsanitize=undefined']
+    DEFAULT_EXE_LINK_FLAGS_DEBUG         = ['-fsanitize=address', '-fsanitize=undefined']
     DEFAULT_EXE_LINK_FLAGS_COVERAGE      = DEFAULT_EXE_LINK_FLAGS_DEBUG + ['--coverage']
     DEFAULT_COMPILE_FLAGS_COVERAGE       = DEFAULT_COMPILE_FLAGS_DEBUG + [
                                             '--coverage',
