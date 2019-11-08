@@ -8,6 +8,7 @@ from pathlib import Path as _Path
 import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
 import logging as _logging
+import shutil as _shutil
 
 from . import platform as _platform
 from .dialect_check import get_dialect_string as _get_dialect_string
@@ -195,6 +196,15 @@ class Target:
     def compile(self, process_pool, progress_disabled):
         # Subclasses must implement
         raise NotImplementedError()
+
+    def bundle(self):
+        bundle_files = []
+        for dependency in self.dependency_targets:
+            bundle_files += dependency.bundle()
+        return bundle_files
+
+    def redistributable(self):
+        pass
 
 
 class HeaderOnly(Target):
@@ -458,6 +468,59 @@ class Executable(Compilable):
             elif _platform.PLATFORM == 'windows':
                 pass
 
+    def bundle(self):
+        ### Gather
+        bundle_files = []
+        for dependency in self.dependency_targets:
+            bundle_files += dependency.bundle()
+
+        ### Copy
+        for bundle_file in bundle_files:
+            _shutil.copy(bundle_file, self.output_folder)
+
+        return [self.outfile] + bundle_files
+
+    def redistributable(self):
+        if _platform.PLATFORM == 'osx':
+            appfolder = self.redistributable_folder.joinpath(f"{self.outname}.app")
+            binfolder = appfolder.joinpath('Contents', 'MacOS')
+            binfolder.mkdir(parents=True, exist_ok=True)
+            with appfolder.joinpath('Contents', 'Info.plist').open(mode='w') as plist:
+                plist.write(f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleGetInfoString</key>
+  <string>{self.outname}</string>
+  <key>CFBundleExecutable</key>
+  <string>{self.outname}</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.your-company-name.www</string>
+  <key>CFBundleName</key>
+  <string>{self.outname}</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.0</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>IFMajorVersion</key>
+  <integer>0</integer>
+  <key>IFMinorVersion</key>
+  <integer>0</integer>
+</dict>
+</plist>""")
+            _shutil.copy(self.outfile, binfolder)
+            bundle_files = self.bundle()
+            for bundle_file in bundle_files:
+                _shutil.copy(bundle_file, binfolder)
+        elif _platform.PLATFORM == 'linux':
+            self.redistributable_folder.mkdir(parents=True, exist_ok=True)
+            # TODO: gather includes and shared libraries
+        elif _platform.PLATFORM == 'windows':
+            self.redistributable_folder.mkdir(parents=True, exist_ok=True)
+            # TODO: gather includes and shared libraries
+
 
 class SharedLibrary(Compilable):
     def __init__(self,
@@ -515,6 +578,23 @@ class SharedLibrary(Compilable):
                 pass
             elif _platform.PLATFORM == 'windows':
                 pass
+
+    def bundle(self):
+        ### Gather
+        self_bundle_files = [self.outfile]
+        if _platform.PLATFORM == 'windows':
+            self_bundle_files.append(_Path(str(self.outfile)[:-3] + "exp"))
+            self_bundle_files.append(_Path(str(self.outfile)[:-3] + "lib"))
+
+        bundle_files = []
+        for dependency in self.dependency_targets:
+            bundle_files += dependency.bundle()
+
+        ### Copy
+        for bundle_file in bundle_files:
+            _shutil.copy(bundle_file, self.output_folder)
+
+        return self_bundle_files + bundle_files
 
 
 class StaticLibrary(Compilable):

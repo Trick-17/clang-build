@@ -13,12 +13,10 @@ import shutil as _shutil
 import toml
 from pbr.version import VersionInfo as _VersionInfo
 
-from . import platform as _platform
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
 from .target import Executable as _Executable,\
-                    SharedLibrary as _SharedLibrary,\
                     HeaderOnly as _HeaderOnly
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
@@ -320,66 +318,17 @@ def build(args):
             progress_bar.update()
             logger.info('Generate bundle')
             for target in target_list:
-                if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
-                    for dependency in target.dependency_targets:
-                        if dependency.__class__ is _SharedLibrary:
-                            _shutil.copy(dependency.outfile, target.output_folder)
-                            if _platform.PLATFORM == 'windows':
-                                expfile = _Path(str(dependency.outfile)[:-3] + "exp")
-                                libfile = _Path(str(dependency.outfile)[:-3] + "lib")
-                                _shutil.copy(expfile, target.output_folder)
-                                _shutil.copy(libfile, target.output_folder)
+                target.bundle()
 
-            # # TODO
-            # # Check for packaging errors
-            # errors = {}
-            # for target in target_list:
-            #     if target.__class__ is _Executable or target.__class__ is _SharedLibrary:
-            #         if target.unsuccessful_package:
-            #             errors[target.identifier] = target.package_report
-            # if errors:
-            #     raise _PackageError('Packaging was unsuccessful', errors)
+            # TODO: Check for bundling errors
 
         if environment.redistributable:
             progress_bar.update()
             logger.info('Generate redistributable')
-            for target in [target for target in target_list if target.__class__ is _Executable]:
-                if _platform.PLATFORM == 'osx':
-                    appfolder = target.redistributable_folder.joinpath(f"{target.outname}.app")
-                    appfolder.joinpath('Contents', 'MacOS').mkdir(parents=True, exist_ok=True)
-                    with appfolder.joinpath('Contents', 'Info.plist').open(mode='w') as plist:
-                        plist.write(f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleGetInfoString</key>
-  <string>{target.outname}</string>
-  <key>CFBundleExecutable</key>
-  <string>{target.outname}</string>
-  <key>CFBundleIdentifier</key>
-  <string>com.your-company-name.www</string>
-  <key>CFBundleName</key>
-  <string>{target.outname}</string>
-  <key>CFBundleShortVersionString</key>
-  <string>0.0</string>
-  <key>CFBundleInfoDictionaryVersion</key>
-  <string>6.0</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>IFMajorVersion</key>
-  <integer>0</integer>
-  <key>IFMinorVersion</key>
-  <integer>0</integer>
-</dict>
-</plist>""")
-                    _shutil.copy(target.outfile, appfolder.joinpath('Contents', 'MacOS'))
-                    for dependency in target.dependency_targets:
-                        if dependency.__class__ is _SharedLibrary:
-                            _shutil.copy(dependency.outfile, appfolder.joinpath('Contents', 'MacOS'))
-                elif _platform.PLATFORM == 'linux':
-                    self.redistributable_folder.mkdir(parents=True, exist_ok=True)
-                elif _platform.PLATFORM == 'windows':
-                    self.redistributable_folder.mkdir(parents=True, exist_ok=True)
+            for target in target_list:
+                target.redistributable()
+
+            # TODO: Check for errors creating the redistributables
 
         progress_bar.update()
         logger.info('clang-build finished.')
