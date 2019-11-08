@@ -48,7 +48,7 @@ class TestClangBuild(unittest.TestCase):
         self.assertEqual(output, 'Hello!')
 
     def test_build_types(self):
-        for build_type in ['release', 'relwithdebinfo', 'debug']:
+        for build_type in ['release', 'relwithdebinfo', 'debug', 'coverage']:
             clang_build_try_except(['-d', 'test/mwe', '-b', build_type])
 
             try:

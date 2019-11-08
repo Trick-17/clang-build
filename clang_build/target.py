@@ -22,8 +22,9 @@ class Target:
     DEFAULT_COMPILE_FLAGS                = ['-Wall', '-Wextra', '-Wpedantic', '-Wshadow', '-Werror']
     DEFAULT_COMPILE_FLAGS_RELEASE        = ['-O3', '-DNDEBUG']
     DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO = ['-O3', '-g3', '-DNDEBUG']
-    DEFAULT_COMPILE_FLAGS_DEBUG          = ['-Og', '-g3', '-DDEBUG',
-                                            '-fno-optimize-sibling-calls', '-fno-omit-frame-pointer']
+    DEFAULT_COMPILE_FLAGS_DEBUG          = ['-Og', '-g3', '-DDEBUG']
+    DEFAULT_EXE_LINK_FLAGS_DEBUG         = []
+    DEFAULT_EXE_LINK_FLAGS_COVERAGE      = DEFAULT_EXE_LINK_FLAGS_DEBUG + ['--coverage']
     DEFAULT_COMPILE_FLAGS_COVERAGE       = DEFAULT_COMPILE_FLAGS_DEBUG + [
                                             '--coverage',
                                             '-fno-inline']
@@ -456,6 +457,11 @@ class Executable(Compilable):
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
+
+        if self.build_type == _BuildType.Debug:
+            self.link_flags += Target.DEFAULT_EXE_LINK_FLAGS_DEBUG
+        elif self.build_type == _BuildType.Coverage:
+            self.link_flags += Target.DEFAULT_EXE_LINK_FLAGS_COVERAGE
 
         self.link_command += self.link_flags
 
