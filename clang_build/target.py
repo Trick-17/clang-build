@@ -154,6 +154,10 @@ class Target:
         self.compile_flags = list(dict.fromkeys(self.compile_flags))
         self.link_flags    = list(dict.fromkeys(self.link_flags))
 
+        # Split strings containing spaces
+        self.compile_flags = list(str(' '.join(self.compile_flags)).split())
+        self.link_flags    = list(str(' '.join(self.link_flags)).split())
+
     # Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
     def parse_flags_options(self, options, flags_kind='flags'):
         flags_dicts   = []
@@ -171,8 +175,8 @@ class Target:
             flags_dicts.append(options['linux'].get(flags_kind, {}))
 
         for fdict in flags_dicts:
-            compile_flags     += fdict.get('compile', [])
-            link_flags        += fdict.get('link', [])
+            compile_flags += fdict.get('compile', [])
+            link_flags    += fdict.get('link', [])
 
             if self.build_type == _BuildType.Release:
                 compile_flags += fdict.get('compile_release', [])
