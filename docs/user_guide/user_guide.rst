@@ -14,4 +14,5 @@ your C++ project with Clang Build.
    multiple_projects.rst
    inheritance.rst
    platform_dependence.rst
+   bundling.rst
    defaults.rst
