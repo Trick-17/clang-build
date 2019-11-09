@@ -19,10 +19,14 @@ from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 class Target:
-    DEFAULT_COMPILE_FLAGS                = ['-Wall', '-Wextra', '-Wpedantic', '-Werror']
+    DEFAULT_COMPILE_FLAGS                = ['-Wall', '-Wextra', '-Wpedantic', '-Wshadow', '-Werror']
     DEFAULT_COMPILE_FLAGS_RELEASE        = ['-O3', '-DNDEBUG']
     DEFAULT_COMPILE_FLAGS_RELWITHDEBINFO = ['-O3', '-g3', '-DNDEBUG']
-    DEFAULT_COMPILE_FLAGS_DEBUG          = ['-O0', '-g3', '-DDEBUG']
+    DEFAULT_COMPILE_FLAGS_DEBUG          = ['-Og', '-g3', '-DDEBUG',
+                                            '-fno-optimize-sibling-calls', '-fno-omit-frame-pointer',
+                                            '-fsanitize=address', '-fsanitize=undefined']
+    DEFAULT_EXE_LINK_FLAGS_DEBUG         = ['-fsanitize=address', '-fsanitize=undefined']
+    DEFAULT_EXE_LINK_FLAGS_COVERAGE      = DEFAULT_EXE_LINK_FLAGS_DEBUG + ['--coverage']
     DEFAULT_COMPILE_FLAGS_COVERAGE       = DEFAULT_COMPILE_FLAGS_DEBUG + [
                                             '--coverage',
                                             '-fno-inline']
@@ -154,6 +158,10 @@ class Target:
         self.compile_flags = list(dict.fromkeys(self.compile_flags))
         self.link_flags    = list(dict.fromkeys(self.link_flags))
 
+        # Split strings containing spaces
+        self.compile_flags = list(str(' '.join(self.compile_flags)).split())
+        self.link_flags    = list(str(' '.join(self.link_flags)).split())
+
     # Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
     def parse_flags_options(self, options, flags_kind='flags'):
         flags_dicts   = []
@@ -171,8 +179,8 @@ class Target:
             flags_dicts.append(options['linux'].get(flags_kind, {}))
 
         for fdict in flags_dicts:
-            compile_flags     += fdict.get('compile', [])
-            link_flags        += fdict.get('link', [])
+            compile_flags += fdict.get('compile', [])
+            link_flags    += fdict.get('link', [])
 
             if self.build_type == _BuildType.Release:
                 compile_flags += fdict.get('compile_release', [])
@@ -451,6 +459,11 @@ class Executable(Compilable):
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
+
+        if self.build_type == _BuildType.Debug:
+            self.link_flags += Target.DEFAULT_EXE_LINK_FLAGS_DEBUG
+        elif self.build_type == _BuildType.Coverage:
+            self.link_flags += Target.DEFAULT_EXE_LINK_FLAGS_COVERAGE
 
         self.link_command += self.link_flags
 
