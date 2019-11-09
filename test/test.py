@@ -47,6 +47,17 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Hello!')
 
+    def test_build_types(self):
+        for build_type in ['release', 'relwithdebinfo', 'debug', 'coverage']:
+            clang_build_try_except(['-d', 'test/mwe', '-b', build_type])
+
+            try:
+                output = subprocess.check_output([f'./build/{build_type}/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            except subprocess.CalledProcessError as e:
+                self.fail(f'Could not run compiled program with build type "{build_type}". Message:\n{e.output}')
+
+            self.assertEqual(output, 'Hello!')
+
     def test_compile_error(self):
         with self.assertRaises(CompileError):
             clang_build.build(clang_build.parse_args(['-d', 'test/mwe_build_error', '-V']))
