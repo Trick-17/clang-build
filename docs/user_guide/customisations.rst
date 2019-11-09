@@ -16,9 +16,6 @@ add a `clang-build.toml` file to your project.
     ├── include
     |   ├── cool_features.hpp
     |   └── math_lib.hpp
-    ├── thirdparty
-    |   ├── collaborator1_interface.hpp
-    |   └── collaborator2_interface.hpp
     ├── src
     |   ├── cool_features.cpp
     |   └── my_app.cpp
