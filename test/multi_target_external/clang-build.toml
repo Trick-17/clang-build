@@ -13,5 +13,5 @@ dependencies = ["Eigen"]
 target_type = "header only"
 url         = "https://github.com/eigenteam/eigen-git-mirror"
 [Eigen.interface-flags]
-compile  = ["-Wno-deprecated-declarations"]
+compile  = ["-Wno-deprecated-declarations", "-Wno-shadow"]
 compile_release = ["-DEIGEN_NO_DEBUG"]
