@@ -39,7 +39,7 @@ def _get_files_in_patterns(patterns, exclude_patterns=[], recursive=True):
     excluded = [_Path(f) for pattern in exclude_patterns for f in _iglob(str(pattern), recursive=recursive) if _Path(f).is_file()]
     return list(set(included) - set(excluded))
 
-def get_sources_and_headers(target_options, target_root_directory, target_build_directory):
+def get_sources_and_headers(target_name, target_options, target_root_directory, target_build_directory):
     output = {'headers': [], 'include_directories': [], 'include_directories_public': [], 'sourcefiles': []}
 
     # TODO: maybe the output should also include the root dir, build dir and potentially download dir?
@@ -64,7 +64,8 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
         output['include_directories'] = include_patterns
         output['headers'] += _get_header_files_in_folders(output['include_directories'], exclude_patterns=exclude_patterns, recursive=True)
     else:
-        output['include_directories'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include')]
+        output['include_directories'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include'),
+                                        target_root_directory.joinpath(target_name)]
         output['headers'] += _get_header_files_in_folders(output['include_directories'], exclude_patterns=exclude_patterns, recursive=False)
 
     # Options for public include directories, exclude patterns are the same
@@ -81,8 +82,13 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
         output['include_directories_public'] = include_patterns
         output['headers'] += _get_header_files_in_folders(output['include_directories_public'], exclude_patterns=exclude_patterns, recursive=True)
     else:
-        output['include_directories_public'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include')]
+        output['include_directories_public'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include'),
+                                                target_root_directory.joinpath(target_name, 'include')]
         output['headers'] += _get_header_files_in_folders(output['include_directories_public'], exclude_patterns=exclude_patterns, recursive=False)
+
+    # Keep only include directories which exist
+    output['include_directories'] = [directory for directory in output['include_directories'] if directory.exists()]
+    output['include_directories_public'] = [directory for directory in output['include_directories_public'] if directory.exists()]
 
     # Options for sources
     sources_options = []
@@ -98,14 +104,14 @@ def get_sources_and_headers(target_options, target_root_directory, target_build_
     sources_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in sources_options))
     exclude_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in exclude_options))
 
-    # Find source files from patterns
+    # Find source files from patterns (recursively)
     if sources_patterns:
         output['sourcefiles'] += _get_files_in_patterns(sources_patterns, exclude_patterns=exclude_patterns, recursive=True)
-    # Else find source files from src folder
+    # Else search source files in folder with same name as target and src folder (recursively)
     else:
-        output['sourcefiles'] += _get_source_files_in_folders([target_root_directory.joinpath('src')], exclude_patterns=exclude_patterns, recursive=True)
+        output['sourcefiles'] += _get_source_files_in_folders([target_root_directory.joinpath(target_name), target_root_directory.joinpath('src')], exclude_patterns=exclude_patterns, recursive=True)
 
-    # Search the root folder as last resort
+    # Search the root folder as last resort (non-recursively)
     if not output['sourcefiles']:
         output['sourcefiles'] += _get_source_files_in_folders([target_root_directory], exclude_patterns=exclude_patterns, recursive=False)
 

@@ -236,7 +236,7 @@ def build(args):
 
         # Otherwise we try to build it as a simple hello world or mwe project
         else:
-            files = _get_sources_and_headers({}, environment.working_directory, environment.build_directory)
+            files = _get_sources_and_headers('main', {}, environment.working_directory, environment.build_directory)
 
             if not files['sourcefiles']:
                 error_message = f'Error, no sources and no \'clang-build.toml\' found in folder \'{environment.working_directory}\''

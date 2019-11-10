@@ -261,7 +261,7 @@ class Project:
                 target_root_directory = target_root_directory.joinpath(target_node['directory'])
 
             # Sources
-            files = _get_sources_and_headers(target_node, target_root_directory, target_build_directory)
+            files = _get_sources_and_headers(target_name, target_node, target_root_directory, target_build_directory)
 
             # Dependencies
             dependencies = [self.fetch_from_target_list(dependency_identifier) for dependency_identifier in dependency_graph.successors(target_identifier)]
