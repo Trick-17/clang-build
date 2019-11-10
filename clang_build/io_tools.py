@@ -2,6 +2,27 @@ from glob import iglob as _iglob
 from pathlib import Path as _Path
 
 from . import platform as _platform
+from .build_type import BuildType as _BuildType
+
+# Parse compile and link flags of any kind ('flags', 'interface-flags', ...)
+def parse_flags_options(options, build_type, flags_kind='flags'):
+    flags_dicts   = []
+    compile_flags = []
+    link_flags    = []
+
+    if flags_kind in options:
+        flags_dicts.append(options.get(flags_kind, {}))
+
+    flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
+
+    for fdict in flags_dicts:
+        compile_flags += fdict.get('compile', [])
+        link_flags    += fdict.get('link', [])
+
+        if build_type != _BuildType.Default:
+            compile_flags += fdict.get(f'compile_{build_type}', [])
+
+    return compile_flags, link_flags
 
 def _get_header_files_in_folders(folders, exclude_patterns=[], recursive=True):
     delimiter = '/**/' if recursive else '/*'
