@@ -46,6 +46,7 @@ def _needs_rebuild(object_file, source_file, depfile):
 class SingleSource:
     def __init__(
             self,
+            environment,
             source_file,
             platform_flags,
             current_target_root_path,
@@ -53,8 +54,6 @@ class SingleSource:
             object_directory,
             include_strings,
             compile_flags,
-            clang,
-            clangpp,
             max_cpp_dialect):
 
         # Get the relative file path
@@ -71,9 +70,10 @@ class SingleSource:
         self.object_file = _Path(object_directory,  relpath, self.source_file.stem + '.o')
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
-        compiler = clangpp
+        compiler = environment.clangpp
+        # Unset dialect flag if source file is not C++
         if source_file.suffix in [".c", ".cc", ".m"]:
-            compiler = clang
+            compiler = environment.clang
             max_cpp_dialect = ''
 
         self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)

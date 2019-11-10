@@ -121,7 +121,6 @@ def _find_clang(logger):
     logger.info(f'clang executable:    {clang}')
     logger.info(f'clang++ executable:  {clangpp}')
     logger.info(f'llvm-ar executable:  {clang_ar}')
-    logger.info(f'Newest supported C++ dialect: {_get_max_supported_compiler_dialect(clangpp)}')
 
     return clang, clangpp, clang_ar
 
@@ -129,11 +128,11 @@ def _find_clang(logger):
 class _Environment:
     def __init__(self, args):
         # Some defaults
-        self.logger    = None
-        self.buildType = None
-        self.clang     = "clang"
-        self.clangpp   = "clang++"
-        self.clang_ar  = "llvm-ar"
+        self.logger     = None
+        self.build_type = None
+        self.clang      = "clang"
+        self.clangpp    = "clang++"
+        self.clang_ar   = "llvm-ar"
         # Directory this was called from
         self.calling_directory = _Path().resolve()
         # Working directory is where the project root should be - this is searched for 'clang-build.toml'
@@ -144,6 +143,10 @@ class _Environment:
 
         # Check for clang++ executable
         self.clang, self.clangpp, self.clang_ar = _find_clang(self.logger)
+
+        # Maximum available C++ dialect
+        self.max_cpp_dialect = _get_max_supported_compiler_dialect(self.clangpp)
+        self.logger.info(f'Newest supported C++ dialect: {self.max_cpp_dialect}')
 
         # Working directory
         if args.directory:
@@ -157,8 +160,8 @@ class _Environment:
         self.logger.info(f'Working directory: \'{self.working_directory}\'')
 
         # Build type (Default, Release, Debug)
-        self.buildType = args.build_type
-        self.logger.info(f'Build type: {self.buildType.name}')
+        self.build_type = args.build_type
+        self.logger.info(f'Build type: {self.build_type.name}')
 
         # Whether to build all targets
         self.build_all = True if args.all else False
@@ -242,18 +245,15 @@ def build(args):
             # Create target
             target_list.append(
                 _Executable(
-                    '',
-                    'main',
-                    environment.working_directory,
-                    environment.build_directory.joinpath(environment.buildType.name.lower()),
-                    files['headers'],
-                    files['include_directories'],
-                    files['include_directories_public'],
-                    files['sourcefiles'],
-                    environment.buildType,
-                    environment.clang,
-                    environment.clangpp,
-                    force_build=environment.force_build))
+                    environment                = environment,
+                    project_identifier         = '',
+                    name                       = 'main',
+                    root_directory             = environment.working_directory,
+                    build_directory            = environment.build_directory.joinpath(environment.build_type.name.lower()),
+                    headers                    = files['headers'],
+                    include_directories        = files['include_directories'],
+                    include_directories_public = files['include_directories_public'],
+                    source_files               = files['sourcefiles']))
 
         # Build the targets
         progress_bar.update()
