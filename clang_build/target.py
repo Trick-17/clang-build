@@ -11,8 +11,6 @@ from multiprocessing import freeze_support as _freeze_support
 import logging as _logging
 
 from . import platform as _platform
-from .dialect_check import get_dialect_string as _get_dialect_string
-from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .single_source import SingleSource as _SingleSource
 from .io_tools import parse_flags_options as _parse_flags_options
@@ -272,8 +270,8 @@ class Compilable(Target):
 
         # Buildables which this Target contains
         self.include_directories_command = []
-        for dir in include_directories:
-            self.include_directories_command += ['-I', str(dir.resolve())]
+        for directory in include_directories:
+            self.include_directories_command += ['-I', str(directory.resolve())]
 
         self.buildables = [
             _SingleSource(
