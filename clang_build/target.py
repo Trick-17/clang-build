@@ -21,11 +21,21 @@ _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 class Target:
     COMPILE_FLAGS = {
-        _BuildType.Default : ['-Wall', '-Wextra', '-Wpedantic', '-Werror'],
-        _BuildType.Release : ['-O3', '-DNDEBUG'],
-        _BuildType.RelWithDebInfo : ['-O3', '-g3', '-DNDEBUG'],
-        _BuildType.Debug : ['-O0', '-g3', '-DDEBUG'],
-        _BuildType.Coverage : ['-O0', '-g3', '-DDEBUG', '--coverage', '-fno-inline'],
+        _BuildType.Default          : ['-Wall', '-Wextra', '-Wpedantic', '-Wshadow', '-Werror'],
+        _BuildType.Release          : ['-O3', '-DNDEBUG'],
+        _BuildType.RelWithDebInfo   : ['-O3', '-g3', '-DNDEBUG'],
+        _BuildType.Debug            : ['-Og', '-g3', '-DDEBUG',
+                                        '-fno-optimize-sibling-calls', '-fno-omit-frame-pointer',
+                                        '-fsanitize=address', '-fsanitize=undefined'],
+        _BuildType.Coverage         : ['-Og', '-g3', '-DDEBUG',
+                                        '-fno-optimize-sibling-calls', '-fno-omit-frame-pointer',
+                                        '-fsanitize=address', '-fsanitize=undefined',
+                                        '--coverage', '-fno-inline'],
+    }
+    LINK_FLAGS_EXE_SHARED = {
+        _BuildType.Debug            : ['-fsanitize=address', '-fsanitize=undefined'],
+        _BuildType.Coverage         : ['-fsanitize=address', '-fsanitize=undefined',
+                                        '--coverage', '-fno-inline'],
     }
 
     def __init__(self,
@@ -90,61 +100,57 @@ class Target:
         # TODO: parse user-specified target version
 
         # Compile and link flags
-        self.compile_flags = []
-        self.link_flags = []
+        self.compile_flags_private = []
+        self.link_flags_private    = []
 
         self.compile_flags_interface = []
-        self.link_flags_interface = []
+        self.link_flags_interface    = []
 
         self.compile_flags_public = []
-        self.link_flags_public = []
+        self.link_flags_public    = []
 
-        # Regular (private) flags
-        if self.build_type != _BuildType.Default:
-            self.compile_flags += Target.COMPILE_FLAGS.get(self.build_type)
+        # Default flags come first
+        self.add_default_flags()
 
         # Dependencies' flags
         for target in self.dependency_targets:
             # Header only libraries will forward all non-private flags
             self.add_target_flags(target)
 
-        # Own flags
+        # Own private flags
         cf, lf = self.parse_flags_options(options, 'flags')
-        self.compile_flags += cf
-        self.link_flags += lf
+        self.compile_flags_private += cf
+        self.link_flags_private    += lf
 
         # Own interface flags
         cf, lf = self.parse_flags_options(options, 'interface-flags')
         self.compile_flags_interface += cf
-        self.link_flags_interface += lf
+        self.link_flags_interface    += lf
 
         # Own public flags
         cf, lf = self.parse_flags_options(options, 'public-flags')
-        self.compile_flags += cf
-        self.link_flags += lf
         self.compile_flags_public += cf
-        self.link_flags_public += lf
-
-        # Make flags unique
-        self.compile_flags = list(dict.fromkeys(self.compile_flags))
-        self.link_flags    = list(dict.fromkeys(self.link_flags))
-
+        self.link_flags_public    += lf
 
     def apply_public_flags(self, target):
-        self.compile_flags += target.compile_flags_public
-        self.link_flags += target.link_flags_public
+        self.compile_flags_private += target.compile_flags_public
+        self.link_flags_private    += target.link_flags_public
 
     def forward_public_flags(self, target):
         self.compile_flags_public += target.compile_flags_public
         self.link_flags_public    += target.link_flags_public
 
     def apply_interface_flags(self, target):
-        self.compile_flags += target.compile_flags_interface
-        self.link_flags += target.link_flags_interface
+        self.compile_flags_private += target.compile_flags_interface
+        self.link_flags_private    += target.link_flags_interface
 
     def forward_interface_flags(self, target):
         self.compile_flags_interface += target.compile_flags_interface
-        self.link_flags_interface += target.link_flags_interface
+        self.link_flags_interface    += target.link_flags_interface
+
+    @abstractmethod
+    def add_default_flags(self):
+        pass
 
     @abstractmethod
     def add_target_flags(self, target):
@@ -162,8 +168,8 @@ class Target:
         flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
 
         for fdict in flags_dicts:
-            compile_flags     += fdict.get('compile', [])
-            link_flags        += fdict.get('link', [])
+            compile_flags += fdict.get('compile', [])
+            link_flags    += fdict.get('link', [])
 
             if self.build_type != _BuildType.Default:
                 compile_flags += fdict.get(f'compile_{self.build_type}', [])
@@ -206,6 +212,9 @@ class HeaderOnly(Target):
             clangpp=clangpp,
             options=options,
             dependencies=dependencies)
+
+        self.compile_flags_public       += self.compile_flags_private
+        self.link_flags_public          += self.link_flags_private
 
     def link(self):
         _LOGGER.info(f'[{self.identifier}]: Header-only target does not require linking.')
@@ -287,16 +296,26 @@ class Compilable(Target):
         self.outfile = _Path(self.output_folder, prefix + self.outname + suffix).resolve()
 
         # Clang
-        self.clang     = clang
-        self.clangpp   = clangpp
+        self.clang   = clang
+        self.clangpp = clangpp
 
         # Sources
-        self.source_files        = source_files
+        self.source_files = source_files
+
+        # Full list of flags
+        compile_flags = self.compile_flags_private+self.compile_flags_public
+        link_flags    = self.link_flags_private+self.link_flags_public
+        # Make flags unique
+        compile_flags = list(dict.fromkeys(compile_flags))
+        link_flags    = list(dict.fromkeys(link_flags))
+        # Split strings containing spaces
+        compile_flags = list(str(' '.join(compile_flags)).split())
+        link_flags    = list(str(' '.join(link_flags)).split())
 
         # Buildables which this Target contains
         self.include_directories_command = []
         for dir in self.include_directories:
-            self.include_directories_command += ['-I',  str(dir.resolve())]
+            self.include_directories_command += ['-I', str(dir.resolve())]
 
         self.buildables = [_SingleSource(
             source_file=source_file,
@@ -305,7 +324,7 @@ class Compilable(Target):
             depfile_directory=self.depfile_directory,
             object_directory=self.object_directory,
             include_strings=self.include_directories_command,
-            compile_flags=Target.COMPILE_FLAGS[_BuildType.Default]+self.compile_flags,
+            compile_flags=compile_flags,
             clang  =self.clang,
             clangpp=self.clangpp,
             max_cpp_dialect=self.dialect) for source_file in self.source_files]
@@ -325,6 +344,10 @@ class Compilable(Target):
             self.before_link_script    = options['scripts'].get('before_link',    "")
             self.after_build_script    = options['scripts'].get('after_build',    "")
 
+    def add_default_flags(self):
+        self.compile_flags_private += Target.COMPILE_FLAGS.get(_BuildType.Default)
+        if self.build_type != _BuildType.Default:
+            self.compile_flags_private += Target.COMPILE_FLAGS.get(self.build_type)
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool, progress_disabled):
@@ -465,12 +488,19 @@ class Executable(Compilable):
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
-        self.link_command += self.link_flags
+        self.link_command += self.link_flags_private + self.link_flags_public
 
         ### Link dependencies
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-l'+target.outname]
+
+    def add_default_flags(self):
+        super().add_default_flags()
+        if self.build_type == _BuildType.Debug:
+            self.link_flags_private += Target.LINK_FLAGS_EXE_SHARED[_BuildType.Debug]
+        elif self.build_type == _BuildType.Coverage:
+            self.link_flags_private += Target.LINK_FLAGS_EXE_SHARED[_BuildType.Coverage]
 
     def add_target_flags(self, target):
         self.apply_public_flags(target)
@@ -523,12 +553,19 @@ class SharedLibrary(Compilable):
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
-        self.link_command += self.link_flags
+        self.link_command += self.link_flags_private + self.link_flags_public
 
         ### Link dependencies
         for target in self.dependency_targets:
             if not target.__class__ is HeaderOnly:
                 self.link_command += ['-l'+target.outname]
+
+    def add_default_flags(self):
+        super().add_default_flags()
+        if self.build_type == _BuildType.Debug:
+            self.link_flags_private += Target.LINK_FLAGS_EXE_SHARED[_BuildType.Debug]
+        elif self.build_type == _BuildType.Coverage:
+            self.link_flags_private += Target.LINK_FLAGS_EXE_SHARED[_BuildType.Coverage]
 
     def add_target_flags(self, target):
         self.apply_public_flags(target)
@@ -576,7 +613,7 @@ class StaticLibrary(Compilable):
 
         ### Link self
         self.link_command += [str(buildable.object_file) for buildable in self.buildables]
-        self.link_command += self.link_flags
+        self.link_command += self.link_flags_private + self.link_flags_public
 
         ### Link dependencies
         for target in self.dependency_targets:

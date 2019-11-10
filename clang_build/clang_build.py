@@ -92,6 +92,9 @@ def parse_args(args):
     parser.add_argument('--no-graph',
                         help='deactivates output of a dependency graph dotfile',
                         action='store_true')
+    parser.add_argument('--no-recursive-clone',
+                        help='deactivates recursive cloning of git submodules',
+                        action='store_true')
     return parser.parse_args(args=args)
 
 
@@ -188,6 +191,9 @@ class _Environment:
 
         # Whether to create a dotfile for graphing dependencies
         self.create_dependency_dotfile = False if args.no_graph else True
+
+        # Whether to recursively clone submodules when cloning with git
+        self.clone_recursive = False if args.no_recursive_clone else True
 
 
 def build(args):
