@@ -36,7 +36,8 @@ The following sections of a target configuration can each contain `compile` and
 
 **`flags`**
 
-    Private flags, which are only applied to the target itself.
+    Private flags which are only applied to the target itself, with the exception
+    of header-only libraries, for which they are added to the public flags.
 
 **`interface-flags`**
 
@@ -45,7 +46,7 @@ The following sections of a target configuration can each contain `compile` and
     therefore not be linked into the target itself.
 
     Executables and shared libraries will apply the interface flags of their dependencies
-    to themselves and will not forward them.
+    to themselves (i.e. add them to their own `flags`) and will not forward them.
 
     Header only and static libraries will not apply their dependencies' interface flags to
     themselves, but will forward them (i.e. add them to their own `interface-flags`).
@@ -55,3 +56,8 @@ The following sections of a target configuration can each contain `compile` and
     Public flags are applied to the target and any dependent target.
 
     Public flags are always forwarded (i.e. added to a target's own `public-flags`).
+
+
+Note a slightly subtle difference between interface and public flags:
+interface flags are not forwarded beyond a shared library, while public flags are
+forwarded up until an executable.
