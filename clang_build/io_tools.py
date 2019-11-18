@@ -10,8 +10,7 @@ def parse_flags_options(options, build_type, flags_kind='flags'):
     compile_flags = []
     link_flags    = []
 
-    if flags_kind in options:
-        flags_dicts.append(options.get(flags_kind, {}))
+    flags_dicts.append(options.get(flags_kind, {}))
 
     flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
 
@@ -19,24 +18,24 @@ def parse_flags_options(options, build_type, flags_kind='flags'):
         compile_flags += fdict.get('compile', [])
         link_flags    += fdict.get('link', [])
 
-        if build_type != _BuildType.Default:
-            compile_flags += fdict.get(f'compile_{build_type}', [])
+    if build_type != _BuildType.Default:
+        compile_flags += fdict.get(f'compile_{build_type}', [])
 
     return compile_flags, link_flags
 
 def _get_header_files_in_folders(folders, exclude_patterns=[], recursive=True):
-    delimiter = '/**/' if recursive else '/*'
-    patterns  = [str(folder) + delimiter + ext for ext in ('*.hpp', '*.hxx', '*.h') for folder in folders]
-    return _get_files_in_patterns(patterns)
+    delimiter = '/**/' if recursive else '/'
+    full_folders_patterns = [str(pattern) + delimiter + ext for ext in ('*.hpp', '*.hxx', '*.h') for pattern in folders]
+    return _get_files_in_patterns(full_folders_patterns, exclude_patterns=exclude_patterns, recursive=recursive)
 
 def _get_source_files_in_folders(folders, exclude_patterns=[], recursive=True):
-    delimiter = '/**/' if recursive else '/*'
-    patterns  = [str(folder) + delimiter + ext for ext in ('*.cpp', '*.cxx', '*.c') for folder in folders]
-    return _get_files_in_patterns(patterns)
+    delimiter = '/**/' if recursive else '/'
+    full_folders_patterns = [str(pattern) + delimiter + ext for ext in ('*.cpp', '*.cxx', '*.c') for pattern in folders]
+    return _get_files_in_patterns(full_folders_patterns, exclude_patterns=exclude_patterns, recursive=recursive)
 
 def _get_files_in_patterns(patterns, exclude_patterns=[], recursive=True):
-    included = [_Path(f) for pattern in patterns         for f in _iglob(str(pattern), recursive=recursive) if _Path(f).is_file()]
-    excluded = [_Path(f) for pattern in exclude_patterns for f in _iglob(str(pattern), recursive=recursive) if _Path(f).is_file()]
+    included = [_Path(f).resolve() for pattern in patterns         for f in _iglob(str(pattern), recursive=recursive) if _Path(f).is_file()]
+    excluded = [_Path(f).resolve() for pattern in exclude_patterns for f in _iglob(str(pattern), recursive=recursive) if _Path(f)]
     return list(set(included) - set(excluded))
 
 def get_sources_and_headers(target_name, target_options, target_root_directory, target_build_directory):

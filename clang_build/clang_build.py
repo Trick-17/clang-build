@@ -10,7 +10,9 @@ from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
 import shutil as _shutil
+import subprocess as _subprocess
 import toml
+import networkx as _nx
 from pbr.version import VersionInfo as _VersionInfo
 
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
@@ -21,6 +23,7 @@ from .target import Executable as _Executable,\
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
+from .dependency_tools import get_dependency_graph as _get_dependency_graph
 from .logging_stream_handler import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
@@ -58,6 +61,9 @@ _command_line_description = (
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description=_command_line_description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--version',
+                        action='version',
+                        version=f'clang-build v{__version__}')
     parser.add_argument('-V', '--verbose',
                         help='activate more detailed output',
                         action='store_true')
@@ -100,6 +106,21 @@ def parse_args(args):
                         action='store_true')
     parser.add_argument('--redistributable',
                         help='Automatically create redistributable bundles from binary bundles. Implies `--bundle`',
+                        action='store_true')
+    parser.add_argument('--tests',
+                        help='automatically discover and build tests on top of regular targets of the root project',
+                        action='store_true')
+    parser.add_argument('--tests-recursive',
+                        help='automatically discover and build tests on top of regular targets of all projects. Implies --tests',
+                        action='store_true')
+    parser.add_argument('--runtests',
+                        help='run all automatically discovered tests. Implies --tests',
+                        action='store_true')
+    parser.add_argument('--examples',
+                        help='automatically discover and build examples on top of regular targets of the root project',
+                        action='store_true')
+    parser.add_argument('--examples-recursive',
+                        help='automatically discover and build examples on top of regular targets of all projects. Implies --examples',
                         action='store_true')
     return parser.parse_args(args=args)
 
@@ -188,6 +209,16 @@ class _Environment:
         if self.force_build:
             self.logger.info('Forcing build...')
 
+        # Whether to discover and build tests of root project
+        self.tests = True if (args.tests or args.tests_recursive or args.runtests) else False
+        # Whether to discover and build tests of all projects
+        self.tests_recursive = True if args.tests_recursive else False
+
+        # Whether to discover and build examples of root project
+        self.examples = True if (args.examples or args.examples_recursive) else False
+        # Whether to discover and build examples of all projects
+        self.examples_recursive = True if args.examples_recursive else False
+
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
         self.logger.info(f'Running up to {args.jobs} concurrent build jobs')
@@ -248,10 +279,39 @@ def build(args):
                     multiple_projects = True
 
             # Create root project
-            root_project = _Project(config, environment, multiple_projects, is_root_project=True)
+            root_project = _Project(environment, config, multiple_projects, is_root_project=True)
+
+            # Unless all should be built, don't build targets which are not in the root project
+            # or a dependency of a target of the root project
+            target_dont_build_list = []
+            ### TODO: adapt these checks to tests and examples
+            if not environment.build_all:
+                # Root targets (i.e. targets of the root project),
+                # or the specified projects will be retained
+                base_set = set(root_project.targets_config)
+                if environment.target_list:
+                    logger.info(f'Only building targets [{"], [".join(environment.target_list)}] out of base set of targets [{"], [".join(base_set)}].')
+                    for target in root_project.targets_config:
+                        if target not in environment.target_list:
+                            base_set.discard(target)
+
+                # Descendants will be retained, too
+                dependency_graph = _get_dependency_graph(environment, root_project.identifier, root_project.target_stubs, root_project.subprojects)
+                target_dont_build_list = set(dependency_graph.nodes())
+                for root_name in base_set:
+                    root_identifier = f'{root_project.identifier}.{root_name}' if root_project.identifier else root_name
+                    target_dont_build_list.discard(root_identifier)
+                    target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
+                target_dont_build_list = list(target_dont_build_list)
+
+                if target_dont_build_list:
+                    logger.info(f'Not building target(s) [{"], [".join(target_dont_build_list)}].')
+
+            else:
+                logger.info(f'Building all targets!')
 
             # Get list of all targets
-            target_list += root_project.get_targets(root_project.target_dont_build_list)
+            target_list += root_project.get_targets(target_dont_build_list)
 
             # # Generate list of all targets
             # for project in working_projects:
@@ -337,6 +397,43 @@ def build(args):
         logger.info('clang-build finished.')
 
 
+def runtests(args):
+    # Create container of environment variables
+    environment = _Environment(args)
+
+    logger = environment.logger
+
+    # Check for build configuration toml file
+    toml_file = _Path(environment.working_directory, 'clang-build.toml')
+    if toml_file.exists():
+        logger.info(f'Found config file: \'{toml_file}\'')
+
+        # Parse config file
+        config = toml.load(str(toml_file))
+
+        # Determine if there are multiple projects
+        targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name"]}
+        subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
+        multiple_projects = False
+        if subprojects_config:
+            if targets_config or (len(subprojects_config["subproject"]) > 1):
+                multiple_projects = True
+
+        # Create root project
+        root_project = _Project(environment, config, multiple_projects, is_root_project=True)
+
+        logger.info('Run tests:\n    - ' + '\n    - '.join([str(path) for path in root_project.tests_list]))
+
+        for test in root_project.tests_list:
+            try:
+                output = _subprocess.check_output(['./'+str(test)], stderr=_subprocess.STDOUT).decode('utf-8').strip()
+                logger.info(output)
+            except _subprocess.CalledProcessError as e:
+                logger.error(f'Could not run test "{test}". Message:\n{e.output}')
+    else:
+        logger.error(f'Cannot automatically run tests if no config file is given')
+
+
 def _main():
     # Build
     try:
@@ -352,7 +449,10 @@ def _main():
         else:
             _setup_logger(_logging.DEBUG)
 
-        build(args)
+        if args.runtests:
+            runtests(args)
+        else:
+            build(args)
 
     except _CompileError as compile_error:
         logger = _logging.getLogger(__name__)

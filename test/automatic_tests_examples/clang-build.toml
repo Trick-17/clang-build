@@ -1,0 +1,12 @@
+[mylib]
+    [mylib.tests]
+        single_executable = true
+        dependencies = ["catch"]
+
+[catch]
+    url = "https://github.com/catchorg/Catch2"
+    include_directories_public = ["include", "single_include"]
+    [catch.tests]
+        sources_exclude = ["*"]
+    [catch.examples]
+        sources = ["010-TestCase.cpp", "231-Cfg-OutputStreams.cpp"] # Note: Cannot do multiple-file examples
