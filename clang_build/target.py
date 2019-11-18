@@ -107,17 +107,17 @@ class Target:
             self.add_target_flags(target)
 
         # Own private flags
-        cf, lf = _parse_flags_options(options, 'flags')
+        cf, lf = _parse_flags_options(options, environment.build_type, 'flags')
         self.compile_flags_private += cf
         self.link_flags_private    += lf
 
         # Own interface flags
-        cf, lf = _parse_flags_options(options, 'interface-flags')
+        cf, lf = _parse_flags_options(options, environment.build_type, 'interface-flags')
         self.compile_flags_interface += cf
         self.link_flags_interface    += lf
 
         # Own public flags
-        cf, lf = _parse_flags_options(options, 'public-flags')
+        cf, lf = _parse_flags_options(options, environment.build_type, 'public-flags')
         self.compile_flags_public += cf
         self.link_flags_public    += lf
 

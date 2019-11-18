@@ -101,6 +101,18 @@ def parse_args(args):
     parser.add_argument('--redistributable',
                         help='Automatically create redistributable bundles from binary bundles. Implies `--bundle`',
                         action='store_true')
+    parser.add_argument('--tests',
+                        help='automatically discover and build tests on top of regular targets of the root project',
+                        action='store_true')
+    parser.add_argument('--tests-recursive',
+                        help='automatically discover and build tests on top of regular targets of all projects. Implies --tests',
+                        action='store_true')
+    parser.add_argument('--examples',
+                        help='automatically discover and build examples on top of regular targets of the root project',
+                        action='store_true')
+    parser.add_argument('--examples-recursive',
+                        help='automatically discover and build examples on top of regular targets of all projects. Implies --examples',
+                        action='store_true')
     return parser.parse_args(args=args)
 
 
@@ -188,6 +200,16 @@ class _Environment:
         if self.force_build:
             self.logger.info('Forcing build...')
 
+        # Whether to discover and build tests of root project
+        self.tests = True if (args.tests or args.tests_recursive) else False
+        # Whether to discover and build tests of all projects
+        self.tests_recursive = True if args.tests_recursive else False
+
+        # Whether to discover and build examples of root project
+        self.examples = True if (args.examples or args.examples_recursive) else False
+        # Whether to discover and build examples of all projects
+        self.examples_recursive = True if args.examples_recursive else False
+
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
         self.logger.info(f'Running up to {args.jobs} concurrent build jobs')
@@ -248,7 +270,7 @@ def build(args):
                     multiple_projects = True
 
             # Create root project
-            root_project = _Project(config, environment, multiple_projects, is_root_project=True)
+            root_project = _Project(environment, config, multiple_projects, is_root_project=True)
 
             # Get list of all targets
             target_list += root_project.get_targets(root_project.target_dont_build_list)

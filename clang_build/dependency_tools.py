@@ -26,21 +26,35 @@ def find_circular_dependencies(project):
 
     return list(_nx.simple_cycles(graph))
 
-def get_dependency_graph(project_identifier, targets_config, subprojects):
+def get_dependency_graph_from_stubs(environment, project_identifier, target_stubs, subprojects):
     graph = _nx.DiGraph()
-    for target_name, node in targets_config.items():
-        target_identifier = f"{project_identifier}.{target_name}" if project_identifier else f"{target_name}"
-        dependencies = node.get('dependencies', [])
+
+    for target_stub in target_stubs:
+        if target_stub.build_tests:
+            target_tests_identifier = f"{target_stub.identifier}.tests"
+            graph.add_edge(target_tests_identifier, str(target_stub.identifier))
+            for dependency in target_stub.tests_options.get('dependencies', []):
+                dependency_identifier = f"{project_identifier}.{dependency}" if project_identifier else f"{dependency}"
+                graph.add_edge(target_tests_identifier, str(dependency_identifier))
+
+        if target_stub.build_examples:
+            target_examples_identifier = f"{target_stub.identifier}.examples"
+            graph.add_edge(target_examples_identifier, str(target_stub.identifier))
+            for dependency in target_stub.examples_options.get('dependencies', []):
+                dependency_identifier = f"{project_identifier}.{dependency}" if project_identifier else f"{dependency}"
+                graph.add_edge(target_examples_identifier, str(dependency_identifier))
+
+        dependencies = target_stub.options.get('dependencies', [])
         if not dependencies:
-            graph.add_node(str(target_identifier))
+            graph.add_node(str(target_stub.identifier))
             continue
 
         for dependency in dependencies:
             dependency_identifier = f"{project_identifier}.{dependency}" if project_identifier else f"{dependency}"
-            graph.add_edge(str(target_identifier), str(dependency_identifier))
+            graph.add_edge(str(target_stub.identifier), str(dependency_identifier))
 
     for project in subprojects:
-        subgraph = get_dependency_graph(project.identifier, project.targets_config, project.subprojects)
+        subgraph = get_dependency_graph_from_stubs(environment, project.identifier, project.target_stubs, project.subprojects)
         graph = _nx.compose(graph, subgraph)
 
     return graph
