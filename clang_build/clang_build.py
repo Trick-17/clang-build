@@ -12,6 +12,7 @@ import argparse
 import shutil as _shutil
 import subprocess as _subprocess
 import toml
+import networkx as _nx
 from pbr.version import VersionInfo as _VersionInfo
 
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
@@ -22,6 +23,7 @@ from .target import Executable as _Executable,\
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
+from .dependency_tools import get_dependency_graph as _get_dependency_graph
 from .logging_stream_handler import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
@@ -279,8 +281,37 @@ def build(args):
             # Create root project
             root_project = _Project(environment, config, multiple_projects, is_root_project=True)
 
+            # Unless all should be built, don't build targets which are not in the root project
+            # or a dependency of a target of the root project
+            target_dont_build_list = []
+            ### TODO: adapt these checks to tests and examples
+            if not environment.build_all:
+                # Root targets (i.e. targets of the root project),
+                # or the specified projects will be retained
+                base_set = set(root_project.targets_config)
+                if environment.target_list:
+                    logger.info(f'Only building targets [{"], [".join(environment.target_list)}] out of base set of targets [{"], [".join(base_set)}].')
+                    for target in root_project.targets_config:
+                        if target not in environment.target_list:
+                            base_set.discard(target)
+
+                # Descendants will be retained, too
+                dependency_graph = _get_dependency_graph(environment, root_project.identifier, root_project.target_stubs, root_project.subprojects)
+                target_dont_build_list = set(dependency_graph.nodes())
+                for root_name in base_set:
+                    root_identifier = f'{root_project.identifier}.{root_name}' if root_project.identifier else root_name
+                    target_dont_build_list.discard(root_identifier)
+                    target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
+                target_dont_build_list = list(target_dont_build_list)
+
+                if target_dont_build_list:
+                    logger.info(f'Not building target(s) [{"], [".join(target_dont_build_list)}].')
+
+            else:
+                logger.info(f'Building all targets!')
+
             # Get list of all targets
-            target_list += root_project.get_targets(root_project.target_dont_build_list)
+            target_list += root_project.get_targets(target_dont_build_list)
 
             # # Generate list of all targets
             # for project in working_projects:
@@ -396,6 +427,7 @@ def runtests(args):
         for test in root_project.tests_list:
             try:
                 output = _subprocess.check_output(['./'+str(test)], stderr=_subprocess.STDOUT).decode('utf-8').strip()
+                logger.info(output)
             except _subprocess.CalledProcessError as e:
                 logger.error(f'Could not run test "{test}". Message:\n{e.output}')
     else:

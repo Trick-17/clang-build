@@ -351,33 +351,6 @@ class Project:
             _LOGGER.exception(error_message)
             raise RuntimeError(error_message)
 
-        # Unless all should be built, don't build targets which are not in the root project
-        # or a dependency of a target of the root project
-        self.target_dont_build_list = []
-        if is_root_project and not environment.build_all:
-            # Root targets (i.e. targets of the root project),
-            # or the specified projects will be retained
-            base_set = set(self.targets_config)
-            if environment.target_list:
-                _LOGGER.info(f'Only building targets [{"], [".join(environment.target_list)}] out of base set of targets [{"], [".join(base_set)}].')
-                for target in self.targets_config:
-                    if target not in environment.target_list:
-                        base_set.discard(target)
-
-            # Descendants will be retained, too
-            self.target_dont_build_list = set(dependency_graph.nodes())
-            for root_name in base_set:
-                root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
-                self.target_dont_build_list.discard(root_identifier)
-                self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
-            self.target_dont_build_list = list(self.target_dont_build_list)
-
-            if self.target_dont_build_list:
-                _LOGGER.info(f'Not building target(s) [{"], [".join(self.target_dont_build_list)}].')
-
-        elif is_root_project:
-            _LOGGER.info(f'Building all targets!')
-
         # Generate a list of target identifiers of this project
         target_identifiers = [stub.identifier for stub in self.target_stubs]
 
@@ -506,8 +479,8 @@ class Project:
                     if single_executable:
                         self.target_list.append(_Executable(
                             environment                 = self.environment,
-                            project_identifier          = self.identifier,
-                            name                        = f"{target_stub.name}_test",
+                            project_identifier          = f"{self.identifier}.{target_stub.name}" if self.identifier else target_stub.name,
+                            name                        = f"test",
                             root_directory              = target_stub.tests_folder,
                             build_directory             = target_stub.build_directory.joinpath("tests"),
                             headers                     = target_stub.tests_files['headers'],
@@ -521,8 +494,8 @@ class Project:
                         for sourcefile in target_stub.tests_files['sourcefiles']:
                             self.target_list.append(_Executable(
                                 environment                 = self.environment,
-                                project_identifier          = self.identifier,
-                                name                        = f"{target_stub.name}_test_{sourcefile.stem}",
+                                project_identifier          = f"{self.identifier}.{target_stub.name}" if self.identifier else target_stub.name,
+                                name                        = f"test_{sourcefile.stem}",
                                 root_directory              = target_stub.tests_folder,
                                 build_directory             = target_stub.build_directory.joinpath("tests"),
                                 headers                     = target_stub.tests_files['headers'],
@@ -542,8 +515,8 @@ class Project:
                     for sourcefile in target_stub.examples_files['sourcefiles']:
                         self.target_list.append(_Executable(
                             environment                 = self.environment,
-                            project_identifier          = self.identifier,
-                            name                        = f"{target_stub.name}_example_{sourcefile.stem}",
+                            project_identifier          = f"{self.identifier}.{target_stub.name}" if self.identifier else target_stub.name,
+                            name                        = f"example_{sourcefile.stem}",
                             root_directory              = target_stub.examples_folder,
                             build_directory             = target_stub.build_directory.joinpath("examples"),
                             headers                     = target_stub.examples_files['headers'],

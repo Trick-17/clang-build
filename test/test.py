@@ -225,7 +225,8 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/automatic_tests_examples', '-V', '--tests', '--examples'])
 
         try:
-            output = subprocess.check_output(['./build/mylib/default/tests/bin/mylib_test'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/mylib/default/tests/bin/test'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            print(output)
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
@@ -234,7 +235,7 @@ class TestClangBuild(unittest.TestCase):
         self.assertRegex(output, r'.*All tests passed.*')
 
         try:
-            output = subprocess.check_output(['./build/mylib/default/examples/bin/mylib_example_magic_function'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/mylib/default/examples/bin/example_magic_function'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
