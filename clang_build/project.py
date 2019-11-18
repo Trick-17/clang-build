@@ -386,6 +386,7 @@ class Project:
 
         # Generate the list of target instances
         self.target_list = []
+        self.tests_list = [project.tests_list for project in self.subprojects]
         for target_identifier in _IteratorProgress(target_identifiers_ordered, environment.progress_disabled, len(target_identifiers_ordered)):
             # Dependencies
             target_dependencies = [self.fetch_from_target_list(dependency_identifier) for dependency_identifier in dependency_graph.successors(target_identifier)]
@@ -515,6 +516,7 @@ class Project:
                             source_files                = target_stub.tests_files['sourcefiles'],
                             dependencies                = target_tests_dependencies,
                             options                     = target_stub.tests_options))
+                        self.tests_list.append(target_stub.build_directory.joinpath("tests", "bin", f"{self.target_list[-1].outname}"))
                     else:
                         for sourcefile in target_stub.tests_files['sourcefiles']:
                             self.target_list.append(_Executable(
@@ -529,6 +531,7 @@ class Project:
                                 source_files                = [sourcefile],
                                 dependencies                = target_tests_dependencies,
                                 options                     = target_stub.tests_options))
+                            self.tests_list.append(target_stub.build_directory.joinpath("tests", "bin", f"{self.target_list[-1].outname}"))
 
                 if target_stub.build_examples:
                     target_examples_identifier = f'{target_identifier}.examples'

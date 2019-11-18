@@ -10,6 +10,7 @@ from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
 import shutil as _shutil
+import subprocess as _subprocess
 import toml
 from pbr.version import VersionInfo as _VersionInfo
 
@@ -58,6 +59,9 @@ _command_line_description = (
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description=_command_line_description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--version',
+                        action='version',
+                        version=f'clang-build v{__version__}')
     parser.add_argument('-V', '--verbose',
                         help='activate more detailed output',
                         action='store_true')
@@ -106,6 +110,9 @@ def parse_args(args):
                         action='store_true')
     parser.add_argument('--tests-recursive',
                         help='automatically discover and build tests on top of regular targets of all projects. Implies --tests',
+                        action='store_true')
+    parser.add_argument('--runtests',
+                        help='run all automatically discovered tests. Implies --tests',
                         action='store_true')
     parser.add_argument('--examples',
                         help='automatically discover and build examples on top of regular targets of the root project',
@@ -201,7 +208,7 @@ class _Environment:
             self.logger.info('Forcing build...')
 
         # Whether to discover and build tests of root project
-        self.tests = True if (args.tests or args.tests_recursive) else False
+        self.tests = True if (args.tests or args.tests_recursive or args.runtests) else False
         # Whether to discover and build tests of all projects
         self.tests_recursive = True if args.tests_recursive else False
 
@@ -359,6 +366,42 @@ def build(args):
         logger.info('clang-build finished.')
 
 
+def runtests(args):
+    # Create container of environment variables
+    environment = _Environment(args)
+
+    logger = environment.logger
+
+    # Check for build configuration toml file
+    toml_file = _Path(environment.working_directory, 'clang-build.toml')
+    if toml_file.exists():
+        logger.info(f'Found config file: \'{toml_file}\'')
+
+        # Parse config file
+        config = toml.load(str(toml_file))
+
+        # Determine if there are multiple projects
+        targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name"]}
+        subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
+        multiple_projects = False
+        if subprojects_config:
+            if targets_config or (len(subprojects_config["subproject"]) > 1):
+                multiple_projects = True
+
+        # Create root project
+        root_project = _Project(environment, config, multiple_projects, is_root_project=True)
+
+        logger.info('Run tests:\n    - ' + '\n    - '.join([str(path) for path in root_project.tests_list]))
+
+        for test in root_project.tests_list:
+            try:
+                output = _subprocess.check_output(['./'+str(test)], stderr=_subprocess.STDOUT).decode('utf-8').strip()
+            except _subprocess.CalledProcessError as e:
+                logger.error(f'Could not run test "{test}". Message:\n{e.output}')
+    else:
+        logger.error(f'Cannot automatically run tests if no config file is given')
+
+
 def _main():
     # Build
     try:
@@ -374,7 +417,10 @@ def _main():
         else:
             _setup_logger(_logging.DEBUG)
 
-        build(args)
+        if args.runtests:
+            runtests(args)
+        else:
+            build(args)
 
     except _CompileError as compile_error:
         logger = _logging.getLogger(__name__)
