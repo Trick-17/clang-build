@@ -16,8 +16,7 @@ from .target import Executable as _Executable,\
                     StaticLibrary as _StaticLibrary,\
                     HeaderOnly as _HeaderOnly
 from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
-                              get_dependency_graph as _get_dependency_graph,\
-                              get_dependency_graph_from_stubs as _get_dependency_graph_from_stubs
+                              get_dependency_graph as _get_dependency_graph
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import IteratorProgress as _IteratorProgress
 
@@ -309,7 +308,7 @@ class Project:
                     build_directory     = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)))
 
         # Create a structured dict of target and subproject configs for this project to resolve all dependencies
-        dependency_graph = _get_dependency_graph_from_stubs(self.environment, self.identifier, self.target_stubs, self.subprojects)
+        dependency_graph = _get_dependency_graph(self.environment, self.identifier, self.target_stubs, self.subprojects)
 
         # Create a dotfile of the dependency graph
         if is_root_project and environment.create_dependency_dotfile:

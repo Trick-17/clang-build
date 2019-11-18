@@ -26,7 +26,7 @@ def find_circular_dependencies(project):
 
     return list(_nx.simple_cycles(graph))
 
-def get_dependency_graph_from_stubs(environment, project_identifier, target_stubs, subprojects):
+def get_dependency_graph(environment, project_identifier, target_stubs, subprojects):
     graph = _nx.DiGraph()
 
     for target_stub in target_stubs:
@@ -54,7 +54,7 @@ def get_dependency_graph_from_stubs(environment, project_identifier, target_stub
             graph.add_edge(str(target_stub.identifier), str(dependency_identifier))
 
     for project in subprojects:
-        subgraph = get_dependency_graph_from_stubs(environment, project.identifier, project.target_stubs, project.subprojects)
+        subgraph = get_dependency_graph(environment, project.identifier, project.target_stubs, project.subprojects)
         graph = _nx.compose(graph, subgraph)
 
     return graph
