@@ -73,7 +73,7 @@ class Target_Stub:
             if "version" in self.options:
                 version = self.options["version"]
                 try:
-                    _subprocess.run(["git", "checkout", version], cwd=root_directory, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
+                    _subprocess.run(["git", "checkout", version], cwd=self.root_directory, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
                 except _subprocess.CalledProcessError as e:
                     error_message = f"[{self.identifier}]: error trying to checkout version \'{version}\' from url \'{url}\'. Message " + e.output
                     _LOGGER.exception(error_message)
