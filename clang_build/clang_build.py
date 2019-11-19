@@ -72,10 +72,11 @@ def parse_args(args):
                         type=_BuildType,
                         default=_BuildType.Default,
                         help='set the build type for this project')
-    parser.add_argument('-a', '--all',
+    target_group = parser.add_mutually_exclusive_group()
+    target_group.add_argument('-a', '--all',
                         help='build every target, irrespective of whether any root target depends on it',
                         action='store_true')
-    parser.add_argument('-t', '--targets',
+    target_group.add_argument('-t', '--targets',
                         type=str,
                         default="",
                         help='only these targets and their dependencies should be built (comma-separated list)')
