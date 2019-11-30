@@ -9,6 +9,7 @@ from pathlib import Path as _Path
 import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
 import logging as _logging
+import shutil as _shutil
 
 from . import platform as _platform
 from .build_type import BuildType as _BuildType
@@ -59,13 +60,14 @@ class Target:
         self.dependency_targets = dependencies
         self.unsuccessful_builds = []
 
+        self.environment = environment
+
         # TODO: parse user-specified target version
 
         # Basics
         self.name           = name
-        self.identifier      = f'{project_identifier}.{name}' if project_identifier else name
+        self.identifier     = f'{project_identifier}.{name}' if project_identifier else name
         self.root_directory = _Path(root_directory)
-
         self.build_directory = build_directory
 
         self.headers = list(dict.fromkeys(headers))
@@ -150,6 +152,16 @@ class Target:
     @abstractmethod
     def link(self):
         pass
+
+    def bundle(self):
+        self.unsuccessful_bundle = False
+        bundle_files = []
+        for dependency in self.dependency_targets:
+            bundle_files += dependency.bundle()
+        return bundle_files
+
+    def redistributable(self):
+        self.unsuccessful_redistributable = False
 
 
 class HeaderOnly(Target):
@@ -240,16 +252,18 @@ class Compilable(Target):
         if dependencies is None:
             dependencies = []
 
-        self.object_directory  = self.build_directory.joinpath('obj').resolve()
-        self.depfile_directory = self.build_directory.joinpath('dep').resolve()
-        self.output_folder     = self.build_directory.joinpath(output_folder).resolve()
+        self.object_directory       = self.build_directory.joinpath('obj').resolve()
+        self.depfile_directory      = self.build_directory.joinpath('dep').resolve()
+        self.output_folder          = self.build_directory.joinpath(output_folder).resolve()
+        self.redistributable_folder = self.build_directory.joinpath('redistributable')
 
         if 'output_name' in options:
             self.outname = options['output_name']
         else:
             self.outname = self.name
 
-        self.outfile = _Path(self.output_folder, prefix + self.outname + suffix).resolve()
+        self.outfilename = prefix + self.outname + suffix
+        self.outfile = _Path(self.output_folder, self.outfilename).resolve()
 
         # Sources
         self.source_files = source_files
@@ -435,15 +449,98 @@ class Executable(Compilable):
 
         ### Library dependency search paths
         for target in self.dependency_targets:
-            if not target.__class__ is HeaderOnly:
+            if target.__class__ is not HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
         self.link_command += self.link_flags_private + self.link_flags_public
 
         ### Link dependencies
         for target in self.dependency_targets:
-            if not target.__class__ is HeaderOnly:
+            if target.__class__ is not HeaderOnly:
                 self.link_command += ['-l'+target.outname]
+
+        ### Bundling requires extra flags
+        if self.environment.bundle:
+            ### Search for libraries relative to the executable
+            if _platform.PLATFORM == 'osx':
+                self.link_command += ['-Wl,-rpath,@executable_path']
+            elif _platform.PLATFORM == 'linux':
+                self.link_command += ['-Wl,-rpath,$ORIGIN']
+            elif _platform.PLATFORM == 'windows':
+                pass
+
+    def bundle(self):
+        self.unsuccessful_bundle = False
+
+        ### Gather
+        bundle_files = []
+        for dependency in self.dependency_targets:
+            bundle_files += dependency.bundle()
+
+        ### Copy
+        for bundle_file in bundle_files:
+            try:
+                _shutil.copy(bundle_file, self.output_folder)
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_bundle = True
+                self.bundle_report = error.output.decode('utf-8').strip()
+
+        return [self.outfile] + bundle_files
+
+    def redistributable(self):
+        self.unsuccessful_redistributable = False
+        if _platform.PLATFORM == 'osx':
+            appfolder = self.redistributable_folder.joinpath(f"{self.outname}.app")
+            binfolder = appfolder.joinpath('Contents', 'MacOS')
+            try:
+                binfolder.mkdir(parents=True, exist_ok=True)
+                with appfolder.joinpath('Contents', 'Info.plist').open(mode='w') as plist:
+                    plist.write(f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleGetInfoString</key>
+  <string>{self.outname}</string>
+  <key>CFBundleExecutable</key>
+  <string>{self.outname}</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.your-company-name.www</string>
+  <key>CFBundleName</key>
+  <string>{self.outname}</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.0</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>IFMajorVersion</key>
+  <integer>0</integer>
+  <key>IFMinorVersion</key>
+  <integer>0</integer>
+</dict>
+</plist>""")
+                _shutil.copy(self.outfile, binfolder)
+                bundle_files = self.bundle()
+                for bundle_file in bundle_files:
+                    _shutil.copy(bundle_file, binfolder)
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_redistributable = True
+                self.redistributable_report = error.output.decode('utf-8').strip()
+        elif _platform.PLATFORM == 'linux':
+            try:
+                self.redistributable_folder.mkdir(parents=True, exist_ok=True)
+                # TODO: gather includes and shared libraries
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_redistributable = True
+                self.redistributable_report = error.output.decode('utf-8').strip()
+        elif _platform.PLATFORM == 'windows':
+            try:
+                self.redistributable_folder.mkdir(parents=True, exist_ok=True)
+                # TODO: gather includes and shared libraries
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_redistributable = True
+                self.redistributable_report = error.output.decode('utf-8').strip()
+
 
     def add_default_flags(self):
         super().add_default_flags()
@@ -494,15 +591,48 @@ class SharedLibrary(Compilable):
 
         ### Library dependency search paths
         for target in self.dependency_targets:
-            if not target.__class__ is HeaderOnly:
+            if target.__class__ is not HeaderOnly:
                 self.link_command += ['-L', str(target.output_folder.resolve())]
 
         self.link_command += self.link_flags_private + self.link_flags_public
 
         ### Link dependencies
         for target in self.dependency_targets:
-            if not target.__class__ is HeaderOnly:
+            if target.__class__ is not HeaderOnly:
                 self.link_command += ['-l'+target.outname]
+
+        ### Bundling requires some link flags
+        if self.environment.bundle:
+            if _platform.PLATFORM == 'osx':
+                ### Install name for OSX
+                self.link_command += ['-install_name', f'@rpath/{self.outfilename}']
+            elif _platform.PLATFORM == 'linux':
+                pass
+            elif _platform.PLATFORM == 'windows':
+                pass
+
+    def bundle(self):
+        self.unsuccessful_bundle = False
+
+        ### Gather
+        self_bundle_files = [self.outfile]
+        if _platform.PLATFORM == 'windows':
+            self_bundle_files.append(_Path(str(self.outfile)[:-3] + "exp"))
+            self_bundle_files.append(_Path(str(self.outfile)[:-3] + "lib"))
+
+        bundle_files = []
+        for dependency in self.dependency_targets:
+            bundle_files += dependency.bundle()
+
+        ### Copy
+        for bundle_file in bundle_files:
+            try:
+                _shutil.copy(bundle_file, self.output_folder)
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_bundle = True
+                self.bundle_report = error.output.decode('utf-8').strip()
+
+        return self_bundle_files + bundle_files
 
     def add_default_flags(self):
         super().add_default_flags()

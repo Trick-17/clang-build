@@ -104,7 +104,7 @@ class Project:
                     raise RuntimeError(error_message)
 
         # Get subset of config which contains targets not associated to any project name
-        self.targets_config = {key: val for key, val in config.items() if not key in ["subproject", "name", "url", "version"]}
+        self.targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name", "url", "version"]}
 
         # Use sub-build directories if the project contains multiple targets
         multiple_targets = False
@@ -117,9 +117,14 @@ class Project:
 
         # Check this project's targets for circular dependencies
         circular_dependencies = _find_circular_dependencies(self.targets_config)
+        error_messages = []
         if circular_dependencies:
-            error_messages = [f'Circular dependency [{target}] -> [{dependency}]' for\
-                            target, dependency in circular_dependencies]
+            for circle in circular_dependencies:
+                message = f'Circular dependency: ... -> [{circle[0]}]'
+                for target in circle[1:]:
+                    message += f' -> [{target}]'
+                message += f' -> ...'
+                error_messages.append(message)
 
             error_message = f"[[{self.identifier}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
             _LOGGER.exception(error_message)

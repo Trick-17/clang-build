@@ -30,3 +30,32 @@ class LinkError(RuntimeError):
         '''
         super().__init__(message)
         self.error_dict = error_dict
+
+class BundleError(RuntimeError):
+    '''
+    Error that is raised if creating a bundle
+    was not successful.
+    '''
+    def __init__(self, message, error_dict=None):
+        '''
+        :param message: Message of the error
+        :param error_dict: A dict containing all errors
+                           that occurred during compilation
+        '''
+        super().__init__(message)
+        self.error_dict = error_dict
+        
+
+class RedistributableError(RuntimeError):
+    '''
+    Error that is raised if creating a
+    redistributable was not successful.
+    '''
+    def __init__(self, message, error_dict=None):
+        '''
+        :param message: Message of the error
+        :param error_dict: A dict containing all errors
+                           that occurred during compilation
+        '''
+        super().__init__(message)
+        self.error_dict = error_dict

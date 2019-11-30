@@ -9,7 +9,7 @@ import sys
 from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
-from shutil import which as _which
+import shutil as _shutil
 import toml
 from pbr.version import VersionInfo as _VersionInfo
 
@@ -24,6 +24,8 @@ from .progress_bar import CategoryProgress as _CategoryProgress,\
 from .logging_stream_handler import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
+from .errors import BundleError as _BundleError
+from .errors import RedistributableError as _RedistributableError
 
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
@@ -96,13 +98,19 @@ def parse_args(args):
     parser.add_argument('--no-recursive-clone',
                         help='deactivates recursive cloning of git submodules',
                         action='store_true')
+    parser.add_argument('--bundle',
+                        help='automatically gather dependencies into the binary directories of targets',
+                        action='store_true')
+    parser.add_argument('--redistributable',
+                        help='Automatically create redistributable bundles from binary bundles. Implies `--bundle`',
+                        action='store_true')
     return parser.parse_args(args=args)
 
 
 def _find_clang(logger):
-    clang = _which('clang')
-    clangpp = _which('clang++')
-    clang_ar = _which('llvm-ar')
+    clang    = _shutil.which('clang')
+    clangpp  = _shutil.which('clang++')
+    clang_ar = _shutil.which('llvm-ar')
     if clangpp:
         llvm_root = _Path(clangpp).parents[0]
     else:
@@ -199,12 +207,29 @@ class _Environment:
         # Whether to recursively clone submodules when cloning with git
         self.clone_recursive = False if args.no_recursive_clone else True
 
+        # Whether to bundle binaries
+        self.bundle = True if args.bundle else False
+        if self.bundle:
+            self.logger.info('Bundling of binary dependencies is activated')
+
+        # Whether to create redistributable bundles
+        self.redistributable = True if args.redistributable else False
+        if self.redistributable:
+            self.bundle = True
+            self.logger.info('Redistributable bundling of binary dependencies is activated')
+
 
 def build(args):
     # Create container of environment variables
     environment = _Environment(args)
 
-    with _CategoryProgress(['Configure', 'Compile', 'Link'], environment.progress_disabled) as progress_bar:
+    categories = ['Configure', 'Compile', 'Link']
+    if environment.bundle:
+        categories.append('Generate bundle')
+    if environment.redistributable:
+        categories.append('Generate redistributable')
+
+    with _CategoryProgress(categories, environment.progress_disabled) as progress_bar:
         target_list = []
         logger = environment.logger
         processpool = environment.processpool
@@ -218,7 +243,7 @@ def build(args):
             config = toml.load(str(toml_file))
 
             # Determine if there are multiple projects
-            targets_config = {key: val for key, val in config.items() if not key == "subproject" and not key == "name"}
+            targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name"]}
             subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
             multiple_projects = False
             if subprojects_config:
@@ -258,7 +283,6 @@ def build(args):
 
         # Build the targets
         progress_bar.update()
-
         logger.info('Compile')
 
         for target in _IteratorProgress(target_list, environment.progress_disabled, len(target_list), lambda x: x.name):
@@ -294,6 +318,37 @@ def build(args):
                     errors[target.identifier] = target.link_report
         if errors:
             raise _LinkError('Linking was unsuccessful', errors)
+
+        # Bundle
+        if environment.bundle:
+            progress_bar.update()
+            logger.info('Generate bundle')
+            for target in target_list:
+                target.bundle()
+
+            # Check for bundling errors
+            errors = {}
+            for target in target_list:
+                if target.__class__ is not _HeaderOnly:
+                    if target.unsuccessful_bundle:
+                        errors[target.identifier] = target.bundle_report
+            if errors:
+                raise _BundleError('Bundling was unsuccessful', errors)
+
+        if environment.redistributable:
+            progress_bar.update()
+            logger.info('Generate redistributable')
+            for target in target_list:
+                target.redistributable()
+
+            # Check for redistibutable errors
+            errors = {}
+            for target in target_list:
+                if target.__class__ is not _HeaderOnly:
+                    if target.unsuccessful_redistributable:
+                        errors[target.identifier] = target.redistributable_report
+            if errors:
+                raise _RedistributableError('Creating redistributables was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')
