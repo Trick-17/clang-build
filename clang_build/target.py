@@ -154,13 +154,14 @@ class Target:
         pass
 
     def bundle(self):
+        self.unsuccessful_bundle = False
         bundle_files = []
         for dependency in self.dependency_targets:
             bundle_files += dependency.bundle()
         return bundle_files
 
     def redistributable(self):
-        pass
+        self.unsuccessful_redistributable = False
 
 
 class HeaderOnly(Target):
@@ -469,6 +470,8 @@ class Executable(Compilable):
                 pass
 
     def bundle(self):
+        self.unsuccessful_bundle = False
+
         ### Gather
         bundle_files = []
         for dependency in self.dependency_targets:
@@ -476,17 +479,23 @@ class Executable(Compilable):
 
         ### Copy
         for bundle_file in bundle_files:
-            _shutil.copy(bundle_file, self.output_folder)
+            try:
+                _shutil.copy(bundle_file, self.output_folder)
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_bundle = True
+                self.bundle_report = error.output.decode('utf-8').strip()
 
         return [self.outfile] + bundle_files
 
     def redistributable(self):
+        self.unsuccessful_redistributable = False
         if _platform.PLATFORM == 'osx':
             appfolder = self.redistributable_folder.joinpath(f"{self.outname}.app")
             binfolder = appfolder.joinpath('Contents', 'MacOS')
-            binfolder.mkdir(parents=True, exist_ok=True)
-            with appfolder.joinpath('Contents', 'Info.plist').open(mode='w') as plist:
-                plist.write(f"""<?xml version="1.0" encoding="UTF-8"?>
+            try:
+                binfolder.mkdir(parents=True, exist_ok=True)
+                with appfolder.joinpath('Contents', 'Info.plist').open(mode='w') as plist:
+                    plist.write(f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -510,16 +519,28 @@ class Executable(Compilable):
   <integer>0</integer>
 </dict>
 </plist>""")
-            _shutil.copy(self.outfile, binfolder)
-            bundle_files = self.bundle()
-            for bundle_file in bundle_files:
-                _shutil.copy(bundle_file, binfolder)
+                _shutil.copy(self.outfile, binfolder)
+                bundle_files = self.bundle()
+                for bundle_file in bundle_files:
+                    _shutil.copy(bundle_file, binfolder)
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_redistributable = True
+                self.redistributable_report = error.output.decode('utf-8').strip()
         elif _platform.PLATFORM == 'linux':
-            self.redistributable_folder.mkdir(parents=True, exist_ok=True)
-            # TODO: gather includes and shared libraries
+            try:
+                self.redistributable_folder.mkdir(parents=True, exist_ok=True)
+                # TODO: gather includes and shared libraries
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_redistributable = True
+                self.redistributable_report = error.output.decode('utf-8').strip()
         elif _platform.PLATFORM == 'windows':
-            self.redistributable_folder.mkdir(parents=True, exist_ok=True)
-            # TODO: gather includes and shared libraries
+            try:
+                self.redistributable_folder.mkdir(parents=True, exist_ok=True)
+                # TODO: gather includes and shared libraries
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_redistributable = True
+                self.redistributable_report = error.output.decode('utf-8').strip()
+
 
     def add_default_flags(self):
         super().add_default_flags()
@@ -591,6 +612,8 @@ class SharedLibrary(Compilable):
                 pass
 
     def bundle(self):
+        self.unsuccessful_bundle = False
+
         ### Gather
         self_bundle_files = [self.outfile]
         if _platform.PLATFORM == 'windows':
@@ -603,7 +626,11 @@ class SharedLibrary(Compilable):
 
         ### Copy
         for bundle_file in bundle_files:
-            _shutil.copy(bundle_file, self.output_folder)
+            try:
+                _shutil.copy(bundle_file, self.output_folder)
+            except _subprocess.CalledProcessError as error:
+                self.unsuccessful_bundle = True
+                self.bundle_report = error.output.decode('utf-8').strip()
 
         return self_bundle_files + bundle_files
 

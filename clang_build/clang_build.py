@@ -24,6 +24,8 @@ from .progress_bar import CategoryProgress as _CategoryProgress,\
 from .logging_stream_handler import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
+from .errors import BundleError as _BundleError
+from .errors import RedistributableError as _RedistributableError
 
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
@@ -323,7 +325,14 @@ def build(args):
             for target in target_list:
                 target.bundle()
 
-            # TODO: Check for bundling errors
+            # Check for bundling errors
+            errors = {}
+            for target in target_list:
+                if target.__class__ is not _HeaderOnly:
+                    if target.unsuccessful_bundle:
+                        errors[target.identifier] = target.bundle_report
+            if errors:
+                raise _BundleError('Bundling was unsuccessful', errors)
 
         if environment.redistributable:
             progress_bar.update()
@@ -331,7 +340,14 @@ def build(args):
             for target in target_list:
                 target.redistributable()
 
-            # TODO: Check for errors creating the redistributables
+            # Check for redistibutable errors
+            errors = {}
+            for target in target_list:
+                if target.__class__ is not _HeaderOnly:
+                    if target.unsuccessful_redistributable:
+                        errors[target.identifier] = target.redistributable_report
+            if errors:
+                raise _RedistributableError('Creating redistributables was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')
