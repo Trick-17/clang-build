@@ -1,414 +1,547 @@
-'''
-Target describes a single build or dependency target with all needed paths and
-a list of buildables that comprise it's compile and link steps.
-'''
+"""A class that contains potentially multiple targets and other projects."""
 
+import logging as _logging
 import os as _os
+import subprocess as _subprocess
+import tempfile as _tempfile
 import textwrap as _textwrap
 from pathlib import Path as _Path
-import subprocess as _subprocess
-import logging as _logging
 
-import toml
 import networkx as _nx
-from .target import Executable as _Executable,\
-                    SharedLibrary as _SharedLibrary,\
-                    StaticLibrary as _StaticLibrary,\
-                    HeaderOnly as _HeaderOnly
-from .dependency_tools import find_circular_dependencies as _find_circular_dependencies,\
-                              get_dependency_graph as _get_dependency_graph
-from .io_tools import get_sources_and_headers as _get_sources_and_headers
+import toml
+
+from .circle import Circle as _Circle
+from .git_tools import checkout_version as _checkout_version
+from .git_tools import clone_repository as _clone_repository
+from .git_tools import needs_download as _needs_download
+from .logging_tools import NamedLogger as _NamedLogger
 from .progress_bar import IteratorProgress as _IteratorProgress
+from .target import make_target as _make_target
+from .tree_entry import TreeEntry as _TreeEntry
 
-_LOGGER = _logging.getLogger('clang_build.clang_build')
+_LOGGER = _logging.getLogger("clang_build.clang_build")
 
 
-class Project:
-    def __init__(self, config, environment, multiple_projects, is_root_project, parent_working_dir="", parent_identifier=""):
+class Project(_NamedLogger, _TreeEntry):
+    """The Project class is all about organising targets and managing folder structures.
 
-        self.working_directory = environment.working_directory
-        if parent_working_dir:
-            self.working_directory = parent_working_dir
+    Every start of clang-build, a Project is created that scans a given folder for what
+    could potentially be a large multi-subproject structure. The project will find and
+    configure all targets as specified by the parameters given. Once it is created, the
+    structure that was discovered can be explored and targets can be built.
+    """
 
-        self.is_root_project = is_root_project
+    @property
+    def build_directory(self):
+        """Return the output directory for build objects for this project.
 
-        self.name = config.get("name", "")
+        Apart from a folder where the project files are stored, a project
+        also has a separate folder where build files (like compiled object
+        files or executables, etc.) are stored.
+        """
+        return self._build_directory
 
-        if "directory" in config:
-            self.working_directory = self.working_directory.joinpath(config["directory"])
-            toml_file = _Path(self.working_directory, 'clang-build.toml')
+    @property
+    def config(self):
+        """Return the config dict of this project.
 
-            if toml_file.exists():
-                if self.name:
-                    environment.logger.info(f'[[{self.name}]]: found config file \'{toml_file}\'')
-                else:
-                    environment.logger.info(f'Found config file \'{toml_file}\'')
-                config = toml.load(str(toml_file))
-            else:
-                if self.name:
-                    error_message = f"[[{self.name}]]: could not find project file in directory \'{self.working_directory}\'"
-                else:
-                    error_message = f"Could not find project file in directory \'{self.working_directory}\'"
-                error_message += f"\n                         Checked for file \'{toml_file}\'"
-                _LOGGER.exception(error_message)
-                raise RuntimeError(error_message)
+        Non-trivial projects will normally define project details in a toml file.
+        This dict is a :any:`dict` version of this file.
+        """
+        return self._config
 
-        # Re-fetch name if name not specified previously and config was changed
+    @property
+    def directory(self):
+        """Return the directory of this project.
+
+        Every project is located in a directory that has to be specified.
+        The directory is the one that either contains a toml file or for
+        trivial projects just the default folder structure that can be
+        searched by clang-build.
+        """
+        return self._directory
+
+    @property
+    def environment(self):
+        """Return the set of global settings.
+
+
+        """
+        return self._environment
+
+    @property
+    def identifier(self) -> str:
+        """Return a unique identifier of this project.
+
+        The unique identifier for a project can be:
+        - An emtpy string if this is a basic project and no name was given
+        - A simple string if a name was given to this project
+        - A string with one or more "." if this is a subproject
+        """
+        return (
+            self.name
+            if self._parent is None
+            else f"{self._parent.identifier}.{self.name}"
+        )
+
+    @property
+    def name(self) -> str:
+        """Return the name of this project.
+
+        Every project can be given a name. A name is a string
+        that does not contain "."s. For basic project no name
+        has to be provided.
+        """
+        return self._name
+
+    @property
+    def parent(self):
+        """Return the parent of this project.
+
+        Projects are organised in a tree like structure. This project
+        will return the parent project except for the case where this
+        project is the top level project.
+        """
+        return self._parent
+
+    @property
+    def project_tree(self):
+        """Return a :any:`networkx` tree representation of all selected targets.
+
+        Targets can have dependencies on each other. This can be represented
+        in a tree structure. Therefore, the targets that were selected during
+        the initialization of the Project are available as a DiGraph. This
+        graph is the global project tree. If you are only interested in subgraphs
+        you have to use the :any:`networkx` functionality.
+        """
+        return self._project_tree
+
+    @property
+    def subprojects(self):
+        """Return a list of subprojects.
+
+        All direct descendants of this project (subprojects only, no targets)
+        are returned as a list.
+        """
+        return self._subprojects
+
+    @property
+    def target_list(self):
+        """Return all targets that were configured and are part of this project.
+
+        This list includes only those targets that were selected to be configured,
+        and are also defined inside of this project.
+        """
+        return self._current_targets
+
+    @property
+    def target_list_all(self):
+        """Return all targets that were configured.
+
+        This list includes all targets, also dependencies that are not defined
+        in this project.
+        """
+        return self._target_list
+
+    def __init__(self, directory, environment, **kwargs):
+        """Initialises a project.
+
+        The procedure for initialisation is:
+
+        #. Setting some instance attributes
+        #. Initialising sub-projects and filling the dependency tree recursively
+        #. Determining the targets to configure
+        #. Configuring the targets
+
+        Parameters
+        ----------
+        directory : str or :any:`pathlib.Path`
+            The directory to search for a ``toml`` file or source files
+        environment : any:`clang_build.clang_build.Environment`
+            An any:`clang_build.clang_build.Environment` instance defining some global
+            settings for this run of clang-build.
+        kwargs
+            Used for internal purposes only.
+
+        """
+        self._directory = _Path(directory)
+        self._parent = kwargs.get("parent", None)
+        self._environment = environment
+
+        self._set_project_tree()
+        self._load_config()
+        self._set_name()
+
+        self._subprojects = [
+            Project(configuration["directory"], environment, parent=self)
+            for configuration in self.config.get("subproject", [])
+        ]
+
+        self._fill_dependency_tree()
+        self._set_build_directory()
+
+        if not self.parent:
+            self._check_for_circular_dependencies()
+
+            targets_to_build = self._get_targets_to_build()
+
+            targets_not_to_build = [
+                x
+                for x in self.project_tree
+                if x not in targets_to_build and not isinstance(x, Project)
+            ]
+
+            self.project_tree.remove_nodes_from(targets_not_to_build)
+            self._current_targets = [
+                target for target in self._current_targets if target in targets_to_build
+            ]
+
+            if targets_not_to_build:
+                _LOGGER.info(
+                    f'Not building target(s) [{"], [".join(targets_not_to_build)}].'
+                )
+
+            _target_build_list = [
+                target
+                for target in reversed(list(_nx.topological_sort(self.project_tree)))
+                if target in targets_to_build
+            ]
+
+            # Generate the list of target instances
+            self._target_list = []
+            for target_description in _IteratorProgress(
+                _target_build_list,
+                environment.progress_disabled,
+                len(_target_build_list),
+            ):
+                target = _make_target(target_description, self.project_tree)
+                _nx.relabel_nodes(
+                    self.project_tree, {target_description: target}, copy=False
+                )
+                self._target_list.append(target)
+
+    def _check_for_circular_dependencies(self):
+        """Check if targets are defined in a circular dependency.
+
+        Raises an exception if circular dependencies were found pointing
+        out where the circular dependencies were found.
+        """
+        circles = list(_nx.simple_cycles(self.project_tree))
+
+        circles = [_Circle(circle + [circle[-1]]) for circle in circles]
+        if circles:
+            error_message = self.log_message(
+                "Found the following circular dependencies:\n"
+                + _textwrap.indent(
+                    "\n".join("- " + str(circle) for circle in circles), prefix=" " * 3
+                )
+            )
+            _LOGGER.exception(error_message)
+            raise RuntimeError(error_message)
+
+    def _fill_dependency_tree(self):
+        """Integrate this project into the global project tree.
+
+        This helper function is part of the initialisation of a project.
+        It adds this project, all targets and their dependencies to the
+        global project tree. If there are illegal dependencies, this function
+        will raise an exception.
+        """
+        # add self
+        self.project_tree.add_node(self)
+
+        # add edges to subprojects
+        self.project_tree.add_edges_from(
+            (self, sub_project) for sub_project in self.subprojects
+        )
+
+        # add targets defined in project and edges for these
+        self._current_targets = [
+            TargetDescription(
+                key, val, self._identifier_from_name(key), self, self.environment
+            )
+            for key, val in self.config.items()
+            if key != "subproject" and isinstance(val, dict)
+        ]
+        self.project_tree.add_nodes_from(self._current_targets)
+        self.project_tree.add_edges_from(
+            (self, target) for target in self._current_targets
+        )
+
+        # add edges for dependencies in targets defined in project
+        for target in self._current_targets:
+            dependencies = target.config.get("dependencies", [])
+            dependency_objs = []
+            for dependency_name in dependencies:
+                full_name = self._identifier_from_name(dependency_name)
+                try:
+                    dependency = self._project_tree[full_name]
+                except KeyError:
+                    error_message = target.log_message(
+                        f"the dependency [{dependency_name}] does not point to a valid target."
+                    )
+                    _LOGGER.exception(error_message)
+                    raise RuntimeError(error_message)
+
+                dependency_objs.append(target)
+                self._project_tree.add_edge(target, dependency)
+
+            target.config["dependencies"] = dependency_objs
+
+    def _load_config(self):
+        """Try to find a toml file and return a config.
+
+        This helper function is part of the initialisation of a project.
+        It searches for a toml file and (if it finds one) loads it. Otherwise
+        it generates a default config.
+        """
+        toml_file = self.directory / "clang-build.toml"
+
+        if toml_file.exists():
+            _LOGGER.info("Found config file '%s'.", toml_file)
+            self._config = toml.load(toml_file)
+
+        elif self.parent:
+            error_message = self.parent.log_message(
+                f"the config defines a subproject in folder {self.directory},"
+                + " that does not have a project file. It is not allowed to add a"
+                + " subproject that does not have a project file."
+            )
+
+            _LOGGER.exception(error_message)
+            raise RuntimeError(error_message)
+
+        else:
+            self._config = {"": {"output_name": "main"}}
+
+    def _get_targets_to_build(self):
+        """Return the list of targets to configure.
+
+        This helper function is part of the initialisation of a project.
+        Depending on the settings passed to clang build, not all targets
+        will be configured. This function returns the list of only those
+        targets that were selected and those targets that are dependencies
+        of the selected ones.
+        """
+        if self.environment.build_all:
+            targets_to_build = [
+                target
+                for target in self.project_tree
+                if not isinstance(target, Project)
+            ]
+
+        elif self.environment.target_list:
+            targets = [
+                self.project_tree[
+                    TargetDescription.identifier_to_tree_str(
+                        self._identifier_from_name(target)
+                    )
+                ]
+                for target in self.environment.target_list
+            ]
+
+            targets_to_build = set().union(
+                *[
+                    set(targets),
+                    *[
+                        x
+                        for x in (
+                            self.project_tree.descendants(target for target in targets)
+                        )
+                        if x
+                    ],
+                ]
+            )
+
+            _LOGGER.info(
+                f'Only building targets [{"], [".join(self.environment.target_list)}]'
+                + f' out of base set of targets [{"], [".join(target.name for target in self._current_targets)}].'
+            )
+
+        else:
+            targets_to_build = set().union(
+                *[
+                    set(self._current_targets),
+                    *[
+                        _nx.descendants(self.project_tree, target)
+                        for target in self._current_targets
+                    ],
+                ]
+            )
+
+        return targets_to_build
+
+    def _identifier_from_name(self, target_name: str):
+        """Convert a name into an identifier.
+
+        This works only if the name is defined for this project. If the
+        target name is from a subproject, the method of the sub-project
+        has to be called.
+
+        Parameters
+        ----------
+        target_name : str
+            The target name of the target for which to get the identifier.
+            Has to be a target of this project.
+        """
+        prefix = f"{self.identifier}." if self.identifier else ""
+
+        return f"{prefix}{target_name}"
+
+    def _set_build_directory(self):
+        """Set the build file output directory.
+
+        This helper function is part of the initialisation of a project.
+        It determines the build output directory which depends on if there
+        are subprojects and more than one target. If that is the case, all
+        output files will be in a hirarchical structure identical to the
+        project tree structure. Else, the output for a trivial project will
+        be directly in the build directory.
+        """
+        self._build_directory = self.environment.build_directory
+        if self.parent:
+            self._build_directory = self.parent.build_directory / self.name
+        elif (
+            "subproject" in self.config
+            or len(
+                [
+                    target
+                    for target in self.project_tree
+                    if self.project_tree.out_degree(target) == 0
+                ]
+            )
+            > 1
+        ):
+            self._build_directory /= self.name
+
+    def _set_name(self):
+        """Set the name.
+
+        This helper function is part of the initialisation of a project.
+        It will try to load the name from the config. If it cannot find it
+        it will make sure that not having a name is allowed which is only
+        the case if:
+
+        - This project is not a sub-project and
+        - This project does not have any sub-projects
+        """
+        self._name = str(self.config.get("name", ""))
+
         if not self.name:
-            self.name = config.get("name", "")
+            if self.parent:
+                error_message = self.parent.log_message(
+                    f"the config defines a subproject in folder {self.directory},"
+                    + " that does not specify a name. It is not allowed to add a"
+                    + " subproject that does not have a name."
+                )
 
-        # If this is not the root project, it needs to have a name
-        if not is_root_project and not self.name:
-            error_message = f"Subproject name was not specified in the parent project [[{parent_identifier}]], nor it's config file."
-            _LOGGER.exception(error_message)
-            raise RuntimeError(error_message)
-
-        self.subprojects = []
-        # Unique identifier
-        self.identifier = f"{parent_identifier}.{self.name}" if parent_identifier else self.name
-
-        # Project build directory
-        self.build_directory = environment.build_directory
-        if multiple_projects:
-            self.build_directory = self.build_directory.joinpath(self.name)
-
-        url = config.get("url", "")
-        if url:
-            download_directory = self.build_directory.joinpath('external_sources')
-            # Check if directory is already present and non-empty
-            if download_directory.exists() and _os.listdir(str(download_directory)):
-                _LOGGER.info(f'[[{self.identifier}]]: external project sources found in \'{str(download_directory)}\'')
-            # Otherwise we download the sources
-            else:
-                _LOGGER.info(f'[[{self.identifier}]]: downloading external project to \'{str(download_directory)}\'')
-                download_directory.mkdir(parents=True, exist_ok=True)
-                try:
-                    if environment.clone_recursive:
-                        _subprocess.run(["git", "clone", "--recurse-submodules", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
-                    else:
-                        _subprocess.run(["git", "clone", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
-                except _subprocess.CalledProcessError as e:
-                    error_message = f"[[{self.identifier}]]: error trying to download external project. Message " + e.output
-                    _LOGGER.exception(error_message)
-                    raise RuntimeError(error_message)
-                _LOGGER.info(f'[[{self.identifier}]]: external project downloaded')
-            self.working_directory = download_directory
-
-            if "version" in config:
-                version = config["version"]
-                try:
-                    _subprocess.run(["git", "checkout", version], cwd=download_directory, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
-                except _subprocess.CalledProcessError as e:
-                    error_message = f"[[{self.identifier}]]: error trying to checkout version \'{version}\' from url \'{url}\'. Message " + e.output
-                    _LOGGER.exception(error_message)
-                    raise RuntimeError(error_message)
-
-        # Get subset of config which contains targets not associated to any project name
-        self.targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name", "url", "version"]}
-
-        # Use sub-build directories if the project contains multiple targets
-        multiple_targets = False
-        if len(self.targets_config.items()) > 1:
-            multiple_targets = True
-
-        # TODO: document why this is here
-        if not self.targets_config:
-            return
-
-        # Check this project's targets for circular dependencies
-        circular_dependencies = _find_circular_dependencies(self.targets_config)
-        error_messages = []
-        if circular_dependencies:
-            for circle in circular_dependencies:
-                message = f'Circular dependency: ... -> [{circle[0]}]'
-                for target in circle[1:]:
-                    message += f' -> [{target}]'
-                message += f' -> ...'
-                error_messages.append(message)
-
-            error_message = f"[[{self.identifier}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
-            _LOGGER.exception(error_message)
-            raise RuntimeError(error_message)
-
-        # Get subsets of config which define projects
-        self.subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
-
-        # An "anonymous" project, i.e. project-less targets, is not allowed together with subprojects
-        if self.targets_config and self.subprojects_config:
-            if not self.name:
-                error_message = f"[[{parent_identifier}]]: the config file specifies one or more projects. In this case it is not allowed to specify targets which do not belong to a project."
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
-        # Generate subprojects of this project
-        if self.subprojects_config:
-            self.subprojects += [Project(config, environment, multiple_projects, is_root_project=False, parent_working_dir=self.working_directory, parent_identifier=self.identifier) for config in self.subprojects_config["subproject"]]
-        self.subproject_names = [project.name if project.name else "anonymous" for project in self.subprojects]
+            if "subproject" in self.config:
+                error_message = self.log_message(
+                    f"defining a top-level project with subprojects but without a name"
+                    + " is illegal."
+                )
 
-        # Create a structured dict of target and subproject configs for this project to resolve all dependencies
-        dependency_graph = _get_dependency_graph(self.identifier, self.targets_config, self.subprojects)
-
-        # Check for dependencies pointing nowhere
-        non_existent_dependencies = []
-        for target_identifier, dependency_indentifier in dependency_graph.edges():
-            if not self.contains_target(dependency_indentifier):
-                non_existent_dependencies.append((target_identifier, dependency_indentifier))
-        if non_existent_dependencies:
-            error_messages = [f'[{target_identifier}]: the dependency [{dependency_indentifier}] does not point to a valid target of this project or its subprojects' for\
-                            target_identifier, dependency_indentifier in non_existent_dependencies]
-
-            error_message = f"[[{self.identifier}]]:\n" + _textwrap.indent('\n'.join(error_messages), prefix=' '*3)
-            _LOGGER.exception(error_message)
-            raise RuntimeError(error_message)
-
-        # Unless all should be built, don't build targets which are not in the root project
-        # or a dependency of a target of the root project
-        self.target_dont_build_list = []
-        if is_root_project and not environment.build_all:
-            # Root targets (i.e. targets of the root project),
-            # or the specified projects will be retained
-            base_set = set(self.targets_config)
-            if environment.target_list:
-                _LOGGER.info(f'Only building targets [{"], [".join(environment.target_list)}] out of base set of targets [{"], [".join(base_set)}].')
-                for target in self.targets_config:
-                    if target not in environment.target_list:
-                        base_set.discard(target)
-
-            # Descendants will be retained, too
-            self.target_dont_build_list = set(dependency_graph.nodes())
-            for root_name in base_set:
-                root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
-                self.target_dont_build_list.discard(root_identifier)
-                self.target_dont_build_list -= _nx.algorithms.dag.descendants(dependency_graph, root_identifier)
-            self.target_dont_build_list = list(self.target_dont_build_list)
-
-            if self.target_dont_build_list:
-                _LOGGER.info(f'Not building target(s) [{"], [".join(self.target_dont_build_list)}].')
-
-        elif is_root_project:
-            _LOGGER.info(f'Building all targets!')
-            base_set = set()
-
-        # Create a dotfile of the dependency graph
-        if is_root_project and environment.create_dependency_dotfile:
-            create_dotfile = False
-            try:
-                import pydot
-                create_dotfile = True
-            except:
-                _LOGGER.error(f'Could not create dependency dotfile, as pydot is not installed')
-
-            if create_dotfile:
-                # Color the targets which should be built in red
-                for root_name in base_set:
-                    root_identifier = f'{self.identifier}.{root_name}' if self.identifier else root_name
-                    dependency_graph.node[root_identifier]['color'] = 'red'
-                    for node in _nx.algorithms.dag.descendants(dependency_graph, root_identifier):
-                        dependency_graph.node[node]['color'] = 'red'
-
-                _Path(environment.build_directory).mkdir(parents=True, exist_ok=True)
-                _nx.drawing.nx_pydot.write_dot(dependency_graph, str(_Path(environment.build_directory, 'dependencies.dot')))
-
-        # Generate a list of target identifiers of this project
-        target_identifiers = [f'{self.identifier}.{target_name}' if self.identifier else target_name for target_name in self.targets_config]
-        # Generate a correctly ordered list of target identifiers of this project
-        target_identifiers_ordered = [identifier for identifier in list(reversed(list(_nx.topological_sort(dependency_graph)))) if identifier in target_identifiers]
-
-        # Generate the list of target instances
-        self.target_list = []
-        for target_identifier in _IteratorProgress(target_identifiers_ordered, environment.progress_disabled, len(target_identifiers_ordered)):
-            target_name = target_identifier.split(".")[-1]
-            target_node = self.targets_config[target_name]
-            # Directories
-            target_build_directory = self.build_directory if not multiple_targets else self.build_directory.joinpath(target_name)
-            target_root_directory  = self.working_directory
-
-            # If target is marked as external, try to fetch the sources
-            ### TODO: external sources should be fetched before any sources are read in, i.e. even before the first target is created
-            external = "url" in target_node
-            if external:
-                url = target_node["url"]
-                download_directory = target_build_directory.joinpath('external_sources')
-                # Check if directory is already present and non-empty
-                if download_directory.exists() and _os.listdir(str(download_directory)):
-                    _LOGGER.info(f'[{target_identifier}]: external target sources found in {str(download_directory)}')
-                # Otherwise we download the sources
-                else:
-                    _LOGGER.info(f'[{target_identifier}]: downloading external target to {str(download_directory)}')
-                    download_directory.mkdir(parents=True, exist_ok=True)
-                    try:
-                        if environment.clone_recursive:
-                            _subprocess.run(["git", "clone", "--recurse-submodules", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
-                        else:
-                            _subprocess.run(["git", "clone", url, str(download_directory)], stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
-                    except _subprocess.CalledProcessError as e:
-                        error_message = f"[{target_identifier}]: error trying to download external target. " + e.output
-                        _LOGGER.exception(error_message)
-                        raise RuntimeError(error_message)
-                    _LOGGER.info(f'[{target_identifier}]: external target downloaded')
-                # self.includeDirectories.append(download_directory)
-                target_root_directory = download_directory
-
-                if "version" in target_node:
-                    version = target_node["version"]
-                    try:
-                        _subprocess.run(["git", "checkout", version], cwd=target_root_directory, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, encoding='utf-8')
-                    except _subprocess.CalledProcessError as e:
-                        error_message = f"[{target_identifier}]: error trying to checkout version \'{version}\' from url \'{url}\'. Message " + e.output
-                        _LOGGER.exception(error_message)
-                        raise RuntimeError(error_message)
-
-            # Build directory for obj, bin etc. should be under build type folder, e.g. default
-            target_build_directory = target_build_directory.joinpath(environment.build_type.name.lower())
-
-            # Sub-directory, if specified
-            if 'directory' in target_node:
-                target_root_directory = target_root_directory.joinpath(target_node['directory'])
-
-            # Sources
-            files = _get_sources_and_headers(target_name, target_node, target_root_directory, target_build_directory)
-
-            # Dependencies
-            dependencies = [self.fetch_from_target_list(dependency_identifier) for dependency_identifier in dependency_graph.successors(target_identifier)]
-
-            # Make sure all dependencies are actually libraries
-            executable_dependencies = [target for target in dependencies if target.__class__ is _Executable]
-            if executable_dependencies:
-                exelist = ', '.join([f'[{dep.name}]' for dep in executable_dependencies])
-                error_message = f'[[{self.identifier}]]: ERROR: The following targets are linking dependencies but were identified as executables:\n    {exelist}'
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
-            # Create specific target if the target type was specified
-            if 'target_type' in target_node:
-                #
-                # Add an executable
-                #
-                if target_node['target_type'].lower() == 'executable':
-                    self.target_list.append(
-                        _Executable(
-                            environment                 = environment,
-                            project_identifier          = self.identifier,
-                            name                        = target_name,
-                            root_directory              = target_root_directory,
-                            build_directory             = target_build_directory,
-                            headers                     = files['headers'],
-                            include_directories_private = files['include_directories'],
-                            include_directories_public  = files['include_directories_public'],
-                            source_files                = files['sourcefiles'],
-                            options                     = target_node,
-                            dependencies                = dependencies))
+    def _set_project_tree(self):
+        """Set the global project tree for this project.
 
-                #
-                # Add a shared library
-                #
-                elif target_node['target_type'].lower() == 'shared library':
-                    self.target_list.append(
-                        _SharedLibrary(
-                            environment                 = environment,
-                            project_identifier          = self.identifier,
-                            name                        = target_name,
-                            root_directory              = target_root_directory,
-                            build_directory             = target_build_directory,
-                            headers                     = files['headers'],
-                            include_directories_private = files['include_directories'],
-                            include_directories_public  = files['include_directories_public'],
-                            source_files                = files['sourcefiles'],
-                            options                     = target_node,
-                            dependencies                = dependencies))
+        Takes it from its parent if the parent project exists.
+        Else it creates one.
+        """
+        if self.parent:
+            self._project_tree = self.parent.project_tree
+        else:
+            self._project_tree = _nx.DiGraph()
 
-                #
-                # Add a static library
-                #
-                elif target_node['target_type'].lower() == 'static library':
-                    self.target_list.append(
-                        _StaticLibrary(
-                            environment                 = environment,
-                            project_identifier          = self.identifier,
-                            name                        = target_name,
-                            root_directory              = target_root_directory,
-                            build_directory             = target_build_directory,
-                            headers                     = files['headers'],
-                            include_directories_private = files['include_directories'],
-                            include_directories_public  = files['include_directories_public'],
-                            source_files                = files['sourcefiles'],
-                            options                     = target_node,
-                            dependencies                = dependencies))
 
-                #
-                # Add a header-only
-                #
-                elif target_node['target_type'].lower() == 'header only':
-                    if files['sourcefiles']:
-                        environment.logger.info(f'[{target_identifier}]: {len(files["sourcefiles"])} source file(s) found for header-only target. You may want to check your build configuration.')
-                    self.target_list.append(
-                        _HeaderOnly(
-                            environment                 = environment,
-                            project_identifier          = self.identifier,
-                            name                        = target_name,
-                            root_directory              = target_root_directory,
-                            build_directory             = target_build_directory,
-                            headers                     = files['headers'],
-                            include_directories_private = files['include_directories'],
-                            include_directories_public  = files['include_directories_public'],
-                            options                     = target_node,
-                            dependencies                = dependencies))
+class TargetDescription(_NamedLogger, _TreeEntry):
+    """A hollow Target used for dependency checking.
 
-                else:
-                    error_message = f'[[{self.identifier}]]: ERROR: Unsupported target type: "{target_node["target_type"].lower()}"'
-                    _LOGGER.exception(error_message)
-                    raise RuntimeError(error_message)
+    Before Projects actually configure targets, they first
+    make sure that all dependencies etc are correctly defined.
+    For this initial step, these TargetDescriptions are used.
+    This is also necessary, because some of the target properties
+    like the build folder, depend on the entire project structure
+    and thus the two step procedure is necessary.
+    """
 
-            # No target specified so must be executable or header only
-            else:
-                if not files['sourcefiles']:
-                    environment.logger.info(f'[{target_identifier}]: no source files found. Creating header-only target.')
-                    self.target_list.append(
-                        _HeaderOnly(
-                            environment                 = environment,
-                            project_identifier          = self.identifier,
-                            name                        = target_name,
-                            root_directory              = target_root_directory,
-                            build_directory             = target_build_directory,
-                            headers                     = files['headers'],
-                            include_directories_private = files['include_directories'],
-                            include_directories_public  = files['include_directories_public'],
-                            options                     = target_node,
-                            dependencies                = dependencies))
-                else:
-                    environment.logger.info(f'[{target_identifier}]: {len(files["sourcefiles"])} source file(s) found. Creating executable target.')
-                    self.target_list.append(
-                        _Executable(
-                            environment                 = environment,
-                            project_identifier          = self.identifier,
-                            name                        = target_name,
-                            root_directory              = target_root_directory,
-                            build_directory             = target_build_directory,
-                            headers                     = files['headers'],
-                            include_directories_private = files['include_directories'],
-                            include_directories_public  = files['include_directories_public'],
-                            source_files                = files['sourcefiles'],
-                            options                     = target_node,
-                            dependencies                = dependencies))
+    @staticmethod
+    def identifier_to_tree_str(identifier: str) -> str:
+        """Convert an identifier to a tree key.
 
-    def get_targets(self, exclude=[]):
-        targetlist = []
-        for subproject in self.subprojects:
-            targetlist += subproject.get_targets(exclude)
-        targetlist += [target for target in self.target_list if target.identifier not in exclude]
-        return targetlist
+        Since :any:`networkx` cannot replace nodes with identical
+        hash values, :any:`TargetDescription`s unfortunately must
+        have a different label. This function provides this label.
 
-    def contains_target(self, identifier):
-        for target_name in self.targets_config:
-            target_identifier = f'{self.identifier}.{target_name}' if self.identifier else target_name
-            if target_identifier == identifier:
-                return True
-        for subproject in self.subprojects:
-            return subproject.contains_target(identifier)
+        Returns
+        -------
+        str
+            The identifier modified so that the TargetDescription object
+            can be looked up in the project tree.
 
-    def fetch_from_target_list(self, identifier):
-        for target in self.target_list:
-            if target.identifier == identifier:
-                return target
-        for subproject in self.subprojects:
-            return subproject.fetch_from_target_list(identifier)
+        """
+        return identifier + "[repr]"
+
+    def string_to_hash(self) -> str:
+        """Return the string to hash.
+
+        For the same reason described in :any:`identifier_to_tree_str`
+        we do not simply use the :any:`__repr__()` function but this
+        one, to make sure that the representation of this object is still
+        readable for debugging purposes.
+        """
+        return TargetDescription.identifier_to_tree_str(self.identifier)
+
+    def __init__(self, name: str, config: dict, identifier: str, parent, environment):
+        """Generate a TargetDescription.
+
+        Parameters
+        ----------
+        name: str
+            The name of this target as it will also later be named
+        config : dict
+            The config for this target (e.g. read from a toml)
+        identifier : str
+            The full identifier for this target
+        parent : Project
+            The parent project of this target
+
+        """
+        if "." in name:
+            error_message = self.log_message(
+                f"Name contains illegal character '.': {name}"
+            )
+            _LOGGER.exception(error_message)
+            raise RuntimeError(error_message)
+
+        self.name = name
+        self.identifier = identifier
+        self.config = config
+        self.parent = parent
+        self.environment = environment
+
+    @property
+    def target_root_directory(self):
+        """Return the root directory of this target.
+
+        Each target has a root directory from which files are searched
+        etc.
+        """
+        return self.parent.directory.joinpath(self.config.get("directory", ""))
+
+    @property
+    def target_build_directory(self):
+        """Return the target build directory.
+
+        Returns the build directory into which the output of all
+        files are put.
+        """
+        return self.parent.build_directory.joinpath(self.name).joinpath(
+            self.environment.build_type.name.lower()
+        )
+

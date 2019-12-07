@@ -7,6 +7,7 @@ _BAR_FORMAT = "{desc: <%s}: {percentage:3.0f}%% |%s{bar}%s| {n_fmt: >5}/{total_f
 
 
 def _format_lenghty_string(text):
+    text = str(text)
     if len(text) > _MAX_DESCRIPTION_WIDTH:
         return ((text[:-(_MAX_DESCRIPTION_WIDTH-_ELLIPSIS_WIDTH)] and '.' * _ELLIPSIS_WIDTH)
                 + text[-(_MAX_DESCRIPTION_WIDTH-_ELLIPSIS_WIDTH):])

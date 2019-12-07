@@ -11,7 +11,7 @@ from multiprocessing import freeze_support
 from clang_build import clang_build
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
-from clang_build.logging_stream_handler import TqdmHandler as TqdmHandler
+from clang_build.logging_tools import TqdmHandler as TqdmHandler
 
 def on_rm_error( func, path, exc_info):
     # path contains the path of the file that couldn't be removed

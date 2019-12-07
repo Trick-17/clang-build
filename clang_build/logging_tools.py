@@ -8,3 +8,9 @@ class TqdmHandler(_logging.StreamHandler):
     def emit(self, record):
         msg = self.format(record)
         _tqdm.tqdm.write(msg)
+
+class NamedLogger:
+    def log_message(self, message: str) -> str:
+        """
+        """
+        return f"[[{self.__repr__()}]]: {message}"

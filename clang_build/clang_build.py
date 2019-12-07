@@ -21,7 +21,7 @@ from .target import Executable as _Executable,\
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .progress_bar import CategoryProgress as _CategoryProgress,\
                           IteratorProgress as _IteratorProgress
-from .logging_stream_handler import TqdmHandler as _TqdmHandler
+from .logging_tools import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
 from .errors import BundleError as _BundleError
@@ -234,52 +234,8 @@ def build(args):
         logger = environment.logger
         processpool = environment.processpool
 
-        # Check for build configuration toml file
-        toml_file = _Path(environment.working_directory, 'clang-build.toml')
-        if toml_file.exists():
-            logger.info(f'Found config file: \'{toml_file}\'')
-
-            # Parse config file
-            config = toml.load(str(toml_file))
-
-            # Determine if there are multiple projects
-            targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name"]}
-            subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
-            multiple_projects = False
-            if subprojects_config:
-                if targets_config or (len(subprojects_config["subproject"]) > 1):
-                    multiple_projects = True
-
-            # Create root project
-            root_project = _Project(config, environment, multiple_projects, is_root_project=True)
-
-            # Get list of all targets
-            target_list += root_project.get_targets(root_project.target_dont_build_list)
-
-            # # Generate list of all targets
-            # for project in working_projects:
-            #     target_list.append(project.get_targets())
-
-        # Otherwise we try to build it as a simple hello world or mwe project
-        else:
-            files = _get_sources_and_headers('main', {}, environment.working_directory, environment.build_directory)
-
-            if not files['sourcefiles']:
-                error_message = f'Error, no sources and no \'clang-build.toml\' found in folder \'{environment.working_directory}\''
-                logger.error(error_message)
-                raise RuntimeError(error_message)
-            # Create target
-            target_list.append(
-                _Executable(
-                    environment                 = environment,
-                    project_identifier          = '',
-                    name                        = 'main',
-                    root_directory              = environment.working_directory,
-                    build_directory             = environment.build_directory.joinpath(environment.build_type.name.lower()),
-                    headers                     = files['headers'],
-                    include_directories_private = files['include_directories'],
-                    include_directories_public  = files['include_directories_public'],
-                    source_files                = files['sourcefiles']))
+        project = _Project(environment.working_directory, environment)
+        target_list = project.target_list_all
 
         # Build the targets
         progress_bar.update()
