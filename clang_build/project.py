@@ -173,7 +173,7 @@ class Project(_NamedLogger, _TreeEntry):
         self._set_name()
 
         self._subprojects = [
-            Project(directory, environment, parent=self)
+            Project(self._directory.joinpath(directory), environment, parent=self)
             for directory in self.config.get("subproject", [])
         ]
 
