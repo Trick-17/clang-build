@@ -173,8 +173,8 @@ class Project(_NamedLogger, _TreeEntry):
         self._set_name()
 
         self._subprojects = [
-            Project(configuration["directory"], environment, parent=self)
-            for configuration in self.config.get("subproject", [])
+            Project(directory, environment, parent=self)
+            for directory in self.config.get("subproject", [])
         ]
 
         self._fill_dependency_tree()
