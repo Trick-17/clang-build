@@ -273,7 +273,9 @@ class Project(_NamedLogger, _TreeEntry):
             dependencies = target.config.get("dependencies", [])
             dependency_objs = []
             for dependency_name in dependencies:
-                full_name = self._identifier_from_name(dependency_name)
+                full_name = TargetDescription.identifier_to_tree_str(
+                    self._identifier_from_name(dependency_name)
+                )
                 try:
                     dependency = self._project_tree[full_name]
                 except KeyError:
