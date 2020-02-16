@@ -62,6 +62,14 @@ class TestClangBuild(unittest.TestCase):
         with self.assertRaises(CompileError):
             clang_build.build(clang_build.parse_args(['-d', 'test/mwe_build_error', '-V']))
 
+    def test_circular_dependency(self):
+        with self.assertRaisesRegex(RuntimeError, "(?:[\s\S]*?circular_project\\.mylib1 -> circular_project\\.mylib2 -> circular_project\\.mylib1[\s\S]*?|[\s\S]*?circular_project\\.mylib2 -> circular_project\\.mylib1 -> circular_project\\.mylib2[\s\S]*?)"):
+            clang_build.build(clang_build.parse_args(['-d', 'test/circular_dependency']))
+
+    def test_missing_name_with_subproject(self):
+        with self.assertRaisesRegex(RuntimeError, "[\s\S]*?without a name[\s\S]*?"):
+            clang_build.build(clang_build.parse_args(['-d', 'test/missing_name_with_subproject']))
+
     def test_script_call(self):
         try:
             subprocess.check_output(['clang-build', '-d', 'test/mwe', '-V'], stderr=subprocess.STDOUT)

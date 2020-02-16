@@ -3,28 +3,43 @@ import subprocess as _subprocess
 
 _LOGGER = _logging.getLogger("clang_build.clang_build")
 
-def needs_download(url, download_directory):
+
+def needs_download(url, download_directory, version=None):
     if download_directory.exists():
         if download_directory.is_dir():
             if any(download_directory.iterdir()):
+                try:
+                    local_url = _subprocess.check_output(
+                        ["git", "config", "--get", "remote.origin.url"],
+                        stderr=_subprocess.PIPE,
+                        encoding="utf-8",
+                        cwd=download_directory,
+                    )
+                except _subprocess.CalledProcessError:
+                    return True
 
-                ###### CHECK ORIGIN AND VERSION using """url"""!!!!
+                if local_url != url:
+                    return True
+
+                if version:
+                    checkout_version(version, download_directory, url)
+                else:
+                    get_latest_changes(download_directory)
+
                 _LOGGER.info(
-                    f"External project sources found in '{download_directory}'"
+                    "External project sources found in '%s'", download_directory
                 )
 
                 return False
         else:
-            ### There is a file called like the download folder
-            error_message = ""
-            raise RuntimeError(error_message)  ##### NEEDS content
+            error_message = f"Tried to download {url} to {download_directory}. But {download_directory} is a file."
+            raise RuntimeError(error_message)
 
     return True
 
+
 def clone_repository(url, download_directory, recursive):
-    _LOGGER.info(
-        f"Downloading external project to '{download_directory}'"
-    )
+    _LOGGER.info(f"Downloading external target to '{download_directory}'")
     download_directory.mkdir(parents=True, exist_ok=True)
     try:
         clone_command = ["git", "clone"]
@@ -40,13 +55,13 @@ def clone_repository(url, download_directory, recursive):
         )
     except _subprocess.CalledProcessError as e:
         error_message = (
-            f"Error trying to download external project. Message "
-            + e.output
+            f"Error trying to download external target. Message " + e.output
         )
         _LOGGER.exception(error_message)
         raise RuntimeError(error_message)
 
-    _LOGGER.info(f"External project downloaded")
+    _LOGGER.info(f"External target downloaded")
+
 
 def checkout_version(version, repository, url):
     try:
@@ -60,6 +75,23 @@ def checkout_version(version, repository, url):
     except _subprocess.CalledProcessError as e:
         error_message = (
             f"Error trying to checkout version '{version}' from url '{url}'. Message "
+            + e.output
+        )
+        _LOGGER.exception(error_message)
+        raise RuntimeError(error_message)
+
+def get_latest_changes(repository):
+    try:
+        _subprocess.run(
+            ["git", "pull"],
+            cwd=repository,
+            stdout=_subprocess.PIPE,
+            stderr=_subprocess.PIPE,
+            encoding="utf-8",
+        )
+    except _subprocess.CalledProcessError as e:
+        error_message = (
+            f"Unabled to get latest changes in repository '{repository}'. Message "
             + e.output
         )
         _LOGGER.exception(error_message)

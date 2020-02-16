@@ -1,6 +1,6 @@
 name = "myproject"
 
-subproject = ["boost_dependencies"]
+subprojects = ["boost_dependencies"]
 
 [myexe]
 target_type = "executable"

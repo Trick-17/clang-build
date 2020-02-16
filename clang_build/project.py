@@ -1,21 +1,17 @@
 """A class that contains potentially multiple targets and other projects."""
 
 import logging as _logging
-import os as _os
-import subprocess as _subprocess
-import tempfile as _tempfile
 import textwrap as _textwrap
+from multiprocessing import Pool as _Pool
 from pathlib import Path as _Path
+from typing import Optional as _Optional
 
 import networkx as _nx
 import toml
 
 from .circle import Circle as _Circle
-from .git_tools import checkout_version as _checkout_version
-from .git_tools import clone_repository as _clone_repository
-from .git_tools import needs_download as _needs_download
 from .logging_tools import NamedLogger as _NamedLogger
-from .progress_bar import IteratorProgress as _IteratorProgress
+from .target import TargetDescription as _TargetDescription
 from .target import make_target as _make_target
 from .tree_entry import TreeEntry as _TreeEntry
 
@@ -63,10 +59,7 @@ class Project(_NamedLogger, _TreeEntry):
 
     @property
     def environment(self):
-        """Return the set of global settings.
-
-
-        """
+        """Return the set of global settings."""
         return self._environment
 
     @property
@@ -120,31 +113,22 @@ class Project(_NamedLogger, _TreeEntry):
     def subprojects(self):
         """Return a list of subprojects.
 
-        All direct descendants of this project (subprojects only, no targets)
+        All direct children of this project (subprojects only, no targets)
         are returned as a list.
         """
         return self._subprojects
 
     @property
     def target_list(self):
-        """Return all targets that were configured and are part of this project.
+        """Return all targets that are defined in this project.
 
-        This list includes only those targets that were selected to be configured,
-        and are also defined inside of this project.
+        This list includes only those targets that were defined in this
+        project and not those defined in subprojects.
         """
         return self._current_targets
 
-    @property
-    def target_list_all(self):
-        """Return all targets that were configured.
-
-        This list includes all targets, also dependencies that are not defined
-        in this project.
-        """
-        return self._target_list
-
     def __init__(self, directory, environment, **kwargs):
-        """Initialises a project.
+        """Initialise a project.
 
         The procedure for initialisation is:
 
@@ -164,6 +148,7 @@ class Project(_NamedLogger, _TreeEntry):
             Used for internal purposes only.
 
         """
+        super().__init__()
         self._directory = _Path(directory)
         self._parent = kwargs.get("parent", None)
         self._environment = environment
@@ -172,53 +157,51 @@ class Project(_NamedLogger, _TreeEntry):
         self._load_config()
         self._set_name()
 
-        self._subprojects = [
-            Project(self._directory.joinpath(directory), environment, parent=self)
-            for directory in self.config.get("subproject", [])
-        ]
+        self._current_targets = self._get_targets()
+        self._set_build_directory()
+        self._subprojects = self._parse_subprojects()
 
         self._fill_dependency_tree()
-        self._set_build_directory()
 
         if not self.parent:
             self._check_for_circular_dependencies()
 
-            targets_to_build = self._get_targets_to_build()
+    def _parse_subprojects(self):
+        """Generate all subprojects recursively.
 
-            targets_not_to_build = [
-                x
-                for x in self.project_tree
-                if x not in targets_to_build and not isinstance(x, Project)
-            ]
+        Recursively walks through all subprojects and parses
+        them.
 
-            self.project_tree.remove_nodes_from(targets_not_to_build)
-            self._current_targets = [
-                target for target in self._current_targets if target in targets_to_build
-            ]
+        Returns
+        -------
+        list
+            List of Project objects.
 
-            if targets_not_to_build:
-                _LOGGER.info(
-                    f'Not building target(s) [{"], [".join(targets_not_to_build)}].'
-                )
+        """
+        return [
+            Project(self._directory.joinpath(directory), self.environment, parent=self)
+            for directory in self.config.get("subprojects", [])
+        ]
 
-            _target_build_list = [
-                target
-                for target in reversed(list(_nx.topological_sort(self.project_tree)))
-                if target in targets_to_build
-            ]
+    def _get_targets(self):
+        """Get the list of targets for this project.
 
-            # Generate the list of target instances
-            self._target_list = []
-            for target_description in _IteratorProgress(
-                _target_build_list,
-                environment.progress_disabled,
-                len(_target_build_list),
-            ):
-                target = _make_target(target_description, self.project_tree)
-                _nx.relabel_nodes(
-                    self.project_tree, {target_description: target}, copy=False
-                )
-                self._target_list.append(target)
+        Will return only those targets that are defined in
+        this project. No subproject targets will be returned.
+
+        Returns
+        -------
+        list
+            List of TargetDescription objects
+
+        """
+        return [
+            _TargetDescription(
+                key, val, self._identifier_from_name(key), self, self.environment
+            )
+            for key, val in self.config.items()
+            if key != "subprojects" and isinstance(val, dict)
+        ]
 
     def _check_for_circular_dependencies(self):
         """Check if targets are defined in a circular dependency.
@@ -228,7 +211,7 @@ class Project(_NamedLogger, _TreeEntry):
         """
         circles = list(_nx.simple_cycles(self.project_tree))
 
-        circles = [_Circle(circle + [circle[-1]]) for circle in circles]
+        circles = [_Circle(circle + [circle[0]]) for circle in circles]
         if circles:
             error_message = self.log_message(
                 "Found the following circular dependencies:\n"
@@ -248,22 +231,15 @@ class Project(_NamedLogger, _TreeEntry):
         will raise an exception.
         """
         # add self
-        self.project_tree.add_node(self)
+        self.project_tree.add_node(self.identifier, data=self)
 
         # add edges to subprojects
         self.project_tree.add_edges_from(
             (self, sub_project) for sub_project in self.subprojects
         )
 
-        # add targets defined in project and edges for these
-        self._current_targets = [
-            TargetDescription(
-                key, val, self._identifier_from_name(key), self, self.environment
-            )
-            for key, val in self.config.items()
-            if key != "subproject" and isinstance(val, dict)
-        ]
-        self.project_tree.add_nodes_from(self._current_targets)
+        for target in self._current_targets:
+            self.project_tree.add_node(target.identifier, data=target)
         self.project_tree.add_edges_from(
             (self, target) for target in self._current_targets
         )
@@ -273,11 +249,10 @@ class Project(_NamedLogger, _TreeEntry):
             dependencies = target.config.get("dependencies", [])
             dependency_objs = []
             for dependency_name in dependencies:
-                full_name = TargetDescription.identifier_to_tree_str(
-                    self._identifier_from_name(dependency_name)
-                )
+                full_name = self._identifier_from_name(dependency_name)
+
                 try:
-                    dependency = self._project_tree[full_name]
+                    dependency = self._project_tree.node[full_name]["data"]
                 except KeyError:
                     error_message = target.log_message(
                         f"the dependency [{dependency_name}] does not point to a valid target."
@@ -314,9 +289,64 @@ class Project(_NamedLogger, _TreeEntry):
             raise RuntimeError(error_message)
 
         else:
-            self._config = {"": {"output_name": "main"}}
+            self._config = {"myexe": {"output_name": "main"}}
 
-    def _get_targets_to_build(self):
+    def build(
+        self,
+        build_all: bool = False,
+        target_list: _Optional[list] = None,
+        number_of_threads: _Optional[int] = None,
+    ):
+        """Build targets of this project.
+
+        By default, this function builds all targets in this project as well
+        as all their dependencies. This function will configure all targets
+        that haven't been configured in a previous call.
+
+        Parameters
+        ----------
+        build_all : bool
+            If set to true, will not only build all targets in this project
+            and their dependencies, but also all targets of all sub-projects.
+        target_list : list
+            If given, will build all targets in this project that are in the
+            given list, as well as all their dependencies.
+        number_of_threads : int
+            If given will compile targets with the given number of threads. Otherwise
+            it will use the default number of CPU cores visible to Python.
+
+        """
+        # Get targets to build
+        targets_to_build = self._get_targets_to_build(build_all, target_list)
+
+        #
+        target_build_list = [
+            target
+            for target in reversed(list(_nx.topological_sort(self.project_tree)))
+            if target in targets_to_build
+            and not isinstance(self.project_tree.node[target]["data"], Project)
+        ]
+
+        # Generate the list of target instances
+        target_build_list = [
+            _make_target(self.project_tree.node[target]["data"], self.project_tree)
+            if isinstance(target, _TargetDescription)
+            else target
+            for target in target_build_list
+        ]
+
+        # Put configured target into tree so the next time we do not need to make it
+        for target in target_build_list:
+            self.project_tree.node[target]["data"] = target
+
+        # Build
+        with _Pool(processes=number_of_threads) as process_pool:
+            for target in target_build_list:
+                target.compile(process_pool, False)
+
+    def _get_targets_to_build(
+        self, build_all: bool = False, target_list: _Optional[list] = None
+    ):
         """Return the list of targets to configure.
 
         This helper function is part of the initialisation of a project.
@@ -325,38 +355,28 @@ class Project(_NamedLogger, _TreeEntry):
         targets that were selected and those targets that are dependencies
         of the selected ones.
         """
-        if self.environment.build_all:
-            targets_to_build = [
-                target
-                for target in self.project_tree
-                if not isinstance(target, Project)
-            ]
+        if build_all:
+            targets_to_build = [target for target in self.project_tree]
 
-        elif self.environment.target_list:
-            targets = [
-                self.project_tree[
-                    TargetDescription.identifier_to_tree_str(
-                        self._identifier_from_name(target)
-                    )
-                ]
-                for target in self.environment.target_list
-            ]
+        elif target_list:
+            targets = set(
+                self.project_tree.node[target]["data"] for target in target_list
+            )
 
             targets_to_build = set().union(
                 *[
-                    set(targets),
+                    targets,
                     *[
-                        x
+                        self.project_tree.node[x]["data"]
                         for x in (
                             self.project_tree.descendants(target for target in targets)
                         )
-                        if x
                     ],
                 ]
             )
 
             _LOGGER.info(
-                f'Only building targets [{"], [".join(self.environment.target_list)}]'
+                f'Only building targets [{"], [".join(target_list)}]'
                 + f' out of base set of targets [{"], [".join(target.name for target in self._current_targets)}].'
             )
 
@@ -365,15 +385,26 @@ class Project(_NamedLogger, _TreeEntry):
                 *[
                     set(self._current_targets),
                     *[
-                        _nx.descendants(self.project_tree, target)
+                        set(
+                            _nx.get_node_attributes(
+                                self.project_tree.subgraph(
+                                    _nx.descendants(self.project_tree, target)
+                                ),
+                                "data",
+                            ).values()
+                        )
                         for target in self._current_targets
                     ],
                 ]
             )
 
-        return targets_to_build
+        return [
+            target
+            for target in targets_to_build
+            if not isinstance(self.project_tree.node[target]["data"], Project)
+        ]
 
-    def _identifier_from_name(self, target_name: str):
+    def _identifier_from_name(self, target_name: str) -> str:
         """Convert a name into an identifier.
 
         This works only if the name is defined for this project. If the
@@ -385,6 +416,7 @@ class Project(_NamedLogger, _TreeEntry):
         target_name : str
             The target name of the target for which to get the identifier.
             Has to be a target of this project.
+
         """
         prefix = f"{self.identifier}." if self.identifier else ""
 
@@ -403,17 +435,7 @@ class Project(_NamedLogger, _TreeEntry):
         self._build_directory = self.environment.build_directory
         if self.parent:
             self._build_directory = self.parent.build_directory / self.name
-        elif (
-            "subproject" in self.config
-            or len(
-                [
-                    target
-                    for target in self.project_tree
-                    if self.project_tree.out_degree(target) == 0
-                ]
-            )
-            > 1
-        ):
+        elif "subprojects" in self.config or len(self._current_targets) > 1 > 1:
             self._build_directory /= self.name
 
     def _set_name(self):
@@ -440,7 +462,7 @@ class Project(_NamedLogger, _TreeEntry):
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
-            if "subproject" in self.config:
+            if "subprojects" in self.config:
                 error_message = self.log_message(
                     f"defining a top-level project with subprojects but without a name"
                     + " is illegal."
@@ -448,6 +470,8 @@ class Project(_NamedLogger, _TreeEntry):
 
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
+
+            self._name = "myproject"
 
     def _set_project_tree(self):
         """Set the global project tree for this project.
@@ -459,91 +483,3 @@ class Project(_NamedLogger, _TreeEntry):
             self._project_tree = self.parent.project_tree
         else:
             self._project_tree = _nx.DiGraph()
-
-
-class TargetDescription(_NamedLogger, _TreeEntry):
-    """A hollow Target used for dependency checking.
-
-    Before Projects actually configure targets, they first
-    make sure that all dependencies etc are correctly defined.
-    For this initial step, these TargetDescriptions are used.
-    This is also necessary, because some of the target properties
-    like the build folder, depend on the entire project structure
-    and thus the two step procedure is necessary.
-    """
-
-    @staticmethod
-    def identifier_to_tree_str(identifier: str) -> str:
-        """Convert an identifier to a tree key.
-
-        Since :any:`networkx` cannot replace nodes with identical
-        hash values, :any:`TargetDescription`s unfortunately must
-        have a different label. This function provides this label.
-
-        Returns
-        -------
-        str
-            The identifier modified so that the TargetDescription object
-            can be looked up in the project tree.
-
-        """
-        return identifier + "[repr]"
-
-    def string_to_hash(self) -> str:
-        """Return the string to hash.
-
-        For the same reason described in :any:`identifier_to_tree_str`
-        we do not simply use the :any:`__repr__()` function but this
-        one, to make sure that the representation of this object is still
-        readable for debugging purposes.
-        """
-        return TargetDescription.identifier_to_tree_str(self.identifier)
-
-    def __init__(self, name: str, config: dict, identifier: str, parent, environment):
-        """Generate a TargetDescription.
-
-        Parameters
-        ----------
-        name: str
-            The name of this target as it will also later be named
-        config : dict
-            The config for this target (e.g. read from a toml)
-        identifier : str
-            The full identifier for this target
-        parent : Project
-            The parent project of this target
-
-        """
-        if "." in name:
-            error_message = self.log_message(
-                f"Name contains illegal character '.': {name}"
-            )
-            _LOGGER.exception(error_message)
-            raise RuntimeError(error_message)
-
-        self.name = name
-        self.identifier = identifier
-        self.config = config
-        self.parent = parent
-        self.environment = environment
-
-    @property
-    def target_root_directory(self):
-        """Return the root directory of this target.
-
-        Each target has a root directory from which files are searched
-        etc.
-        """
-        return self.parent.directory.joinpath(self.config.get("directory", ""))
-
-    @property
-    def target_build_directory(self):
-        """Return the target build directory.
-
-        Returns the build directory into which the output of all
-        files are put.
-        """
-        return self.parent.build_directory.joinpath(self.name).joinpath(
-            self.environment.build_type.name.lower()
-        )
-
