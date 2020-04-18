@@ -235,22 +235,12 @@ def build(args):
         processpool = environment.processpool
 
         project = _Project(environment.working_directory, environment)
-        target_list = project.target_list_all
 
-        # Build the targets
-        progress_bar.update()
-        logger.info('Compile')
+        #TODO: Dot file if requested
 
-        for target in _IteratorProgress(target_list, environment.progress_disabled, len(target_list), lambda x: x.name):
-            target.compile(environment.processpool, environment.progress_disabled)
+        project.build(environment.build_all, environment.target_list)
 
-        # No parallel linking atm, could be added via
-        # https://stackoverflow.com/a/5288547/2305545
-        #
-
-        processpool.close()
-        processpool.join()
-
+        # TODO, errors should be discovered and reported by project
         # Check for compile errors
         errors = {}
         for target in target_list:

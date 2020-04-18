@@ -66,6 +66,13 @@ def clone_repository(url, download_directory, recursive):
 def checkout_version(version, repository, url):
     try:
         _subprocess.run(
+            ["git", "fetch"],
+            cwd=repository,
+            stdout=_subprocess.PIPE,
+            stderr=_subprocess.PIPE,
+            encoding="utf-8",
+        )
+        _subprocess.run(
             ["git", "checkout", version],
             cwd=repository,
             stdout=_subprocess.PIPE,

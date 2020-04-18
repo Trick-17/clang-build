@@ -14,12 +14,12 @@ from pathlib import Path as _Path
 from . import platform as _platform
 from .build_type import BuildType
 from .dialect_check import get_dialect_string as _get_dialect_string
-from .dialect_check import \
-    get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
+from .dialect_check import (
+    get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect,
+)
 from .git_tools import checkout_version as _checkout_version
 from .git_tools import clone_repository as _clone_repository
 from .git_tools import needs_download as _needs_download
-from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .io_tools import parse_flags_options as _parse_flags_options
 from .logging_tools import NamedLogger as _NamedLogger
 from .progress_bar import get_build_progress_bar as _get_build_progress_bar
@@ -30,138 +30,86 @@ _LOGGER = _logging.getLogger("clang_build.clang_build")
 
 
 class Target(_TreeEntry, _NamedLogger):
-    COMPILE_FLAGS = {
-        BuildType.Default: ["-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-Werror"],
-        BuildType.Release: ["-O3", "-DNDEBUG"],
-        BuildType.RelWithDebInfo: ["-O3", "-g3", "-DNDEBUG"],
-        BuildType.Debug: [
-            "-Og",
-            "-g3",
-            "-DDEBUG",
-            "-fno-optimize-sibling-calls",
-            "-fno-omit-frame-pointer",
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-        ],
-        BuildType.Coverage: [
-            "-Og",
-            "-g3",
-            "-DDEBUG",
-            "-fno-optimize-sibling-calls",
-            "-fno-omit-frame-pointer",
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-            "--coverage",
-            "-fno-inline",
-        ],
-    }
-    LINK_FLAGS_EXE_SHARED = {
-        BuildType.Debug: ["-fsanitize=address", "-fsanitize=undefined"],
-        BuildType.Coverage: [
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-            "--coverage",
-            "-fno-inline",
-        ],
-    }
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def identifier(self):
+        return self._identifier
+
+    @property
+    def dependencies(self):
+        return self._dependencies
+
+    @property
+    def root_directory(self):
+        """Folders "include", "src", etc. are searched
+        relative to this folder.
+        """
+
+        return self._root_directory
+
+    @property
+    def build_directory(self):
+        """
+        """
+
+        return self._build_directory
+
+    @property
+    def headers(self):
+        """Headers found for this project."""
+
+        return self._headers
+
+    @property
+    def directories(self):
+        return self._directories
 
     def __init__(self, target_description, files, dependencies=None):
         # Basics
         _NamedLogger.__init__(self)
-        self.name = target_description.name
-        self.identifier = target_description.identifier
+        self._name = target_description.name
+        self._identifier = target_description.identifier
 
-        self.environment = target_description.environment
+        self._environment = target_description.environment
 
         if dependencies is None:
             dependencies = []
 
-        self.dependency_targets = dependencies
-        self.unsuccessful_builds = []
+        self._dependencies = dependencies
+        self._unsuccessful_builds = []
 
         # TODO: parse user-specified target version
 
-        self.root_directory = _Path(target_description.root_directory)
-        self.build_directory = target_description.build_directory
+        self._root_directory = _Path(target_description.root_directory)
+        self._build_directory = target_description.build_directory
 
-        self.headers = list(dict.fromkeys(files["headers"]))
+        self._headers = list(dict.fromkeys(files["headers"]))
 
-        # Include directories
-        self.include_directories_private = files["include_directories"]
-        self.include_directories_public = files["include_directories_public"]
-
-        # Default include path
-        # if self.root_directory.joinpath('include').exists():
-        #    self.include_directories_public = [self.root_directory.joinpath('include')] + self.include_directories_public
-
-        # Public include directories of dependencies are forwarded
-        for target in self.dependency_targets:
-            self.include_directories_public += target.include_directories_public
-
-        # Make unique and resolve
-        self.include_directories_private = list(
-            dict.fromkeys(dir.resolve() for dir in self.include_directories_private)
-        )
-        self.include_directories_public = list(
-            dict.fromkeys(dir.resolve() for dir in self.include_directories_public)
-        )
+        self._directories = Directories(files, self._dependencies)
 
         # Compile and link flags
-        self.compile_flags_private = []
-        self.link_flags_private = []
 
-        self.compile_flags_interface = []
-        self.link_flags_interface = []
-
-        self.compile_flags_public = []
-        self.link_flags_public = []
-
-        # Default flags come first
-        self.add_default_flags()
+        self._build_flags = self._get_default_flags()
 
         # Dependencies' flags
-        for target in self.dependency_targets:
+        for target in self.dependencies:
             # Header only libraries will forward all non-private flags
-            self.add_target_flags(target)
+            self._add_dependency_flags(target)
 
-        # Own private flags
-        cf, lf = _parse_flags_options(target_description.config, "flags")
-        self.compile_flags_private += cf
-        self.link_flags_private += lf
-
-        # Own interface flags
-        cf, lf = _parse_flags_options(target_description.config, "interface-flags")
-        self.compile_flags_interface += cf
-        self.link_flags_interface += lf
-
-        # Own public flags
-        cf, lf = _parse_flags_options(target_description.config, "public-flags")
-        self.compile_flags_public += cf
-        self.link_flags_public += lf
+        self._build_flags.add_own_flags(target_description.config, self.environment.build_type)
 
     @abstractmethod
-    def add_default_flags(self):
+    def _get_default_flags(self):
         pass
 
     @abstractmethod
-    def add_target_flags(self, target):
+    def _add_dependency_flags(self, target):
         pass
 
-    def apply_public_flags(self, target):
-        self.compile_flags_private += target.compile_flags_public
-        self.link_flags_private += target.link_flags_public
-
-    def forward_public_flags(self, target):
-        self.compile_flags_public += target.compile_flags_public
-        self.link_flags_public += target.link_flags_public
-
-    def apply_interface_flags(self, target):
-        self.compile_flags_private += target.compile_flags_interface
-        self.link_flags_private += target.link_flags_interface
-
-    def forward_interface_flags(self, target):
-        self.compile_flags_interface += target.compile_flags_interface
-        self.link_flags_interface += target.link_flags_interface
+    
 
     @abstractmethod
     def compile(self, process_pool, progress_disabled):
@@ -174,7 +122,7 @@ class Target(_TreeEntry, _NamedLogger):
     def bundle(self):
         self.unsuccessful_bundle = False
         bundle_files = []
-        for dependency in self.dependency_targets:
+        for dependency in self.dependencies:
             bundle_files += dependency.bundle()
         return bundle_files
 
@@ -198,12 +146,12 @@ class HeaderOnly(Target):
 
         self.compile_flags_public += self.compile_flags_private
         self.link_flags_public += self.link_flags_private
-        self.include_directories_public = list(
+        self._include_directories_public = list(
             dict.fromkeys(
-                self.include_directories_public + self.include_directories_private
+                self._include_directories_public + self._include_directories_private
             )
         )
-        self.include_directories_private = []
+        self._include_directories_private = []
 
     def link(self):
         self._logger.info("Header-only target does not require linking.")
@@ -211,9 +159,9 @@ class HeaderOnly(Target):
     def compile(self, process_pool, progress_disabled):
         self._logger.info("Header-only target does not require compiling.")
 
-    def add_target_flags(self, target):
-        self.forward_public_flags(target)
-        self.forward_interface_flags(target)
+    def _add_dependency_flags(self, target):
+        self._build_flags.forward_public_flags(target)
+        self._build_flags.forward_interface_flags(target)
 
 
 def generate_depfile_single_source(buildable):
@@ -265,19 +213,11 @@ class Compilable(Target):
         # Sources
         self.source_files = source_files
 
-        # Full list of flags
-        compile_flags = self.compile_flags_private + self.compile_flags_public
-        link_flags = self.link_flags_private + self.link_flags_public
-        # Make flags unique
-        compile_flags = list(dict.fromkeys(compile_flags))
-        link_flags = list(dict.fromkeys(link_flags))
-        # Split strings containing spaces
-        compile_flags = list(str(" ".join(compile_flags)).split())
-        link_flags = list(str(" ".join(link_flags)).split())
+        compile_flags = self._build_flags.final_compile_flags()
 
         # List of unique include directories
         include_directories = (
-            self.include_directories_private + self.include_directories_public
+            self._include_directories_private + self._include_directories_public
         )
         include_directories = list(dict.fromkeys(include_directories))
 
@@ -288,7 +228,7 @@ class Compilable(Target):
 
         self.buildables = [
             _SingleSource(
-                environment=self.environment,
+                environment=self._environment,
                 source_file=source_file,
                 platform_flags=platform_flags,
                 current_target_root_path=self.root_directory,
@@ -301,7 +241,7 @@ class Compilable(Target):
         ]
 
         # If compilation of buildables fail, they will be stored here later
-        self.unsuccessful_builds = []
+        self._unsuccessful_builds = []
 
         # Linking setup
         self.link_command = link_command + [str(self.outfile)]
@@ -323,18 +263,14 @@ class Compilable(Target):
                 "after_build", ""
             )
 
-    def add_default_flags(self):
-        self.compile_flags_private += Target.COMPILE_FLAGS.get(BuildType.Default)
-        if self.environment.build_type != BuildType.Default:
-            self.compile_flags_private += Target.COMPILE_FLAGS.get(
-                self.environment.build_type
-            )
+    def _get_default_flags(self):
+        return BuildFlags(self._environment.build_type, default_compile_flags=True)
 
     # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool, progress_disabled):
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        if not self.environment.force_build:
+        if not self._environment.force_build:
             self.needed_buildables = [
                 buildable for buildable in self.buildables if buildable.needs_rebuild
             ]
@@ -397,7 +333,7 @@ class Compilable(Target):
             )
         )
 
-        self.unsuccessful_builds = [
+        self._unsuccessful_builds = [
             buildable
             for buildable in self.needed_buildables
             if (buildable.compilation_failed or buildable.depfile_failed)
@@ -465,19 +401,19 @@ class Executable(Compilable):
         ]
 
         ### Library dependency search paths
-        for target in self.dependency_targets:
+        for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-L", str(target.output_folder.resolve())]
 
-        self.link_command += self.link_flags_private + self.link_flags_public
+        self.link_command += self.build_flags.final_link_flags()
 
         ### Link dependencies
-        for target in self.dependency_targets:
+        for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-l" + target.outname]
 
         ### Bundling requires extra flags
-        if self.environment.bundle:
+        if self._environment.bundle:
             ### Search for libraries relative to the executable
             if _platform.PLATFORM == "osx":
                 self.link_command += ["-Wl,-rpath,@executable_path"]
@@ -491,7 +427,7 @@ class Executable(Compilable):
 
         ### Gather
         bundle_files = []
-        for dependency in self.dependency_targets:
+        for dependency in self.dependencies:
             bundle_files += dependency.bundle()
 
         ### Copy
@@ -562,17 +498,13 @@ class Executable(Compilable):
                 self.unsuccessful_redistributable = True
                 self.redistributable_report = error.output.decode("utf-8").strip()
 
-    def add_default_flags(self):
-        super().add_default_flags()
-        if self.environment.build_type == BuildType.Debug:
-            self.link_flags_private += Target.LINK_FLAGS_EXE_SHARED[BuildType.Debug]
-        elif self.environment.build_type == BuildType.Coverage:
-            self.link_flags_private += Target.LINK_FLAGS_EXE_SHARED[BuildType.Coverage]
+    def _get_default_flags(self):
+        return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
 
-    def add_target_flags(self, target):
-        self.apply_public_flags(target)
-        self.forward_public_flags(target)
-        self.apply_interface_flags(target)
+    def _add_dependency_flags(self, target):
+        self._build_flags.apply_public_flags(target)
+        self._build_flags.forward_public_flags(target)
+        self._build_flags.apply_interface_flags(target)
 
 
 class SharedLibrary(Compilable):
@@ -595,19 +527,19 @@ class SharedLibrary(Compilable):
         ]
 
         ### Library dependency search paths
-        for target in self.dependency_targets:
+        for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-L", str(target.output_folder.resolve())]
 
-        self.link_command += self.link_flags_private + self.link_flags_public
+        self.link_command += self.build_flags.final_link_flags()
 
         ### Link dependencies
-        for target in self.dependency_targets:
+        for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-l" + target.outname]
 
         ### Bundling requires some link flags
-        if self.environment.bundle:
+        if self._environment.bundle:
             if _platform.PLATFORM == "osx":
                 ### Install name for OSX
                 self.link_command += ["-install_name", f"@rpath/{self.outfilename}"]
@@ -626,7 +558,7 @@ class SharedLibrary(Compilable):
             self_bundle_files.append(_Path(str(self.outfile)[:-3] + "lib"))
 
         bundle_files = []
-        for dependency in self.dependency_targets:
+        for dependency in self.dependencies:
             bundle_files += dependency.bundle()
 
         ### Copy
@@ -639,17 +571,13 @@ class SharedLibrary(Compilable):
 
         return self_bundle_files + bundle_files
 
-    def add_default_flags(self):
-        super().add_default_flags()
-        if self.environment.build_type == BuildType.Debug:
-            self.link_flags_private += Target.LINK_FLAGS_EXE_SHARED[BuildType.Debug]
-        elif self.environment.build_type == BuildType.Coverage:
-            self.link_flags_private += Target.LINK_FLAGS_EXE_SHARED[BuildType.Coverage]
+    def _get_default_flags(self):
+        return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
 
-    def add_target_flags(self, target):
-        self.apply_public_flags(target)
-        self.forward_public_flags(target)
-        self.apply_interface_flags(target)
+    def _add_dependency_flags(self, target):
+        self._build_flags.apply_public_flags(target)
+        self._build_flags.forward_public_flags(target)
+        self._build_flags.apply_interface_flags(target)
 
 
 class StaticLibrary(Compilable):
@@ -670,50 +598,27 @@ class StaticLibrary(Compilable):
         self.link_command += [
             str(buildable.object_file) for buildable in self.buildables
         ]
-        self.link_command += self.link_flags_private + self.link_flags_public
+        self.link_command += self.build_flags.final_link_flags()
 
         ### Link dependencies
-        for target in self.dependency_targets:
+        for target in self.dependencies:
             if not target.__class__ is HeaderOnly:
                 self.link_command += [
                     str(buildable.object_file) for buildable in target.buildables
                 ]
 
-    def add_target_flags(self, target):
-        self.apply_public_flags(target)
-        self.forward_public_flags(target)
-        self.forward_interface_flags(target)
+    def _add_dependency_flags(self, target):
+        self._build_flags.apply_public_flags(target)
+        self._build_flags.forward_public_flags(target)
+        self._build_flags.forward_interface_flags(target)
 
-
-
-
-def _get_dependencies(target_description, project_tree):
-    dependencies = [
-        project_tree.nodes()[dependency]["data"]
-        for dependency in project_tree.successors(target_description)
-    ]
-
-    # Are there executables named as dependencies?
-    executable_dependencies = [
-        target for target in dependencies if target.__class__ is Executable
-    ]
-    if executable_dependencies:
-        exelist = ", ".join([f"[{dep.name}]" for dep in executable_dependencies])
-        error_message = target_description.log_message(
-            f"The following targets are linking dependencies but were identified as executables:\n    {exelist}"
-        )
-        self._logger.error(error_message)
-        raise RuntimeError(error_message)
-
-    return dependencies
-
-
-_TARGET_MAP = {
+TARGET_MAP = {
     "executable": Executable,
     "shared library": SharedLibrary,
     "static library": StaticLibrary,
     "header only": HeaderOnly,
 }
+
 
 class TargetDescription(_NamedLogger, _TreeEntry):
     """A hollow Target used for dependency checking.
@@ -724,6 +629,9 @@ class TargetDescription(_NamedLogger, _TreeEntry):
     This is also necessary, because some of the target properties
     like the build folder, depend on the entire project structure
     and thus the two step procedure is necessary.
+
+    TODO: Change Attributes to properties :)
+
     """
 
     def __init__(self, name: str, config: dict, identifier: str, parent, environment):
@@ -752,14 +660,16 @@ class TargetDescription(_NamedLogger, _TreeEntry):
         self.config = config
         self.parent = parent
         self.identifier = identifier
-        self.environment = environment
+        self._environment = environment
 
-        self.root_directory = self.parent.directory.joinpath(self.config.get("directory", ""))
+        self.root_directory = self.parent.directory / self.config.get("directory", "")
 
     @property
     def build_directory(self):
-        return self.parent.build_directory.joinpath(
-            self.environment.build_type.name.lower()
+        return (
+            self.parent.build_directory
+            / self.name
+            / self._environment.build_type.name.lower()
         )
 
     def download_target(self):
@@ -770,81 +680,18 @@ class TargetDescription(_NamedLogger, _TreeEntry):
             download_directory = self.build_directory.joinpath("external_sources")
             # Check if directory is already present and non-empty
             if _needs_download(url, download_directory, version):
-                self._logger.info(f"external target sources found in {str(download_directory)}")
+                self._logger.info(
+                    f"external target sources found in {str(download_directory)}"
+                )
 
             # Otherwise we download the sources
             else:
                 _clone_repository(
-                    url, download_directory, self.environment.clone_recursive
+                    url, download_directory, self._environment.clone_recursive
                 )
 
             # self.includeDirectories.append(download_directory)
-            self.root_directory = download_directory
-
-
-
-def make_target(target_description, project_tree):
-    """Return the appropriate target given the target description.
-
-    A target type can either be speicified in the ``target_description.config``
-    or a target is determined based on which files are found on the hard disk.
-    If only header files are found, a header-only target is assumed. Else,
-    an executable target will be generated.
-
-    Targets need to be build from a bottom-up traversal of the project tree so
-    that all the dependencies of targets are already generated.
-
-    Parameters
-    ----------
-    target_description : :any:`TargetDescription`
-        A shallow description class of the target
-    project_tree : :any:`networkx.DiGraph`
-        The entire project tree from which to extract
-        dependencies
-
-    Returns
-    -------
-    HeaderOnly or Executable or SharedLibrary or StaticLibrary
-        Returns the correct target type based on input parameters
-    """
-
-
-
-    dependencies = _get_dependencies(target_description, project_tree)
-
-    # Sources
-    files = _get_sources_and_headers(
-        target_description.name,
-        target_description.config,
-        target_description.root_directory,
-        target_description.build_directory,
-    )
-
-    # Create specific target if the target type was specified
-    target_type = target_description.config.get("target_type")
-    if target_type is not None:
-        target_type = str(target_type).lower()
-        if target_type in _TARGET_MAP:
-            return _TARGET_MAP[target_type](target_description, files, dependencies)
-        else:
-            error_message = target_description.log_message(
-                f'ERROR: Unsupported target type: "{target_description.config["target_type"].lower()}"'
-            )
-            _LOGGER.exception(error_message)
-            raise RuntimeError(error_message)
-
-    # No target specified so must be executable or header only
-    else:
-        if not files["sourcefiles"]:
-            target_description.log_message(
-                "no source files found. Creating header-only target."
-            )
-            return HeaderOnly(target_description, files, dependencies)
-
-        target_description.log_message(
-            f'{len(files["sourcefiles"])} source file(s) found. Creating executable target.'
-        )
-        return Executable(target_description, files, dependencies)
+            self.root_directory = download_directory / self.config.get("directory", "")
 
 
 if __name__ == "__main__":

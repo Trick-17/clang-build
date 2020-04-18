@@ -10,9 +10,12 @@ import networkx as _nx
 import toml
 
 from .circle import Circle as _Circle
+from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .logging_tools import NamedLogger as _NamedLogger
+from .target import TARGET_MAP as _TARGET_MAP
+from .target import Executable as _Executable
+from .target import HeaderOnly as _HeaderOnly
 from .target import TargetDescription as _TargetDescription
-from .target import make_target as _make_target
 from .tree_entry import TreeEntry as _TreeEntry
 
 _LOGGER = _logging.getLogger("clang_build.clang_build")
@@ -157,7 +160,7 @@ class Project(_NamedLogger, _TreeEntry):
         self._load_config()
         self._set_name()
 
-        self._current_targets = self._get_targets()
+        self._current_targets = self._get_target_descriptions()
         self._set_build_directory()
         self._subprojects = self._parse_subprojects()
 
@@ -183,7 +186,7 @@ class Project(_NamedLogger, _TreeEntry):
             for directory in self.config.get("subprojects", [])
         ]
 
-    def _get_targets(self):
+    def _get_target_descriptions(self):
         """Get the list of targets for this project.
 
         Will return only those targets that are defined in
@@ -209,7 +212,7 @@ class Project(_NamedLogger, _TreeEntry):
         Raises an exception if circular dependencies were found pointing
         out where the circular dependencies were found.
         """
-        circles = list(_nx.simple_cycles(self.project_tree))
+        circles = list(_nx.simple_cycles(self._project_tree))
 
         circles = [_Circle(circle + [circle[0]]) for circle in circles]
         if circles:
@@ -231,16 +234,16 @@ class Project(_NamedLogger, _TreeEntry):
         will raise an exception.
         """
         # add self
-        self.project_tree.add_node(self.identifier, data=self)
+        self._project_tree.add_node(self.identifier, data=self)
 
         # add edges to subprojects
-        self.project_tree.add_edges_from(
+        self._project_tree.add_edges_from(
             (self, sub_project) for sub_project in self.subprojects
         )
 
         for target in self._current_targets:
-            self.project_tree.add_node(target.identifier, data=target)
-        self.project_tree.add_edges_from(
+            self._project_tree.add_node(target.identifier, data=target)
+        self._project_tree.add_edges_from(
             (self, target) for target in self._current_targets
         )
 
@@ -322,14 +325,16 @@ class Project(_NamedLogger, _TreeEntry):
         #
         target_build_list = [
             target
-            for target in reversed(list(_nx.topological_sort(self.project_tree)))
+            for target in reversed(list(_nx.topological_sort(self._project_tree)))
             if target in targets_to_build
-            and not isinstance(self.project_tree.node[target]["data"], Project)
+            and not isinstance(self._project_tree.node[target]["data"], Project)
         ]
 
         # Generate the list of target instances
         target_build_list = [
-            _make_target(self.project_tree.node[target]["data"], self.project_tree)
+            _target_from_description(
+                self._project_tree.node[target]["data"], self._project_tree
+            )
             if isinstance(target, _TargetDescription)
             else target
             for target in target_build_list
@@ -337,7 +342,7 @@ class Project(_NamedLogger, _TreeEntry):
 
         # Put configured target into tree so the next time we do not need to make it
         for target in target_build_list:
-            self.project_tree.node[target]["data"] = target
+            self._project_tree.node[target]["data"] = target
 
         # Build
         with _Pool(processes=number_of_threads) as process_pool:
@@ -356,20 +361,22 @@ class Project(_NamedLogger, _TreeEntry):
         of the selected ones.
         """
         if build_all:
-            targets_to_build = [target for target in self.project_tree]
+            targets_to_build = [
+                target for target in self._project_tree.descendants(self)
+            ]
 
         elif target_list:
             targets = set(
-                self.project_tree.node[target]["data"] for target in target_list
+                self._project_tree.node[target]["data"] for target in target_list
             )
 
             targets_to_build = set().union(
                 *[
                     targets,
                     *[
-                        self.project_tree.node[x]["data"]
+                        self._project_tree.node[x]["data"]
                         for x in (
-                            self.project_tree.descendants(target for target in targets)
+                            self._project_tree.descendants(target for target in targets)
                         )
                     ],
                 ]
@@ -387,8 +394,8 @@ class Project(_NamedLogger, _TreeEntry):
                     *[
                         set(
                             _nx.get_node_attributes(
-                                self.project_tree.subgraph(
-                                    _nx.descendants(self.project_tree, target)
+                                self._project_tree.subgraph(
+                                    _nx.descendants(self._project_tree, target)
                                 ),
                                 "data",
                             ).values()
@@ -401,7 +408,7 @@ class Project(_NamedLogger, _TreeEntry):
         return [
             target
             for target in targets_to_build
-            if not isinstance(self.project_tree.node[target]["data"], Project)
+            if not isinstance(self._project_tree.node[target]["data"], Project)
         ]
 
     def _identifier_from_name(self, target_name: str) -> str:
@@ -435,7 +442,7 @@ class Project(_NamedLogger, _TreeEntry):
         self._build_directory = self.environment.build_directory
         if self.parent:
             self._build_directory = self.parent.build_directory / self.name
-        elif "subprojects" in self.config or len(self._current_targets) > 1 > 1:
+        elif "subprojects" in self.config or len(self._current_targets) > 1:
             self._build_directory /= self.name
 
     def _set_name(self):
@@ -483,3 +490,84 @@ class Project(_NamedLogger, _TreeEntry):
             self._project_tree = self.parent.project_tree
         else:
             self._project_tree = _nx.DiGraph()
+
+    def _get_dependencies(target_description):
+        dependencies = [
+            self._project_tree.nodes()[dependency]["data"]
+            for dependency in self._project_tree.successors(target_description)
+        ]
+
+        # Are there executables named as dependencies?
+        executable_dependencies = [
+            target for target in dependencies if target.__class__ is _Executable
+        ]
+        if executable_dependencies:
+            exelist = ", ".join([f"[{dep.name}]" for dep in executable_dependencies])
+            error_message = target_description.log_message(
+                f"The following targets are linking dependencies but were identified as executables:\n    {exelist}"
+            )
+            self._logger.error(error_message)
+            raise RuntimeError(error_message)
+
+        return dependencies
+
+    def _target_from_description(self, target_description):
+        """Return the appropriate target given the target description.
+
+        A target type can either be speicified in the ``target_description.config``
+        or a target is determined based on which files are found on the hard disk.
+        If only header files are found, a header-only target is assumed. Else,
+        an executable target will be generated.
+
+        Targets need to be build from a bottom-up traversal of the project tree so
+        that all the dependencies of targets are already generated.
+
+        Parameters
+        ----------
+        target_description : :any:`TargetDescription`
+            A shallow description class of the target
+        project_tree : :any:`networkx.DiGraph`
+            The entire project tree from which to extract
+            dependencies
+
+        Returns
+        -------
+        HeaderOnly or Executable or SharedLibrary or StaticLibrary
+            Returns the correct target type based on input parameters
+        """
+
+        dependencies = _get_dependencies(target_description, self._project_tree)
+
+        # Sources
+        files = _get_sources_and_headers(
+            target_description.name,
+            target_description.config,
+            target_description.root_directory,
+            target_description.build_directory,
+        )
+
+        # Create specific target if the target type was specified
+        target_type = target_description.config.get("target_type")
+        if target_type is not None:
+            target_type = str(target_type).lower()
+            if target_type in _TARGET_MAP:
+                return _TARGET_MAP[target_type](target_description, files, dependencies)
+            else:
+                error_message = target_description.log_message(
+                    f'ERROR: Unsupported target type: "{target_description.config["target_type"].lower()}"'
+                )
+                _LOGGER.exception(error_message)
+                raise RuntimeError(error_message)
+
+        # No target specified so must be executable or header only
+        else:
+            if not files["sourcefiles"]:
+                target_description.log_message(
+                    "no source files found. Creating header-only target."
+                )
+                return _HeaderOnly(target_description, files, dependencies)
+
+            target_description.log_message(
+                f'{len(files["sourcefiles"])} source file(s) found. Creating executable target.'
+            )
+            return _Executable(target_description, files, dependencies)
