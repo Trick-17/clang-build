@@ -640,7 +640,7 @@ TARGET_MAP = {
 }
 
 
-class TargetDescription(_NamedLogger, _TreeEntry):
+class TargetDescription(_TreeEntry, _NamedLogger):
     """A hollow Target used for dependency checking.
 
     Before Projects actually configure targets, they first
@@ -669,6 +669,8 @@ class TargetDescription(_NamedLogger, _TreeEntry):
             The parent project of this target
 
         """
+        _NamedLogger.__init__(self)
+
         if "." in name:
             error_message = self.log_message(
                 f"Name contains illegal character '.': {name}"
@@ -692,22 +694,24 @@ class TargetDescription(_NamedLogger, _TreeEntry):
             / self.environment.build_type.name.lower()
         )
 
-    def download_target(self):
+    def download_sources(self):
         url = self.config.get("url", None)
         if url:
-            self._logger.info("Is an external URL target.")
             version = self.config.get("version", None)
-            download_directory = self.build_directory.joinpath("external_sources")
+            download_directory = self.build_directory / "external_sources"
             # Check if directory is already present and non-empty
             if _needs_download(url, download_directory, version):
                 self._logger.info(
-                    f"external target sources found in {str(download_directory)}"
+                    f"downloading external target sources to '{str(download_directory.resolve())}'"
+                )
+                _clone_repository(
+                    url, download_directory, self.environment.clone_recursive
                 )
 
             # Otherwise we download the sources
             else:
-                _clone_repository(
-                    url, download_directory, self.environment.clone_recursive
+                self._logger.debug(
+                    f"external target sources found in '{str(download_directory.resolve())}'"
                 )
 
             # self.includeDirectories.append(download_directory)

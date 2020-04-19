@@ -343,10 +343,15 @@ class Project(_NamedLogger, _TreeEntry):
             else:
                 target_build_list.append(target)
 
-        # Build
+        # Compile
         with _Pool(processes=number_of_threads) as process_pool:
             for target in target_build_list:
                 target.compile(process_pool, False)
+
+        # Link
+        with _Pool(processes=number_of_threads) as process_pool:
+            for target in target_build_list:
+                target.link()
 
     def _get_targets_to_build(
         self, build_all: bool = False, target_list: _Optional[list] = None
@@ -538,6 +543,7 @@ class Project(_NamedLogger, _TreeEntry):
         dependencies = self._get_dependencies(target_description)#, self._project_tree)
 
         # Sources
+        target_description.download_sources()
         files = _get_sources_and_headers(
             target_description.name,
             target_description.config,

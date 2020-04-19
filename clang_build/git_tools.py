@@ -14,11 +14,14 @@ def needs_download(url, download_directory, version=None):
                         stderr=_subprocess.PIPE,
                         encoding="utf-8",
                         cwd=download_directory,
-                    )
+                    ).splitlines()[0]
                 except _subprocess.CalledProcessError:
                     return True
 
                 if local_url != url:
+                    _LOGGER.debug(
+                        f"External sources folder exists but local url='{local_url}', while target url='{url}'"
+                    )
                     return True
 
                 if version:
@@ -26,20 +29,20 @@ def needs_download(url, download_directory, version=None):
                 else:
                     get_latest_changes(download_directory)
 
-                _LOGGER.info(
-                    "External project sources found in '%s'", download_directory
+                _LOGGER.debug(
+                    f"External sources found in '{download_directory.resolve()}'"
                 )
 
                 return False
         else:
-            error_message = f"Tried to download {url} to {download_directory}. But {download_directory} is a file."
+            error_message = f"Tried to download '{url}' to '{download_directory.resolve()}', but '{download_directory.resolve()}' is a file."
             raise RuntimeError(error_message)
 
     return True
 
 
 def clone_repository(url, download_directory, recursive):
-    _LOGGER.info(f"Downloading external target to '{download_directory}'")
+    _LOGGER.debug(f"Downloading external target to '{download_directory}'")
     download_directory.mkdir(parents=True, exist_ok=True)
     try:
         clone_command = ["git", "clone"]
@@ -60,7 +63,7 @@ def clone_repository(url, download_directory, recursive):
         _LOGGER.exception(error_message)
         raise RuntimeError(error_message)
 
-    _LOGGER.info(f"External target downloaded")
+    _LOGGER.debug(f"External target downloaded")
 
 
 def checkout_version(version, repository, url):
