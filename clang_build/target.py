@@ -17,6 +17,8 @@ from .dialect_check import get_dialect_string as _get_dialect_string
 from .dialect_check import (
     get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect,
 )
+from .directories import Directories
+from .flags import BuildFlags
 from .git_tools import checkout_version as _checkout_version
 from .git_tools import clone_repository as _clone_repository
 from .git_tools import needs_download as _needs_download
@@ -99,7 +101,7 @@ class Target(_TreeEntry, _NamedLogger):
             # Header only libraries will forward all non-private flags
             self._add_dependency_flags(target)
 
-        self._build_flags.add_own_flags(target_description.config, self.environment.build_type)
+        self._build_flags.add_target_flags(target_description.config, self._environment.build_type)
 
     @abstractmethod
     def _get_default_flags(self):
@@ -108,8 +110,6 @@ class Target(_TreeEntry, _NamedLogger):
     @abstractmethod
     def _add_dependency_flags(self, target):
         pass
-
-    
 
     @abstractmethod
     def compile(self, process_pool, progress_disabled):
@@ -129,6 +129,22 @@ class Target(_TreeEntry, _NamedLogger):
     def redistributable(self):
         self.unsuccessful_redistributable = False
 
+    @property
+    def compile_flags_public(self):
+        return self._build_flags.compile_flags_public
+
+    @property
+    def compile_flags_interface(self):
+        return self._build_flags.compile_flags_interface
+
+    @property
+    def link_flags_public(self):
+        return self._build_flags.link_flags_public
+
+    @property
+    def link_flags_interface(self):
+        return self._build_flags.link_flags_interface
+
 
 class HeaderOnly(Target):
     def __init__(self, target_description, files, dependencies=None):
@@ -144,20 +160,25 @@ class HeaderOnly(Target):
                 + "You may want to check your build configuration."
             )
 
-        self.compile_flags_public += self.compile_flags_private
-        self.link_flags_public += self.link_flags_private
-        self._include_directories_public = list(
+        self._build_flags.compile_flags_public += self._build_flags.compile_flags_private
+        self._build_flags.compile_flags_private = []
+        self._build_flags.link_flags_public += self._build_flags.link_flags_private
+        self._build_flags.link_flags_private = []
+        self._directories.include_public = list(
             dict.fromkeys(
-                self._include_directories_public + self._include_directories_private
+                self._directories.include_public + self._directories.include_private
             )
         )
-        self._include_directories_private = []
+        self._directories.include_private = []
 
     def link(self):
         self._logger.info("Header-only target does not require linking.")
 
     def compile(self, process_pool, progress_disabled):
         self._logger.info("Header-only target does not require compiling.")
+
+    def _get_default_flags(self):
+        return BuildFlags(self._environment.build_type)
 
     def _add_dependency_flags(self, target):
         self._build_flags.forward_public_flags(target)
@@ -213,13 +234,12 @@ class Compilable(Target):
         # Sources
         self.source_files = source_files
 
-        compile_flags = self._build_flags.final_compile_flags()
+        compile_flags = self._build_flags.final_compile_flags_list()
 
         # List of unique include directories
-        include_directories = (
-            self._include_directories_private + self._include_directories_public
-        )
-        include_directories = list(dict.fromkeys(include_directories))
+        include_directories = list(dict.fromkeys(
+            self._directories.include_private + self._directories.include_public
+        ))
 
         # Buildables which this Target contains
         self.include_directories_command = []
@@ -405,7 +425,7 @@ class Executable(Compilable):
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-L", str(target.output_folder.resolve())]
 
-        self.link_command += self.build_flags.final_link_flags()
+        self.link_command += self._build_flags.final_link_flags_list()
 
         ### Link dependencies
         for target in self.dependencies:
@@ -531,7 +551,7 @@ class SharedLibrary(Compilable):
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-L", str(target.output_folder.resolve())]
 
-        self.link_command += self.build_flags.final_link_flags()
+        self.link_command += self._build_flags.final_link_flags_list()
 
         ### Link dependencies
         for target in self.dependencies:
@@ -598,7 +618,7 @@ class StaticLibrary(Compilable):
         self.link_command += [
             str(buildable.object_file) for buildable in self.buildables
         ]
-        self.link_command += self.build_flags.final_link_flags()
+        self.link_command += self._build_flags.final_link_flags_list()
 
         ### Link dependencies
         for target in self.dependencies:
@@ -660,7 +680,7 @@ class TargetDescription(_NamedLogger, _TreeEntry):
         self.config = config
         self.parent = parent
         self.identifier = identifier
-        self._environment = environment
+        self.environment = environment
 
         self.root_directory = self.parent.directory / self.config.get("directory", "")
 
@@ -669,7 +689,7 @@ class TargetDescription(_NamedLogger, _TreeEntry):
         return (
             self.parent.build_directory
             / self.name
-            / self._environment.build_type.name.lower()
+            / self.environment.build_type.name.lower()
         )
 
     def download_target(self):
@@ -687,7 +707,7 @@ class TargetDescription(_NamedLogger, _TreeEntry):
             # Otherwise we download the sources
             else:
                 _clone_repository(
-                    url, download_directory, self._environment.clone_recursive
+                    url, download_directory, self.environment.clone_recursive
                 )
 
             # self.includeDirectories.append(download_directory)

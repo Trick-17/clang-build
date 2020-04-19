@@ -263,7 +263,7 @@ class Project(_NamedLogger, _TreeEntry):
                     _LOGGER.exception(error_message)
                     raise RuntimeError(error_message)
 
-                dependency_objs.append(target)
+                dependency_objs.append(dependency)
                 self._project_tree.add_edge(target, dependency)
 
             target.config["dependencies"] = dependency_objs
@@ -322,27 +322,26 @@ class Project(_NamedLogger, _TreeEntry):
         # Get targets to build
         targets_to_build = self._get_targets_to_build(build_all, target_list)
 
-        #
-        target_build_list = [
+        # Sort targets in build order
+        target_build_description_list = [
             target
             for target in reversed(list(_nx.topological_sort(self._project_tree)))
             if target in targets_to_build
             and not isinstance(self._project_tree.node[target]["data"], Project)
         ]
 
-        # Generate the list of target instances
-        target_build_list = [
-            _target_from_description(
-                self._project_tree.node[target]["data"], self._project_tree
-            )
-            if isinstance(target, _TargetDescription)
-            else target
-            for target in target_build_list
-        ]
-
-        # Put configured target into tree so the next time we do not need to make it
-        for target in target_build_list:
-            self._project_tree.node[target]["data"] = target
+        ### Note: the project_tree needs to be updated directly for dependencies
+        ### to be used correctly in the `_target_from_description` function
+        target_build_list = []
+        for target in target_build_description_list:
+            if isinstance(target, _TargetDescription):
+                target_instance = self._target_from_description(
+                        self._project_tree.node[target]["data"]#, self._project_tree
+                    )
+                target_build_list.append(target_instance)
+                self._project_tree.node[target]["data"] = target_instance
+            else:
+                target_build_list.append(target)
 
         # Build
         with _Pool(processes=number_of_threads) as process_pool:
@@ -491,7 +490,7 @@ class Project(_NamedLogger, _TreeEntry):
         else:
             self._project_tree = _nx.DiGraph()
 
-    def _get_dependencies(target_description):
+    def _get_dependencies(self, target_description):
         dependencies = [
             self._project_tree.nodes()[dependency]["data"]
             for dependency in self._project_tree.successors(target_description)
@@ -519,7 +518,7 @@ class Project(_NamedLogger, _TreeEntry):
         If only header files are found, a header-only target is assumed. Else,
         an executable target will be generated.
 
-        Targets need to be build from a bottom-up traversal of the project tree so
+        Targets need to be built from a bottom-up traversal of the project tree so
         that all the dependencies of targets are already generated.
 
         Parameters
@@ -536,7 +535,7 @@ class Project(_NamedLogger, _TreeEntry):
             Returns the correct target type based on input parameters
         """
 
-        dependencies = _get_dependencies(target_description, self._project_tree)
+        dependencies = self._get_dependencies(target_description)#, self._project_tree)
 
         # Sources
         files = _get_sources_and_headers(
