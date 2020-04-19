@@ -13,7 +13,7 @@ class TqdmHandler(_logging.StreamHandler):
 
 class NamedLoggerAdapter(_logging.LoggerAdapter):
     def process(self, msg, kwargs):
-        return '[[%s]]: %s' % (self.extra['tree_element'].identifier, msg), kwargs
+        return '%s: %s' % (self.extra['tree_element'].__repr__(), msg), kwargs
 
 class NamedLogger:
     def __init__(self):
@@ -22,4 +22,4 @@ class NamedLogger:
     def log_message(self, message: str) -> str:
         """
         """
-        return f"[[{self.__repr__()}]]: {message}"
+        return f"{self.__repr__()}: {message}"

@@ -169,6 +169,9 @@ class Project(_NamedLogger, _TreeEntry):
         if not self.parent:
             self._check_for_circular_dependencies()
 
+    def __repr__(self) -> str:
+        return f"[[{self.identifier}]]"
+
     def _parse_subprojects(self):
         """Generate all subprojects recursively.
 
@@ -222,7 +225,7 @@ class Project(_NamedLogger, _TreeEntry):
                     "\n".join("- " + str(circle) for circle in circles), prefix=" " * 3
                 )
             )
-            _LOGGER.exception(error_message)
+            self._logger.exception(error_message)
             raise RuntimeError(error_message)
 
     def _fill_dependency_tree(self):
@@ -260,7 +263,7 @@ class Project(_NamedLogger, _TreeEntry):
                     error_message = target.log_message(
                         f"the dependency [{dependency_name}] does not point to a valid target."
                     )
-                    _LOGGER.exception(error_message)
+                    self._logger.exception(error_message)
                     raise RuntimeError(error_message)
 
                 dependency_objs.append(dependency)
@@ -278,7 +281,7 @@ class Project(_NamedLogger, _TreeEntry):
         toml_file = self.directory / "clang-build.toml"
 
         if toml_file.exists():
-            _LOGGER.info("Found config file '%s'.", toml_file)
+            _LOGGER.info(f"Found config file '{toml_file}'.")
             self._config = toml.load(toml_file)
 
         elif self.parent:
@@ -386,7 +389,7 @@ class Project(_NamedLogger, _TreeEntry):
                 ]
             )
 
-            _LOGGER.info(
+            self._logger.info(
                 f'Only building targets [{"], [".join(target_list)}]'
                 + f' out of base set of targets [{"], [".join(target.name for target in self._current_targets)}].'
             )
@@ -561,7 +564,7 @@ class Project(_NamedLogger, _TreeEntry):
                 error_message = target_description.log_message(
                     f'ERROR: Unsupported target type: "{target_description.config["target_type"].lower()}"'
                 )
-                _LOGGER.exception(error_message)
+                self._logger.exception(error_message)
                 raise RuntimeError(error_message)
 
         # No target specified so must be executable or header only

@@ -193,7 +193,10 @@ class _Environment:
 
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
-        self.logger.info(f'Running up to {args.jobs} concurrent build jobs')
+        if args.jobs > 1:
+            self.logger.info(f'Running up to {args.jobs} concurrent build jobs')
+        else:
+            self.logger.info(f'Running 1 build job')
 
         # Build directory
         self.build_directory = _Path('build')

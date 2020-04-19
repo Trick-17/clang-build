@@ -28,8 +28,6 @@ from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 from .single_source import SingleSource as _SingleSource
 from .tree_entry import TreeEntry as _TreeEntry
 
-_LOGGER = _logging.getLogger("clang_build.clang_build")
-
 
 class Target(_TreeEntry, _NamedLogger):
     @property
@@ -103,6 +101,9 @@ class Target(_TreeEntry, _NamedLogger):
 
         self._build_flags.add_target_flags(target_description.config, self._environment.build_type)
 
+    def __repr__(self) -> str:
+        return f"[{self.identifier}]"
+
     @abstractmethod
     def _get_default_flags(self):
         pass
@@ -172,10 +173,10 @@ class HeaderOnly(Target):
         self._directories.include_private = []
 
     def link(self):
-        self._logger.info("Header-only target does not require linking.")
+        self._logger.info("header-only target does not require linking.")
 
     def compile(self, process_pool, progress_disabled):
-        self._logger.info("Header-only target does not require compiling.")
+        self._logger.info("header-only target does not require compiling.")
 
     def _get_default_flags(self):
         return BuildFlags(self._environment.build_type)
@@ -218,7 +219,7 @@ class Compilable(Target):
 
         if not source_files:
             error_message = f"[{self.identifier}]: ERROR: Target was defined as a {self.__class__.__name__} but no source files were found"
-            _LOGGER.error(error_message)
+            self._logger.error(error_message)
             raise RuntimeError(error_message)
 
         self.object_directory = self.build_directory.joinpath("obj").resolve()
@@ -326,7 +327,7 @@ class Compilable(Target):
         #    TODO: Remove hardcoded progress bar and use callback function instead
         #
         #
-        self._logger.info(f"scan dependencies")
+        self._logger.info(f"generate dependency files")
         for b in self.needed_buildables:
             self._logger.debug(" ".join(b.dependency_command))
         self.needed_buildables = list(
@@ -341,7 +342,7 @@ class Compilable(Target):
         )
 
         # Execute compile command
-        self._logger.info("compile")
+        self._logger.info("compile object files")
         for b in self.needed_buildables:
             self._logger.debug(" ".join(b.compile_command))
         self.needed_buildables = list(

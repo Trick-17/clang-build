@@ -11,23 +11,19 @@ class TreeEntry:
 
     identifier = None
 
-    def __repr__(self) -> str:
-        """Return the ``identifier`` member."""
-        return self.identifier
-
     def __eq__(self, other) -> bool:
         """Declare two objects identical if ``identifier`` is the same."""
         if isinstance(other, str):
-            return self.__repr__() == other
+            return self.identifier == other
 
-        return self.__repr__() == other.__repr__()
+        return self.identifier == other.identifier
 
     def __hash__(self) -> int:
         """Return a hash value.
 
-        Hashes the ``__repr__()`` value of this
+        Hashes the ``identifier`` value of this
         object making every object with the same
         ``identifier`` equal to this one (in terms
         of hash value).
         """
-        return hash(self.__repr__())
+        return hash(self.identifier)
