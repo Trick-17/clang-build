@@ -30,6 +30,9 @@ from .tree_entry import TreeEntry as _TreeEntry
 
 
 class Target(_TreeEntry, _NamedLogger):
+    """
+    """
+
     @property
     def name(self):
         return self._name
@@ -150,12 +153,8 @@ class HeaderOnly(Target):
             )
 
         self._build_flags.make_private_flags_public()
-        self._directories.include_public = list(
-            dict.fromkeys(
-                self._directories.include_public + self._directories.include_private
-            )
-        )
-        self._directories.include_private = []
+        self._directories.make_private_directories_public()
+
 
     def link(self):
         self._logger.info("header-only target does not require linking.")
@@ -222,14 +221,9 @@ class Compilable(Target):
 
         compile_flags = self._build_flags.final_compile_flags_list()
 
-        # List of unique include directories
-        include_directories = list(dict.fromkeys(
-            self._directories.include_private + self._directories.include_public
-        ))
-
         # Buildables which this Target contains
         self.include_directories_command = []
-        for directory in include_directories:
+        for directory in self._directories.final_directories_list():
             self.include_directories_command += ["-I", str(directory.resolve())]
 
         self.buildables = [

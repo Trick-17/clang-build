@@ -21,3 +21,12 @@ class Directories:
         self.include_public = list(
             dict.fromkeys(dir.resolve() for dir in self.include_public)
         )
+
+    def final_directories_list(self):
+        return list(dict.fromkeys(
+            self.include_private + self.include_public
+        ))
+
+    def make_private_directories_public(self):
+        self.include_public = self.final_directories_list()
+        self.include_private = []
