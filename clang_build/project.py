@@ -237,7 +237,7 @@ class Project(_NamedLogger, _TreeEntry):
         will raise an exception.
         """
         # add self
-        self._project_tree.add_node(self.identifier, data=self)
+        self._project_tree.add_node(self, data=self)
 
         # add edges to subprojects
         self._project_tree.add_edges_from(
@@ -245,7 +245,7 @@ class Project(_NamedLogger, _TreeEntry):
         )
 
         for target in self._current_targets:
-            self._project_tree.add_node(target.identifier, data=target)
+            self._project_tree.add_node(target, data=target)
         self._project_tree.add_edges_from(
             (self, target) for target in self._current_targets
         )
