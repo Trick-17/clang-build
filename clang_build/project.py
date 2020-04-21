@@ -258,7 +258,7 @@ class Project(_NamedLogger, _TreeEntry):
                 full_name = self._identifier_from_name(dependency_name)
 
                 try:
-                    dependency = self._project_tree.node[full_name]["data"]
+                    dependency = self._project_tree.nodes[full_name]["data"]
                 except KeyError:
                     error_message = target.log_message(
                         f"the dependency [{dependency_name}] does not point to a valid target."
@@ -330,7 +330,7 @@ class Project(_NamedLogger, _TreeEntry):
             target
             for target in reversed(list(_nx.topological_sort(self._project_tree)))
             if target in targets_to_build
-            and not isinstance(self._project_tree.node[target]["data"], Project)
+            and not isinstance(self._project_tree.nodes[target]["data"], Project)
         ]
 
         ### Note: the project_tree needs to be updated directly for dependencies
@@ -339,10 +339,10 @@ class Project(_NamedLogger, _TreeEntry):
         for target in target_build_description_list:
             if isinstance(target, _TargetDescription):
                 target_instance = self._target_from_description(
-                        self._project_tree.node[target]["data"]#, self._project_tree
+                        self._project_tree.nodes[target]["data"]#, self._project_tree
                     )
                 target_build_list.append(target_instance)
-                self._project_tree.node[target]["data"] = target_instance
+                self._project_tree.nodes[target]["data"] = target_instance
             else:
                 target_build_list.append(target)
 
@@ -374,14 +374,14 @@ class Project(_NamedLogger, _TreeEntry):
 
         elif target_list:
             targets = set(
-                self._project_tree.node[target]["data"] for target in target_list
+                self._project_tree.nodes[target]["data"] for target in target_list
             )
 
             targets_to_build = set().union(
                 *[
                     targets,
                     *[
-                        self._project_tree.node[x]["data"]
+                        self._project_tree.nodes[x]["data"]
                         for x in (
                             self._project_tree.descendants(target for target in targets)
                         )
@@ -415,7 +415,7 @@ class Project(_NamedLogger, _TreeEntry):
         return [
             target
             for target in targets_to_build
-            if not isinstance(self._project_tree.node[target]["data"], Project)
+            if not isinstance(self._project_tree.nodes[target]["data"], Project)
         ]
 
     def _identifier_from_name(self, target_name: str) -> str:

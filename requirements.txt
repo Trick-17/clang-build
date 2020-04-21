@@ -1,5 +1,5 @@
 toml
 pbr<4
-networkx
+networkx>=2.4
 tqdm
 colorama
