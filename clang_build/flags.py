@@ -111,17 +111,17 @@ class BuildFlags:
 
     def add_target_flags(self, config, build_type):
         # Own private flags
-        cf, lf = _parse_flags_options(config, "flags")
+        cf, lf = _parse_flags_options(config, build_type, "flags")
         self.compile_flags_private += cf
         self.link_flags_private += lf
 
         # Own interface flags
-        cf, lf = _parse_flags_options(config, "interface-flags")
+        cf, lf = _parse_flags_options(config, build_type, "interface-flags")
         self.compile_flags_interface += cf
         self.link_flags_interface += lf
 
         # Own public flags
-        cf, lf = _parse_flags_options(config, "public-flags")
+        cf, lf = _parse_flags_options(config, build_type, "public-flags")
         self.compile_flags_public += cf
         self.link_flags_public += lf
 
