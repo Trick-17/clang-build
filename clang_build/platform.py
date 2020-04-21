@@ -72,9 +72,10 @@ if _platform == 'linux' or _platform == 'linux2':
     STATIC_LIBRARY_PREFIX = 'lib'
     STATIC_LIBRARY_SUFFIX = '.a'
     STATIC_LIBRARY_OUTPUT = 'lib'
-    PLATFORM_EXTRA_FLAGS_EXECUTABLE = ['']
+    PLATFORM_EXTRA_FLAGS_EXECUTABLE = []
     PLATFORM_EXTRA_FLAGS_SHARED     = ['-fpic']
-    PLATFORM_EXTRA_FLAGS_STATIC     = ['']
+    PLATFORM_EXTRA_FLAGS_STATIC     = []
+    PLATFORM_BUNDLING_LINKER_FLAGS = ["-Wl,-rpath,$ORIGIN"]
 elif _platform == 'darwin':
     # OS X
     PLATFORM = 'osx'
@@ -87,9 +88,10 @@ elif _platform == 'darwin':
     STATIC_LIBRARY_PREFIX = 'lib'
     STATIC_LIBRARY_SUFFIX = '.a'
     STATIC_LIBRARY_OUTPUT = 'lib'
-    PLATFORM_EXTRA_FLAGS_EXECUTABLE = ['']
-    PLATFORM_EXTRA_FLAGS_SHARED     = ['']
-    PLATFORM_EXTRA_FLAGS_STATIC     = ['']
+    PLATFORM_EXTRA_FLAGS_EXECUTABLE = []
+    PLATFORM_EXTRA_FLAGS_SHARED     = []
+    PLATFORM_EXTRA_FLAGS_STATIC     = []
+    PLATFORM_BUNDLING_LINKER_FLAGS = ["-Wl,-rpath,@executable_path"]
 elif _platform == 'win32':
     # Windows
     PLATFORM = 'windows'
@@ -105,5 +107,6 @@ elif _platform == 'win32':
     PLATFORM_EXTRA_FLAGS_EXECUTABLE = ['-Xclang', '-flto-visibility-public-std']
     PLATFORM_EXTRA_FLAGS_SHARED     = ['-Xclang', '-flto-visibility-public-std']
     PLATFORM_EXTRA_FLAGS_STATIC     = ['-Xclang', '-flto-visibility-public-std']
+    PLATFORM_BUNDLING_LINKER_FLAGS = []
 else:
     raise RuntimeError('Platform ' + _platform + 'is currently not supported.')
