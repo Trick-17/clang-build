@@ -655,6 +655,9 @@ class TargetDescription(_TreeEntry, _NamedLogger):
 
         self.root_directory = self.parent.directory / self.config.get("directory", "")
 
+    def __repr__(self) -> str:
+        return f"[{self.identifier}]"
+
     @property
     def build_directory(self):
         return (
