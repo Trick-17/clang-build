@@ -10,17 +10,13 @@ from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
 import shutil as _shutil
-import toml
 from pbr.version import VersionInfo as _VersionInfo
 
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
-from .target import Executable as _Executable,\
-                    HeaderOnly as _HeaderOnly
-from .io_tools import get_sources_and_headers as _get_sources_and_headers
-from .progress_bar import CategoryProgress as _CategoryProgress,\
-                          IteratorProgress as _IteratorProgress
+from .target import HeaderOnly as _HeaderOnly
+from .progress_bar import CategoryProgress as _CategoryProgress
 from .logging_tools import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError

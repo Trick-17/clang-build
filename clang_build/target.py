@@ -3,7 +3,6 @@ Target describes a single build or dependency target with all needed paths and
 a list of buildables that comprise it's compile and link steps.
 """
 
-import logging as _logging
 import os as _os
 import shutil as _shutil
 import subprocess as _subprocess
@@ -12,14 +11,8 @@ from multiprocessing import freeze_support as _freeze_support
 from pathlib import Path as _Path
 
 from . import platform as _platform
-from .build_type import BuildType
-from .dialect_check import get_dialect_string as _get_dialect_string
-from .dialect_check import (
-    get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect,
-)
 from .directories import Directories
 from .flags import BuildFlags
-from .git_tools import checkout_version as _checkout_version
 from .git_tools import clone_repository as _clone_repository
 from .git_tools import needs_download as _needs_download
 from .logging_tools import NamedLogger as _NamedLogger
