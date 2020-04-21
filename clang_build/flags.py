@@ -1,7 +1,7 @@
 from .build_type import BuildType
 from . import platform as _platform
 
-def _parse_flags_options(options, build_type, flags_kind='flags'):
+def _parse_flags_config(options, build_type, flags_kind='flags'):
     flags_dicts   = []
     compile_flags = []
     link_flags    = []
@@ -86,25 +86,6 @@ class BuildFlags:
             self.default_link_flags = self.DEFAULT_LINK_FLAGS.get(build_type, [])
             # self.link_flags_private += DEFAULT_LINK_FLAGS.get(build_type, [])
 
-    def _parse_flags_config(self, config, build_type, flags_kind="flags"):
-        flags_dicts = []
-        compile_flags = []
-        link_flags = []
-
-        if flags_kind in config:
-            flags_dicts.append(config.get(flags_kind, {}))
-
-        flags_dicts.append(config.get(_platform.PLATFORM, {}).get(flags_kind, {}))
-
-        for fdict in flags_dicts:
-            compile_flags += fdict.get("compile", [])
-            link_flags += fdict.get("link", [])
-
-            if build_type != BuildType.Default:
-                compile_flags += fdict.get(f"compile_{build_type}", [])
-
-        return compile_flags, link_flags
-
     def make_private_flags_public(self):
         self.compile_flags_public += self.compile_flags_private
         self.compile_flags_private = []
@@ -129,17 +110,17 @@ class BuildFlags:
 
     def add_target_flags(self, config, build_type):
         # Own private flags
-        cf, lf = _parse_flags_options(config, build_type, "flags")
+        cf, lf = _parse_flags_config(config, build_type, "flags")
         self.compile_flags_private += cf
         self.link_flags_private += lf
 
         # Own interface flags
-        cf, lf = _parse_flags_options(config, build_type, "interface-flags")
+        cf, lf = _parse_flags_config(config, build_type, "interface-flags")
         self.compile_flags_interface += cf
         self.link_flags_interface += lf
 
         # Own public flags
-        cf, lf = _parse_flags_options(config, build_type, "public-flags")
+        cf, lf = _parse_flags_config(config, build_type, "public-flags")
         self.compile_flags_public += cf
         self.link_flags_public += lf
 

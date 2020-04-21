@@ -22,7 +22,6 @@ from .flags import BuildFlags
 from .git_tools import checkout_version as _checkout_version
 from .git_tools import clone_repository as _clone_repository
 from .git_tools import needs_download as _needs_download
-from .io_tools import parse_flags_options as _parse_flags_options
 from .logging_tools import NamedLogger as _NamedLogger
 from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 from .single_source import SingleSource as _SingleSource
