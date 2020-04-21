@@ -93,20 +93,20 @@ class BuildFlags:
         self.link_private = []
 
     def apply_public_flags(self, target):
-        self.compile_private += target.compile_public
-        self.link_private += target.link_public
+        self.compile_private += target.build_flags.compile_public
+        self.link_private += target.build_flags.link_public
 
     def forward_public_flags(self, target):
-        self.compile_public += target.compile_public
-        self.link_public += target.link_public
+        self.compile_public += target.build_flags.compile_public
+        self.link_public += target.build_flags.link_public
 
     def apply_interface_flags(self, target):
-        self.compile_private += target.compile_interface
-        self.link_private += target.link_interface
+        self.compile_private += target.build_flags.compile_interface
+        self.link_private += target.build_flags.link_interface
 
     def forward_interface_flags(self, target):
-        self.compile_interface += target.compile_interface
-        self.link_interface += target.link_interface
+        self.compile_interface += target.build_flags.compile_interface
+        self.link_interface += target.build_flags.link_interface
 
     def add_target_flags(self, config, build_type):
         # Own private flags
