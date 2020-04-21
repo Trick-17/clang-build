@@ -2,6 +2,7 @@ from .io_tools import parse_flags_options as _parse_flags_options
 from .build_type import BuildType
 from . import platform as _platform
 
+
 class BuildFlags:
     DEFAULT_COMPILE_FLAGS = {
         BuildType.Default: ["-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-Werror"],
@@ -39,9 +40,9 @@ class BuildFlags:
     }
 
     def __init__(
-        self, build_type, default_compile_flags=False, default_link_flags=False, apply_public=False, forward_public=False, apply_private=False, forward_private=False
+        self, build_type, default_compile_flags=False, default_link_flags=False
     ):
-        #TODO: Store default flags separately
+        # TODO: Store default flags separately
         self.default_compile_flags = []
         self.default_link_flags = []
 
@@ -56,19 +57,21 @@ class BuildFlags:
 
         if default_compile_flags:
             self.default_compile_flags = self.DEFAULT_COMPILE_FLAGS[BuildType.Default]
-            #self.compile_flags_private += DEFAULT_COMPILE_FLAGS.get(BuildType.Default, [])
+            # self.compile_flags_private += DEFAULT_COMPILE_FLAGS.get(BuildType.Default, [])
             if build_type != BuildType.Default:
-                self.default_compile_flags = self.DEFAULT_COMPILE_FLAGS.get(build_type, [])
-                #self.compile_flags_private += DEFAULT_COMPILE_FLAGS.get(build_type, [])
+                self.default_compile_flags = self.DEFAULT_COMPILE_FLAGS.get(
+                    build_type, []
+                )
+                # self.compile_flags_private += DEFAULT_COMPILE_FLAGS.get(build_type, [])
 
         if default_link_flags:
             self.default_link_flags = self.DEFAULT_LINK_FLAGS.get(build_type, [])
-            #self.link_flags_private += DEFAULT_LINK_FLAGS.get(build_type, [])
+            # self.link_flags_private += DEFAULT_LINK_FLAGS.get(build_type, [])
 
-    def _parse_flags_config(self, config, build_type, flags_kind='flags'):
-        flags_dicts   = []
+    def _parse_flags_config(self, config, build_type, flags_kind="flags"):
+        flags_dicts = []
         compile_flags = []
-        link_flags    = []
+        link_flags = []
 
         if flags_kind in config:
             flags_dicts.append(config.get(flags_kind, {}))
@@ -76,13 +79,19 @@ class BuildFlags:
         flags_dicts.append(config.get(_platform.PLATFORM, {}).get(flags_kind, {}))
 
         for fdict in flags_dicts:
-            compile_flags += fdict.get('compile', [])
-            link_flags    += fdict.get('link', [])
+            compile_flags += fdict.get("compile", [])
+            link_flags += fdict.get("link", [])
 
             if build_type != BuildType.Default:
-                compile_flags += fdict.get(f'compile_{build_type}', [])
+                compile_flags += fdict.get(f"compile_{build_type}", [])
 
         return compile_flags, link_flags
+
+    def make_private_flags_public(self):
+        self.compile_flags_public += self.compile_flags_private
+        self.compile_flags_private = []
+        self.link_flags_public += self.link_flags_private
+        self.link_flags_private = []
 
     def apply_public_flags(self, target):
         self.compile_flags_private += target.compile_flags_public
@@ -117,21 +126,16 @@ class BuildFlags:
         self.link_flags_public += lf
 
     def final_compile_flags_list(self):
-        # Full list of flags
-        compile_flags = self.compile_flags_private + self.compile_flags_public
-        # Make flags unique
-        compile_flags = list(dict.fromkeys(compile_flags))
-        # Split strings containing spaces
-        compile_flags = list(str(" ".join(compile_flags)).split())
-
-        return compile_flags
+        return self._generate_flag_list(
+            self.compile_flags_private + self.compile_flags_public
+        )
 
     def final_link_flags_list(self):
-        # Full list of flags
-        link_flags = self.link_flags_private + self.link_flags_public
-        # Make flags unique
-        link_flags = list(dict.fromkeys(link_flags))
-        # Split strings containing spaces
-        link_flags = list(str(" ".join(link_flags)).split())
+        return self._generate_flag_list(
+            self.link_flags_private + self.link_flags_public
+        )
 
-        return link_flags
+    def _generate_flag_list(self, flags):
+        # TODO: The below line (making flags unique) is still wrong. Should be removed!
+        flags = list(dict.fromkeys(flags))
+        return list(str(" ".join(flags)).split())

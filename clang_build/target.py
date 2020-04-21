@@ -131,20 +131,8 @@ class Target(_TreeEntry, _NamedLogger):
         self.unsuccessful_redistributable = False
 
     @property
-    def compile_flags_public(self):
-        return self._build_flags.compile_flags_public
-
-    @property
-    def compile_flags_interface(self):
-        return self._build_flags.compile_flags_interface
-
-    @property
-    def link_flags_public(self):
-        return self._build_flags.link_flags_public
-
-    @property
-    def link_flags_interface(self):
-        return self._build_flags.link_flags_interface
+    def build_flags(self):
+        return self._build_flags
 
 
 class HeaderOnly(Target):
@@ -161,10 +149,7 @@ class HeaderOnly(Target):
                 + "You may want to check your build configuration."
             )
 
-        self._build_flags.compile_flags_public += self._build_flags.compile_flags_private
-        self._build_flags.compile_flags_private = []
-        self._build_flags.link_flags_public += self._build_flags.link_flags_private
-        self._build_flags.link_flags_private = []
+        self._build_flags.make_private_flags_public()
         self._directories.include_public = list(
             dict.fromkeys(
                 self._directories.include_public + self._directories.include_private
