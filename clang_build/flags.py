@@ -1,6 +1,24 @@
-from .io_tools import parse_flags_options as _parse_flags_options
 from .build_type import BuildType
 from . import platform as _platform
+
+def _parse_flags_options(options, build_type, flags_kind='flags'):
+    flags_dicts   = []
+    compile_flags = []
+    link_flags    = []
+
+    if flags_kind in options:
+        flags_dicts.append(options.get(flags_kind, {}))
+
+    flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
+
+    for fdict in flags_dicts:
+        compile_flags += fdict.get('compile', [])
+        link_flags    += fdict.get('link', [])
+
+        if build_type != BuildType.Default:
+            compile_flags += fdict.get(f'compile_{build_type}', [])
+
+    return compile_flags, link_flags
 
 
 class BuildFlags:
