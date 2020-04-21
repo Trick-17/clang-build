@@ -222,9 +222,7 @@ class Compilable(Target):
         compile_flags = self._build_flags.final_compile_flags_list()
 
         # Buildables which this Target contains
-        self.include_directories_command = []
-        for directory in self._directories.final_directories_list():
-            self.include_directories_command += ["-I", str(directory.resolve())]
+        self.include_directories_command = self._directories.include_command()
 
         self.buildables = [
             _SingleSource(

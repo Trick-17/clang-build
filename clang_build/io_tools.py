@@ -37,7 +37,7 @@ def _get_source_files_in_folders(folders, exclude_patterns=[], recursive=True):
 def _get_files_in_patterns(patterns, exclude_patterns=[], recursive=True):
     included = [_Path(f) for pattern in patterns         for f in _iglob(str(pattern), recursive=recursive) if _Path(f).is_file()]
     excluded = [_Path(f) for pattern in exclude_patterns for f in _iglob(str(pattern), recursive=recursive) if _Path(f).is_file()]
-    return list(set(included) - set(excluded))
+    return list(f.resolve() for f in (set(included) - set(excluded)))
 
 def get_sources_and_headers(target_name, target_options, target_root_directory, target_build_directory):
     output = {'headers': [], 'include_directories': [], 'include_directories_public': [], 'sourcefiles': []}
@@ -116,9 +116,9 @@ def get_sources_and_headers(target_name, target_options, target_root_directory, 
         output['sourcefiles'] += _get_source_files_in_folders([target_root_directory], exclude_patterns=exclude_patterns, recursive=False)
 
     # Fill return dict
-    output['include_directories']        = list(dict.fromkeys( output['include_directories'] ))
-    output['include_directories_public'] = list(dict.fromkeys( output['include_directories_public'] ))
-    output['headers']                    = list(dict.fromkeys( output['headers'] ))
-    output['sourcefiles']                = list(dict.fromkeys( output['sourcefiles'] ))
+    output['include_directories']        = list(dict.fromkeys(output['include_directories'] ))
+    output['include_directories_public'] = list(dict.fromkeys(output['include_directories_public'] ))
+    output['headers']                    = list(dict.fromkeys(output['headers'] ))
+    output['sourcefiles']                = list(dict.fromkeys(output['sourcefiles'] ))
 
     return output

@@ -27,6 +27,13 @@ class Directories:
             self.include_private + self.include_public
         ))
 
+    def include_command(self):
+        include_directories_command = []
+        for directory in self.final_directories_list():
+            include_directories_command += ["-I", str(directory)]
+
+        return include_directories_command
+
     def make_private_directories_public(self):
         self.include_public = self.final_directories_list()
         self.include_private = []
