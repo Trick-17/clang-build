@@ -199,9 +199,9 @@ class Compilable(Target):
             dependencies=dependencies,
         )
 
-        source_files = files["sourcefiles"]
+        self.source_files = files["sourcefiles"]
 
-        if not source_files:
+        if not self.source_files:
             error_message = f"[{self.identifier}]: ERROR: Target was defined as a {self.__class__.__name__} but no source files were found"
             self._logger.error(error_message)
             raise RuntimeError(error_message)
@@ -215,9 +215,6 @@ class Compilable(Target):
 
         self.outfilename = prefix + self.outname + suffix
         self.outfile = _Path(self.output_folder, self.outfilename).resolve()
-
-        # Sources
-        self.source_files = source_files
 
         compile_flags = self._build_flags.final_compile_flags_list()
 
