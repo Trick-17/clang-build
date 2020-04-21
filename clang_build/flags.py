@@ -61,78 +61,81 @@ class BuildFlags:
         self, build_type, default_compile_flags=False, default_link_flags=False
     ):
         # TODO: Store default flags separately
-        self.default_compile_flags = []
-        self.default_link_flags = []
+        self.compile_default = []
+        self.link_default = []
 
-        self.compile_flags_private = []
-        self.link_flags_private = []
+        self.compile_private = []
+        self.link_private = []
 
-        self.compile_flags_interface = []
-        self.link_flags_interface = []
+        self.compile_interface = []
+        self.link_interface = []
 
-        self.compile_flags_public = []
-        self.link_flags_public = []
+        self.compile_public = []
+        self.link_public = []
 
         if default_compile_flags:
-            self.default_compile_flags = self.DEFAULT_COMPILE_FLAGS[BuildType.Default]
-            # self.compile_flags_private += DEFAULT_COMPILE_FLAGS.get(BuildType.Default, [])
+            self.compile_default = self.DEFAULT_COMPILE_FLAGS[BuildType.Default]
+            # self.compile_private += DEFAULT_COMPILE_FLAGS.get(BuildType.Default, [])
             if build_type != BuildType.Default:
-                self.default_compile_flags = self.DEFAULT_COMPILE_FLAGS.get(
+                self.compile_default = self.DEFAULT_COMPILE_FLAGS.get(
                     build_type, []
                 )
-                # self.compile_flags_private += DEFAULT_COMPILE_FLAGS.get(build_type, [])
+                # self.compile_private += DEFAULT_COMPILE_FLAGS.get(build_type, [])
 
         if default_link_flags:
-            self.default_link_flags = self.DEFAULT_LINK_FLAGS.get(build_type, [])
-            # self.link_flags_private += DEFAULT_LINK_FLAGS.get(build_type, [])
+            self.link_default = self.DEFAULT_LINK_FLAGS.get(build_type, [])
+            # self.link_private += DEFAULT_LINK_FLAGS.get(build_type, [])
 
     def make_private_flags_public(self):
-        self.compile_flags_public += self.compile_flags_private
-        self.compile_flags_private = []
-        self.link_flags_public += self.link_flags_private
-        self.link_flags_private = []
+        self.compile_public += self.compile_private
+        self.compile_private = []
+        self.link_public += self.link_private
+        self.link_private = []
 
     def apply_public_flags(self, target):
-        self.compile_flags_private += target.compile_flags_public
-        self.link_flags_private += target.link_flags_public
+        self.compile_private += target.compile_public
+        self.link_private += target.link_public
 
     def forward_public_flags(self, target):
-        self.compile_flags_public += target.compile_flags_public
-        self.link_flags_public += target.link_flags_public
+        self.compile_public += target.compile_public
+        self.link_public += target.link_public
 
     def apply_interface_flags(self, target):
-        self.compile_flags_private += target.compile_flags_interface
-        self.link_flags_private += target.link_flags_interface
+        self.compile_private += target.compile_interface
+        self.link_private += target.link_interface
 
     def forward_interface_flags(self, target):
-        self.compile_flags_interface += target.compile_flags_interface
-        self.link_flags_interface += target.link_flags_interface
+        self.compile_interface += target.compile_interface
+        self.link_interface += target.link_interface
 
     def add_target_flags(self, config, build_type):
         # Own private flags
         cf, lf = _parse_flags_config(config, build_type, "flags")
-        self.compile_flags_private += cf
-        self.link_flags_private += lf
+        self.compile_private += cf
+        self.link_private += lf
 
         # Own interface flags
         cf, lf = _parse_flags_config(config, build_type, "interface-flags")
-        self.compile_flags_interface += cf
-        self.link_flags_interface += lf
+        self.compile_interface += cf
+        self.link_interface += lf
 
         # Own public flags
         cf, lf = _parse_flags_config(config, build_type, "public-flags")
-        self.compile_flags_public += cf
-        self.link_flags_public += lf
+        self.compile_public += cf
+        self.link_public += lf
 
     def final_compile_flags_list(self):
+        # TODO: Add max_dialect and plattform specific flags here as well
+        #       Need to see how we get around the target-type-specific flags issue
         return self._generate_flag_list(
-            self.compile_flags_private + self.compile_flags_public
+            self.compile_private + self.compile_public
         )
 
     def final_link_flags_list(self):
         return self._generate_flag_list(
-            self.link_flags_private + self.link_flags_public
+            self.link_private + self.link_public
         )
+
 
     def _generate_flag_list(self, flags):
         # TODO: The below line (making flags unique) is still wrong. Should be removed!
@@ -140,4 +143,4 @@ class BuildFlags:
         return list(str(" ".join(flags)).split())
 
     def add_bundling_flags(self):
-        self.link_flags_private += _platform.PLATFORM_BUNDLING_LINKER_FLAGS
+        self.link_private += _platform.PLATFORM_BUNDLING_LINKER_FLAGS
