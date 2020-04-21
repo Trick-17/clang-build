@@ -157,3 +157,9 @@ class BuildFlags:
         # TODO: The below line (making flags unique) is still wrong. Should be removed!
         flags = list(dict.fromkeys(flags))
         return list(str(" ".join(flags)).split())
+
+    def add_bundling_flags(self):
+        if _platform.PLATFORM == "osx":
+            self.link_flags_private += ["-Wl,-rpath,@executable_path"]
+        elif _platform.PLATFORM == "linux":
+            self.link_flags_private += ["-Wl,-rpath,$ORIGIN"]

@@ -400,6 +400,10 @@ class Executable(Compilable):
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-L", str(target.output_folder.resolve())]
 
+        ### Bundling requires extra flags
+        if self._environment.bundle:
+            self._build_flags.add_bundling_flags()
+
         self.link_command += self._build_flags.final_link_flags_list()
 
         ### Link dependencies
@@ -407,15 +411,6 @@ class Executable(Compilable):
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-l" + target.outname]
 
-        ### Bundling requires extra flags
-        if self._environment.bundle:
-            ### Search for libraries relative to the executable
-            if _platform.PLATFORM == "osx":
-                self.link_command += ["-Wl,-rpath,@executable_path"]
-            elif _platform.PLATFORM == "linux":
-                self.link_command += ["-Wl,-rpath,$ORIGIN"]
-            elif _platform.PLATFORM == "windows":
-                pass
 
     def bundle(self):
         self.unsuccessful_bundle = False
