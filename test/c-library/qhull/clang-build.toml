@@ -1,0 +1,66 @@
+name    = "qhull"
+url     = "https://github.com/qhull/qhull"
+version = "v7.2.0"
+
+# Libraries
+
+[qhull]
+    target_type = "shared library"
+    directory = "src/libqhull"
+    [qhull.flags]
+        compile = ["-Wno-deprecated-declarations"]
+
+[qhull_r]
+    target_type = "shared library"
+    directory = "src/libqhull_r"
+    [qhull_r.flags]
+        compile = ["-Wno-deprecated-declarations"]
+
+[qhullcpp]
+    target_type = "static library"
+    include_directories_public = ["src"]
+    sources = ["src/libqhullcpp/*.cpp"]
+    sources_exclude = ["src/libqhullcpp/qt-qhull.cpp", "src/libqhullcpp/usermem_r-cpp.cpp"]
+    [qhullcpp.flags]
+        compile = ["-Wno-deprecated-declarations", "-Wno-self-assign"]
+
+[qhullstatic]
+    target_type = "static library"
+    include_directories_public = ["src"]
+    sources = ["src/libqhull/*.c"]
+    [qhullstatic.flags]
+        compile = ["-Wno-deprecated-declarations"]
+
+[qhullstatic_r]
+    target_type = "static library"
+    include_directories_public = ["src"]
+    sources = ["src/libqhull_r/*.c"]
+    [qhullstatic_r.flags]
+        compile = ["-Wno-deprecated-declarations"]
+
+# Executables
+
+[qhull-executable]
+    output_name = "qhull"
+    sources = ["src/qhull/unix_r.c"]
+    dependencies = ["qhullstatic_r"]
+
+[rbox]
+    sources = ["src/rbox/rbox.c"]
+    dependencies = ["qhullstatic"]
+
+[qconvex]
+    sources = ["src/qconvex/qconvex.c"]
+    dependencies = ["qhullstatic"]
+
+[qdelaunay]
+    sources = ["src/qdelaunay/qdelaun.c"]
+    dependencies = ["qhullstatic"]
+
+[qvoronoi]
+    sources = ["src/qvoronoi/qvoronoi.c"]
+    dependencies = ["qhullstatic"]
+
+[qhalf]
+    sources = ["src/qhalf/qhalf.c"]
+    dependencies = ["qhullstatic"]

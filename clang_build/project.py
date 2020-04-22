@@ -17,6 +17,8 @@ from .target import Executable as _Executable
 from .target import HeaderOnly as _HeaderOnly
 from .target import TargetDescription as _TargetDescription
 from .tree_entry import TreeEntry as _TreeEntry
+from .git_tools import clone_repository as _clone_repository
+from .git_tools import needs_download as _needs_download
 
 _LOGGER = _logging.getLogger("clang_build.clang_build")
 
@@ -149,7 +151,6 @@ class Project(_NamedLogger, _TreeEntry):
             settings for this run of clang-build.
         kwargs
             Used for internal purposes only.
-
         """
         super().__init__()
         self._directory = _Path(directory)
@@ -159,9 +160,9 @@ class Project(_NamedLogger, _TreeEntry):
         self._set_project_tree()
         self._load_config()
         self._set_name()
+        self._set_directories()
 
         self._current_targets = self._get_target_descriptions()
-        self._set_build_directory()
         self._subprojects = self._parse_subprojects()
 
         self._fill_dependency_tree()
@@ -182,7 +183,6 @@ class Project(_NamedLogger, _TreeEntry):
         -------
         list
             List of Project objects.
-
         """
         return [
             Project(self._directory.joinpath(directory), self.environment, parent=self)
@@ -199,7 +199,6 @@ class Project(_NamedLogger, _TreeEntry):
         -------
         list
             List of TargetDescription objects
-
         """
         n_targets = len([None for key, val in self.config.items() if isinstance(val, dict)])
         only_target = n_targets == 1 and len(self.config.get("subprojects", [])) == 0
@@ -354,6 +353,14 @@ class Project(_NamedLogger, _TreeEntry):
             and not isinstance(self._project_tree.nodes[target]["data"], Project)
         ]
 
+        # Get project sources, if any
+        project_build_list = list(dict.fromkeys([
+            target_description.parent
+            for target_description in target_build_description_list
+        ]))
+        for project in project_build_list:
+            project._download_sources()
+
         ### Note: the project_tree needs to be updated directly for dependencies
         ### to be used correctly in the `_target_from_description` function
         target_build_list = []
@@ -457,7 +464,7 @@ class Project(_NamedLogger, _TreeEntry):
 
         return f"{prefix}{target_name}"
 
-    def _set_build_directory(self):
+    def _set_directories(self):
         """Set the build file output directory.
 
         This helper function is part of the initialisation of a project.
@@ -470,6 +477,8 @@ class Project(_NamedLogger, _TreeEntry):
         self._build_directory = self.environment.build_directory
         if self.parent:
             self._build_directory = self.parent.build_directory / self.name
+        if self._config.get("url", None):
+            self._directory = self.build_directory / "external_sources" / str(self._config.get("directory", ""))
 
     def _set_name(self):
         """Set the name.
@@ -497,7 +506,7 @@ class Project(_NamedLogger, _TreeEntry):
 
             if "subprojects" in self.config:
                 error_message = self.log_message(
-                    f"defining a top-level project with subprojects but without a name"
+                    "defining a top-level project with subprojects but without a name"
                     + " is illegal."
                 )
 
@@ -598,3 +607,25 @@ class Project(_NamedLogger, _TreeEntry):
                 f'{len(files["sourcefiles"])} source file(s) found. Creating executable target.'
             )
             return _Executable(target_description, files, dependencies)
+
+    def _download_sources(self):
+        url = self._config.get("url", None)
+        if url:
+            version = self._config.get("version", None)
+            download_directory = self.build_directory / "external_sources"
+            # Check if directory is already present and non-empty
+            if _needs_download(url, download_directory, version):
+                self._logger.info(
+                    f"downloading external project sources to '{str(download_directory.resolve())}'"
+                )
+                _clone_repository(
+                    url, download_directory, self.environment.clone_recursive
+                )
+
+            # Otherwise we download the sources
+            else:
+                self._logger.debug(
+                    f"external project sources found in '{str(download_directory.resolve())}'"
+                )
+
+            self._directory = download_directory / self._config.get("directory", "")
