@@ -220,14 +220,10 @@ class Project(_NamedLogger, _TreeEntry):
 
         circles = [_Circle(circle + [circle[0]]) for circle in circles]
         if circles:
-            error_message = self.log_message(
-                "Found the following circular dependencies:\n"
-                + _textwrap.indent(
-                    "\n".join("- " + str(circle) for circle in circles), prefix=" " * 3
-                )
-            )
+            error_message = "Found the following circular dependencies:\n" + _textwrap.indent(
+                    "\n".join("- " + str(circle) for circle in circles), prefix=" " * 3)
             self._logger.exception(error_message)
-            raise RuntimeError(error_message)
+            raise RuntimeError(self.log_message(error_message))
 
     def _fill_dependency_tree(self):
         """Integrate this project into the global project tree.
