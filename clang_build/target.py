@@ -616,7 +616,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
 
     """
 
-    def __init__(self, name: str, config: dict, identifier: str, parent, environment):
+    def __init__(self, name: str, config: dict, identifier: str, parent, environment, only_target=False):
         """Generate a TargetDescription.
 
         Parameters
@@ -645,6 +645,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         self.parent = parent
         self.identifier = identifier
         self.environment = environment
+        self.only_target = only_target
 
         self.root_directory = self.parent.directory / self.config.get("directory", "")
 
@@ -653,11 +654,17 @@ class TargetDescription(_TreeEntry, _NamedLogger):
 
     @property
     def build_directory(self):
-        return (
-            self.parent.build_directory
-            / self.name
-            / self.environment.build_type.name.lower()
-        )
+        if self.only_target:
+            return (
+                self.parent.build_directory
+                / self.environment.build_type.name.lower()
+            )
+        else:
+            return (
+                self.parent.build_directory
+                / self.name
+                / self.environment.build_type.name.lower()
+            )
 
     def download_sources(self):
         url = self.config.get("url", None)

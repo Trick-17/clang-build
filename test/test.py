@@ -63,12 +63,20 @@ class TestClangBuild(unittest.TestCase):
             clang_build.build(clang_build.parse_args(['-d', 'test/mwe_build_error', '-V']))
 
     def test_circular_dependency(self):
-        with self.assertRaisesRegex(RuntimeError, "(?:[\s\S]*?circular_project\\.mylib1 -> circular_project\\.mylib2 -> circular_project\\.mylib1[\s\S]*?|[\s\S]*?circular_project\\.mylib2 -> circular_project\\.mylib1 -> circular_project\\.mylib2[\s\S]*?)"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/circular_dependency']))
+        with self.assertRaisesRegex(RuntimeError, "(?:[\s\S]*?\[circular_project\\.mylib1\] -> \[circular_project\\.mylib2\] -> \[circular_project\\.mylib1\][\s\S]*?|[\s\S]*?\[circular_project\\.mylib2\] -> \[circular_project\\.mylib1\] -> \[circular_project\\.mylib2\][\s\S]*?)"):
+            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/circular_dependency']))
 
     def test_missing_name_with_subproject(self):
         with self.assertRaisesRegex(RuntimeError, "[\s\S]*?without a name[\s\S]*?"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/missing_name_with_subproject']))
+            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_name_with_subproject']))
+
+    def test_missing_subproject_name(self):
+        with self.assertRaisesRegex(RuntimeError, "[\s\S]*?It is not allowed to add a subproject that does not have a name[\s\S]*?"):
+            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_subproject_name']))
+
+    def test_missing_subproject_toml(self):
+        with self.assertRaisesRegex(RuntimeError, "[\s\S]*?It is not allowed to add a subproject that does not have a project file[\s\S]*?"):
+            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_subproject_toml']))
 
     def test_script_call(self):
         try:
@@ -155,7 +163,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/subproject', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/mainproject/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
@@ -165,7 +173,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/boost-filesystem', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/myproject/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
@@ -219,15 +227,15 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertRegex(output, r'Hello from thread 1, nthreads*')
 
-    def test_mwe_two_targets(self):
-        clang_build_try_except(['-d', 'test/multi_target_external', '-V', '--bundle'])
+    # def test_mwe_two_targets(self):
+    #     clang_build_try_except(['-d', 'test/multi_target_external', '-V', '--bundle'])
 
-        try:
-            output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError as e:
-            self.fail(f'Could not run compiled program. Message:\n{e.output}')
+    #     try:
+    #         output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+    #     except subprocess.CalledProcessError as e:
+    #         self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
-        self.assertEqual(output, 'Hello! mylib::calculate() returned 2')
+    #     self.assertEqual(output, 'Hello! mylib::calculate() returned 2')
 
     def setUp(self):
         logger = logging.getLogger('clang_build')

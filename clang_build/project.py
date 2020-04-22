@@ -201,12 +201,14 @@ class Project(_NamedLogger, _TreeEntry):
             List of TargetDescription objects
 
         """
+        n_targets = len([None for key, val in self.config.items() if isinstance(val, dict)])
+        only_target = n_targets == 1 and len(self.config.get("subprojects", [])) == 0
         return [
             _TargetDescription(
-                key, val, self._identifier_from_name(key), self, self.environment
+                key, val, self._identifier_from_name(key), self, self.environment, only_target=only_target
             )
             for key, val in self.config.items()
-            if key != "subprojects" and isinstance(val, dict)
+            if isinstance(val, dict)
         ]
 
     def _check_for_circular_dependencies(self):
@@ -314,7 +316,7 @@ class Project(_NamedLogger, _TreeEntry):
             raise RuntimeError(error_message)
 
         else:
-            self._config = {"myexe": {"output_name": "main"}}
+            self._config = {"target": {"output_name": "main"}}
 
     def build(
         self,
@@ -502,7 +504,7 @@ class Project(_NamedLogger, _TreeEntry):
                 _LOGGER.exception(error_message)
                 raise RuntimeError(error_message)
 
-            self._name = "myproject"
+            self._name = "project"
 
     def _set_project_tree(self):
         """Set the global project tree for this project.
