@@ -236,21 +236,36 @@ class Project(_NamedLogger, _TreeEntry):
         global project tree. If there are illegal dependencies, this function
         will raise an exception.
         """
-        # add self
+        # Add self
         self._project_tree.add_node(self, data=self)
 
-        # add edges to subprojects
-        self._project_tree.add_edges_from(
-            (self, sub_project) for sub_project in self.subprojects
-        )
-
+        # Add nodes and edges for targets in self
         for target in self._current_targets:
             self._project_tree.add_node(target, data=target)
         self._project_tree.add_edges_from(
             (self, target) for target in self._current_targets
         )
 
-        # add edges for dependencies in targets defined in project
+        # Add edges to subprojects
+        self._project_tree.add_edges_from(
+            (self, sub_project) for sub_project in self.subprojects
+        )
+
+        # Create a dotfile of the dependency graph
+        create_dotfile = False
+        if self._environment.create_dependency_dotfile and not self._parent:
+            try:
+                import pydot
+                create_dotfile = True
+            except:
+                _LOGGER.error(f'Could not create dependency dotfile, as pydot is not installed')
+
+        # Create initial dotfile without full dependency resolution
+        if create_dotfile:
+            _Path(self._environment.build_directory).mkdir(parents=True, exist_ok=True)
+            _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
+
+        # Add edges for dependencies in targets defined in project
         for target in self._current_targets:
             dependencies = target.config.get("dependencies", [])
             dependency_objs = []
@@ -270,6 +285,10 @@ class Project(_NamedLogger, _TreeEntry):
                 self._project_tree.add_edge(target, dependency)
 
             target.config["dependencies"] = dependency_objs
+
+        # Write dotfile with full dependency graph
+        if create_dotfile:
+            _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
 
     def _load_config(self):
         """Try to find a toml file and return a config.
@@ -449,8 +468,6 @@ class Project(_NamedLogger, _TreeEntry):
         self._build_directory = self.environment.build_directory
         if self.parent:
             self._build_directory = self.parent.build_directory / self.name
-        elif "subprojects" in self.config or len(self._current_targets) > 1:
-            self._build_directory /= self.name
 
     def _set_name(self):
         """Set the name.

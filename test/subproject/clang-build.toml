@@ -1,11 +1,8 @@
 name = "mainproject"
 
+subprojects = ["mylib"]
+
 [myexe]
-output_name  = "runLib"
-dependencies = ["mysubproject.mylib"]
-directory    = "myexe"
-
-
-[[subproject]]
-name = "mysubproject"
-directory = "mylib"
+    output_name  = "runLib"
+    dependencies = ["mysubproject.mylib"]
+    directory    = "myexe"
