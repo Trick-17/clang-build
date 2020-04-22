@@ -67,7 +67,7 @@ class TestClangBuild(unittest.TestCase):
             clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/link_error', '-V']))
 
     def test_circular_dependency(self):
-        with self.assertRaisesRegex(RuntimeError, "(?:[\s\S]*?\[circular_project\\.mylib1\] -> \[circular_project\\.mylib2\] -> \[circular_project\\.mylib1\][\s\S]*?|[\s\S]*?\[circular_project\\.mylib2\] -> \[circular_project\\.mylib1\] -> \[circular_project\\.mylib2\][\s\S]*?)"):
+        with self.assertRaisesRegex(RuntimeError, "(?:[\s\S]*?\\[circular_project\\.mylib1\\] -> \\[circular_project\\.mylib2\\] -> \\[circular_project\\.mylib1\\][\s\S]*?|[\s\S]*?\\[circular_project\\.mylib2\\] -> \\[circular_project\\.mylib1\\] -> \\[circular_project\\.mylib2\\][\s\S]*?)"):
             clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/circular_dependency']))
 
     def test_missing_name_with_subproject(self):
