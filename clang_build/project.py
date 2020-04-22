@@ -392,49 +392,26 @@ class Project(_NamedLogger, _TreeEntry):
         of the selected ones.
         """
         if build_all:
-            targets_to_build = [
-                target for target in self._project_tree.descendants(self)
-            ]
-
+            build_descendants_of = [self]
         elif target_list:
-            targets = set(
-                self._project_tree.nodes[target]["data"] for target in target_list
-            )
-
-            targets_to_build = set().union(
-                *[
-                    targets,
-                    *[
-                        self._project_tree.nodes[x]["data"]
-                        for x in (
-                            self._project_tree.descendants(target for target in targets)
-                        )
-                    ],
-                ]
-            )
-
-            self._logger.info(
-                f'Only building targets [{"], [".join(target_list)}]'
-                + f' out of base set of targets [{"], [".join(target.name for target in self._current_targets)}].'
-            )
-
+            build_descendants_of = target_list
         else:
-            targets_to_build = set().union(
-                *[
-                    set(self._current_targets),
-                    *[
-                        set(
-                            _nx.get_node_attributes(
-                                self._project_tree.subgraph(
-                                    _nx.descendants(self._project_tree, target)
-                                ),
-                                "data",
-                            ).values()
-                        )
-                        for target in self._current_targets
-                    ],
-                ]
-            )
+            build_descendants_of = self._current_targets
+
+        targets_to_build = set().union(
+            set(build_descendants_of),
+            *[
+                set(
+                    _nx.get_node_attributes(
+                        self._project_tree.subgraph(
+                            _nx.descendants(self._project_tree, target)
+                        ),
+                        "data",
+                    ).values()
+                )
+                for target in build_descendants_of
+            ]
+        )
 
         return [
             target
