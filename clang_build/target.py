@@ -682,7 +682,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         url = self.config.get("url", None)
         if url:
             version = self.config.get("version", None)
-            download_directory = self.build_directory / "external_sources"
+            download_directory = self.build_directory.parent / "external_sources"
             # Check if directory is already present and non-empty
             if _needs_download(url, download_directory, version):
                 self._logger.info(
