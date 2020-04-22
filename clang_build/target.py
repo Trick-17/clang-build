@@ -19,6 +19,10 @@ from .logging_tools import NamedLogger as _NamedLogger
 from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 from .single_source import SingleSource as _SingleSource
 from .tree_entry import TreeEntry as _TreeEntry
+from .errors import CompileError as _CompileError
+from .errors import LinkError as _LinkError
+from .errors import BundleError as _BundleError
+from .errors import RedistributableError as _RedistributableError
 
 
 class Target(_TreeEntry, _NamedLogger):
@@ -74,7 +78,6 @@ class Target(_TreeEntry, _NamedLogger):
             dependencies = []
 
         self._dependencies = dependencies
-        self._unsuccessful_builds = []
 
         # TODO: parse user-specified target version
 
@@ -228,7 +231,7 @@ class Compilable(Target):
         ]
 
         # If compilation of buildables fail, they will be stored here later
-        self._unsuccessful_builds = []
+        self._unsuccessful_compilations = []
 
         # Linking setup
         self.link_command = link_command + [str(self.outfile)]
@@ -320,11 +323,15 @@ class Compilable(Target):
             )
         )
 
-        self._unsuccessful_builds = [
+        # Catch compilation errors
+        self._unsuccessful_compilations = [
             buildable
             for buildable in self.needed_buildables
             if (buildable.compilation_failed or buildable.depfile_failed)
         ]
+        if self._unsuccessful_compilations:
+            raise _CompileError('Compilation was unsuccessful',
+                {self.identifier: [source.compile_report for source in self._unsuccessful_compilations]})
 
     def link(self):
         # Before-link step
@@ -366,6 +373,11 @@ class Compilable(Target):
                 exec(code, globals(), locals())
             _os.chdir(original_directory)
             self._logger.info("finished after-build step")
+
+        # Catch link errors
+        if self.unsuccessful_link:
+            raise _LinkError('Linking was unsuccessful',
+                {self.identifier: self.link_report})
 
 
 class Executable(Compilable):

@@ -60,7 +60,11 @@ class TestClangBuild(unittest.TestCase):
 
     def test_compile_error(self):
         with self.assertRaises(CompileError):
-            clang_build.build(clang_build.parse_args(['-d', 'test/mwe_build_error', '-V']))
+            clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/compile_error', '-V']))
+
+    def test_link_error(self):
+        with self.assertRaises(LinkError):
+            clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/link_error', '-V']))
 
     def test_circular_dependency(self):
         with self.assertRaisesRegex(RuntimeError, "(?:[\s\S]*?\[circular_project\\.mylib1\] -> \[circular_project\\.mylib2\] -> \[circular_project\\.mylib1\][\s\S]*?|[\s\S]*?\[circular_project\\.mylib2\] -> \[circular_project\\.mylib1\] -> \[circular_project\\.mylib2\][\s\S]*?)"):
