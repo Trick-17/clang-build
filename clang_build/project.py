@@ -17,8 +17,10 @@ from .target import Executable as _Executable
 from .target import HeaderOnly as _HeaderOnly
 from .target import TargetDescription as _TargetDescription
 from .tree_entry import TreeEntry as _TreeEntry
-from .git_tools import clone_repository as _clone_repository
 from .git_tools import needs_download as _needs_download
+from .git_tools import clone_repository as _clone_repository
+from .git_tools import checkout_version as _checkout_version
+from .git_tools import get_latest_changes as _get_latest_changes
 
 _LOGGER = _logging.getLogger("clang_build.clang_build")
 
@@ -594,6 +596,10 @@ class Project(_NamedLogger, _TreeEntry):
                 _clone_repository(
                     url, download_directory, self.environment.clone_recursive
                 )
+                if version:
+                    _checkout_version(version, download_directory, url)
+                else:
+                    _get_latest_changes(download_directory)
 
             # Otherwise we download the sources
             else:

@@ -13,8 +13,10 @@ from pathlib import Path as _Path
 from . import platform as _platform
 from .directories import Directories
 from .flags import BuildFlags
-from .git_tools import clone_repository as _clone_repository
 from .git_tools import needs_download as _needs_download
+from .git_tools import clone_repository as _clone_repository
+from .git_tools import checkout_version as _checkout_version
+from .git_tools import get_latest_changes as _get_latest_changes
 from .logging_tools import NamedLogger as _NamedLogger
 from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 from .single_source import SingleSource as _SingleSource
@@ -691,6 +693,10 @@ class TargetDescription(_TreeEntry, _NamedLogger):
                 _clone_repository(
                     url, download_directory, self.environment.clone_recursive
                 )
+                if version:
+                    _checkout_version(version, download_directory, url)
+                else:
+                    _get_latest_changes(download_directory)
 
             # Otherwise we download the sources
             else:
