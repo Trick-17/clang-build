@@ -187,7 +187,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/c-library', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/mainproject/default/bin/myexe'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/myexe'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
