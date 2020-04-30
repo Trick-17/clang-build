@@ -9,7 +9,6 @@ class Circle(list):
         A -> B -> A
 
     indicating the circular dependency.
-
     """
 
     def __repr__(self) -> str:
@@ -22,7 +21,7 @@ class Circle(list):
             dependency
 
         """
-        return " -> ".join(str(item) for item in self)
+        return " -> ".join(repr(item) for item in self)
 
     def __str__(self) -> str:
         """Return a string representation of this circle.
@@ -34,4 +33,4 @@ class Circle(list):
             dependency
 
         """
-        return self.__repr__()
+        return " -> ".join(str(item) for item in self)

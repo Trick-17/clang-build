@@ -173,6 +173,9 @@ class Project(_NamedLogger, _TreeEntry):
             self._check_for_circular_dependencies()
 
     def __repr__(self) -> str:
+        return f"clang_build.project.Project('{self.identifier}')"
+
+    def __str__(self) -> str:
         return f"[[{self.identifier}]]"
 
     def _parse_subprojects(self):

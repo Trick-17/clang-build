@@ -102,6 +102,9 @@ class Target(_TreeEntry, _NamedLogger):
         self._build_flags.add_target_flags(target_description.config, self._environment.build_type)
 
     def __repr__(self) -> str:
+        return f"clang_build.target.Target('{self.identifier}')"
+
+    def __str__(self) -> str:
         return f"[{self.identifier}]"
 
     @abstractmethod
@@ -664,6 +667,9 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         self.root_directory = self.parent.directory / self.config.get("directory", "")
 
     def __repr__(self) -> str:
+        return f"clang_build.target.TargetDescription('{self.identifier}')"
+
+    def __str__(self) -> str:
         return f"[{self.identifier}]"
 
     @property
