@@ -66,22 +66,6 @@ class TestClangBuild(unittest.TestCase):
         with self.assertRaises(LinkError):
             clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/link_error', '-V']))
 
-    def test_circular_dependency(self):
-        with self.assertRaisesRegex(RuntimeError, r"(?:[\s\S]*?\[circular_project\.mylib1\] -> \[circular_project\.mylib2\] -> \[circular_project\.mylib1\][\s\S]*?|[\s\S]*?\[circular_project\.mylib2\] -> \[circular_project\.mylib1\] -> \[circular_project\.mylib2\][\s\S]*?)"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/circular_dependency']))
-
-    def test_missing_name_with_subproject(self):
-        with self.assertRaisesRegex(RuntimeError, r"[\s\S]*?without a name[\s\S]*?"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_name_with_subproject']))
-
-    def test_missing_subproject_name(self):
-        with self.assertRaisesRegex(RuntimeError, r"[\s\S]*?It is not allowed to add a subproject that does not have a name[\s\S]*?"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_subproject_name']))
-
-    def test_missing_subproject_toml(self):
-        with self.assertRaisesRegex(RuntimeError, r"[\s\S]*?It is not allowed to add a subproject that does not have a project file[\s\S]*?"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_subproject_toml']))
-
     def test_script_call(self):
         try:
             subprocess.check_output(['clang-build', '-d', 'test/mwe', '-V'], stderr=subprocess.STDOUT)

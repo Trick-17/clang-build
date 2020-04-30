@@ -38,19 +38,19 @@ def clang_build_try_except( args ):
 
 class TestClangBuild(unittest.TestCase):
     def test_circular_dependency(self):
-        with self.assertRaisesRegex(RuntimeError, "(?:[\\s\\S]*?circular_project\\.mylib1 -> circular_project\\.mylib2 -> circular_project\\.mylib1[\\s\\S]*?|[\\s\\S]*?circular_project\\.mylib2 -> circular_project\\.mylib1 -> circular_project\\.mylib2[\\s\\S]*?)"):
+        with self.assertRaisesRegex(RuntimeError, "(\[circular_project\.mylib1\] -> \[circular_project\.mylib2\] -> \[circular_project\.mylib1\])|(\[circular_project\.mylib2\] -> \[circular_project\.mylib1\] -> \[circular_project\.mylib2\])"):
             clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/circular_dependency']))
 
     def test_missing_name_with_subproject(self):
-        with self.assertRaisesRegex(RuntimeError, "[\\s\\S]*?without a name[\\s\\S]*?"):
+        with self.assertRaisesRegex(RuntimeError, "defining a top-level project with subprojects but without a name is illegal"):
             clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_name_with_subproject']))
 
     def test_missing_subproject_toml(self):
-        with self.assertRaisesRegex(RuntimeError, "[\\s\\S]*?does not have a project file[\\s\\S]*?"):
+        with self.assertRaisesRegex(RuntimeError, "It is not allowed to add a subproject that does not have a project file"):
             clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_subproject_toml']))
 
     def test_missing_subproject_name(self):
-        with self.assertRaisesRegex(RuntimeError, "[\\s\\S]*?It is not allowed to add a subproject that does not have a name[\\s\\S]*?"):
+        with self.assertRaisesRegex(RuntimeError, "It is not allowed to add a subproject that does not have a name"):
             clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_subproject_name']))
 
     def setUp(self):
