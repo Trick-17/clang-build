@@ -587,6 +587,8 @@ class Project(_NamedLogger, _TreeEntry):
             return _Executable(target_description, files, dependencies)
 
     def _download_sources(self):
+        """External sources, if present, will be downloaded to build_directory/external_sources.
+        """
         url = self._config.get("url", None)
         if url:
             version = self._config.get("version", None)

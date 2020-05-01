@@ -23,24 +23,36 @@ from .single_source import SingleSource as _SingleSource
 from .tree_entry import TreeEntry as _TreeEntry
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
-from .errors import BundleError as _BundleError
-from .errors import RedistributableError as _RedistributableError
+# from .errors import BundleError as _BundleError
+# from .errors import RedistributableError as _RedistributableError
 
 
 class Target(_TreeEntry, _NamedLogger):
-    """
+    """Base class for all kinds of target, whose sources have been gathered.
+
+    Target instances are used in the `build` method of a project.
     """
 
     @property
     def name(self):
+        """Return the name of this target.
+        """
         return self._name
 
     @property
     def identifier(self):
+        """Return a unique identifier of this target.
+
+        Targets are identified by their parent projects and their name as
+        "[project.subproject.target]".
+        """
         return self._identifier
 
     @property
     def dependencies(self):
+        """Return a list of any:`clang_build.target.Target`, which this
+        target depends on.
+        """
         return self._dependencies
 
     @property
@@ -53,22 +65,45 @@ class Target(_TreeEntry, _NamedLogger):
 
     @property
     def build_directory(self):
+        """Returns the directory which serves as the root build folder
+        for this target.
         """
-        """
-
         return self._build_directory
 
     @property
     def headers(self):
-        """Headers found for this project."""
-
+        """Headers found for this project.
+        """
         return self._headers
 
     @property
     def directories(self):
+        """Returns the any:`clang_build.directories.Directories` in use
+        by this target.
+        """
         return self._directories
 
     def __init__(self, target_description, files, dependencies=None):
+        """Initialise a target.
+
+        The procedure for initialisation is:
+
+        #. Setting some instance attributes
+        #. Initialising sub-projects and filling the dependency tree recursively
+        #. Determining the targets to configure
+        #. Configuring the targets
+
+        Parameters
+        ----------
+        target_description : :any:`clang_build.target.TargetDescription`
+            All the information on how to gather sources and build the target.
+        environment : any:`clang_build.clang_build.Environment`
+            An any:`clang_build.clang_build.Environment` instance defining some global
+            settings for this run of clang-build.
+        dependencies
+            Optional. A list of any:`clang_build.target.Target` which this target
+            depends on.
+        """
         # Basics
         _NamedLogger.__init__(self)
         self._name = target_description.name
@@ -109,21 +144,41 @@ class Target(_TreeEntry, _NamedLogger):
 
     @abstractmethod
     def _get_default_flags(self):
+        """Overload to return any:`clang_build.flags.BuildFlags`, which the target should use.
+        """
         pass
 
     @abstractmethod
     def _add_dependency_flags(self, target):
+        """Overload to add flags from dependencies of this target to its own.
+        """
         pass
 
     @abstractmethod
     def compile(self, process_pool, progress_disabled):
+        """Compiles the target, if applicable.
+
+        This produces an OS-dependent output in the build/bin folder.
+        """
         pass
 
     @abstractmethod
     def link(self):
+        """Links the target, if applicable.
+
+        This produces an OS-dependent output in the corresponding build folder:
+        - "bin" for executables and shared objects
+        - "lib" for static libraries
+        """
         pass
 
     def bundle(self):
+        """For executable and shared library targets, bundles shared library
+        dependencies into the binary output folder and amends the rpath if
+        necessary.
+
+        They can therefore be used without amending the system PATH or similar.
+        """
         self.unsuccessful_bundle = False
         bundle_files = []
         for dependency in self.dependencies:
@@ -131,15 +186,37 @@ class Target(_TreeEntry, _NamedLogger):
         return bundle_files
 
     def redistributable(self):
+        """Creates a redistributable bundle, suitable for installation.
+
+        The redistributable bundle contains
+        - an "include" folder with the public headers (preserving folder structure).
+          Note that this includes the headers of public dependencies.
+        - "bin" and "lib" folders containing compiled output of the target
+          and its dependencies.
+        """
         self.unsuccessful_redistributable = False
 
     @property
     def build_flags(self):
+        """Returns the any:`clang_build.flags.BuildFlags` of this target.
+        """
         return self._build_flags
 
 
 class HeaderOnly(Target):
+    """HeaderOnly targets are the default target type when no source files are found.
+
+    Header-only targets cannot have private compile flags, link flags or dependencies.
+    They are automatically promoted to public instead.
+
+    TODO: need to check whether "public" makes sense for header-only, when we have implemented "private" dependencies
+    """
+
     def __init__(self, target_description, files, dependencies=None):
+        """Initialise a header-only target.
+
+        Header-only targets' private flags and include-directories are public.
+        """
         super().__init__(
             target_description=target_description,
             files=files,
@@ -163,9 +240,13 @@ class HeaderOnly(Target):
         self._logger.info("header-only target does not require compiling.")
 
     def _get_default_flags(self):
+        """Returns the default any:`clang_build.flags.BuildFlags` without compile or link flags.
+        """
         return BuildFlags(self._environment.build_type)
 
     def _add_dependency_flags(self, target):
+        """Forwards dependencies' public and interface flags.
+        """
         self._build_flags.forward_public_flags(target)
         self._build_flags.forward_interface_flags(target)
 
@@ -181,6 +262,9 @@ def compile_single_source(buildable):
 
 
 class Compilable(Target):
+    """A compilable target will generate object files.
+    """
+
     def __init__(
         self,
         target_description,
@@ -192,7 +276,6 @@ class Compilable(Target):
         suffix,
         dependencies=None,
     ):
-
         super().__init__(
             target_description=target_description,
             files=files,
@@ -259,10 +342,13 @@ class Compilable(Target):
             )
 
     def _get_default_flags(self):
+        """Returns the default any:`clang_build.flags.BuildFlags` with compile flags but without link flags.
+        """
         return BuildFlags(self._environment.build_type, default_compile_flags=True)
 
-    # From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed
     def compile(self, process_pool, progress_disabled):
+        """From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed.
+        """
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
         if not self._environment.force_build:
@@ -386,7 +472,14 @@ class Compilable(Target):
 
 
 class Executable(Compilable):
+    """Executable targets are the default target type when source files are found.
+
+    An executable cannot be the dependency of another target.
+    """
+
     def __init__(self, target_description, files, dependencies=None):
+        """Initialise an executable target.
+        """
 
         super().__init__(
             target_description=target_description,
@@ -498,9 +591,13 @@ class Executable(Compilable):
                 self.redistributable_report = error.output.decode("utf-8").strip()
 
     def _get_default_flags(self):
+        """Returns the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
+        """
         return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
+        """Adds dependencies' public and interface flags to its own and forwards their public flags.
+        """
         self._build_flags.apply_public_flags(target)
         self._build_flags.forward_public_flags(target)
         self._build_flags.apply_interface_flags(target)
@@ -571,9 +668,13 @@ class SharedLibrary(Compilable):
         return self_bundle_files + bundle_files
 
     def _get_default_flags(self):
+        """Returns the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
+        """
         return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
+        """Adds dependencies' public and interface flags to its own and forwards their public flags.
+        """
         self._build_flags.apply_public_flags(target)
         self._build_flags.forward_public_flags(target)
         self._build_flags.apply_interface_flags(target)
@@ -607,9 +708,15 @@ class StaticLibrary(Compilable):
                 ]
 
     def _add_dependency_flags(self, target):
+        """Adds dependencies' public flags to its own and forwards their public and interface flags.
+
+        This is done, because the dependency's interface flags will contain a header-only or static
+        library's link dependencies, which cannot be applied to this static library either.
+        """
         self._build_flags.apply_public_flags(target)
         self._build_flags.forward_public_flags(target)
         self._build_flags.forward_interface_flags(target)
+
 
 TARGET_MAP = {
     "executable": Executable,
@@ -630,7 +737,6 @@ class TargetDescription(_TreeEntry, _NamedLogger):
     and thus the two step procedure is necessary.
 
     TODO: Change Attributes to properties :)
-
     """
 
     def __init__(self, name: str, config: dict, identifier: str, parent, environment, only_target=False):
@@ -646,8 +752,8 @@ class TargetDescription(_TreeEntry, _NamedLogger):
             Unique str representation of this target
         parent : Project
             The parent project of this target
-
         """
+
         _NamedLogger.__init__(self)
 
         if "." in name:
@@ -674,6 +780,8 @@ class TargetDescription(_TreeEntry, _NamedLogger):
 
     @property
     def build_directory(self):
+        """Returns the directory that serves as root build folder for the target.
+        """
         if self.only_target:
             return (
                 self.parent.build_directory
@@ -687,6 +795,8 @@ class TargetDescription(_TreeEntry, _NamedLogger):
             )
 
     def download_sources(self):
+        """External sources, if present, will be downloaded to build_directory/external_sources.
+        """
         url = self.config.get("url", None)
         if url:
             version = self.config.get("version", None)
