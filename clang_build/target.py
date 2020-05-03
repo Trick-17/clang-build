@@ -753,7 +753,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
     TODO: Change Attributes to properties :)
     """
 
-    def __init__(self, name: str, config: dict, identifier: str, parent, environment, only_target=False):
+    def __init__(self, name: str, config: dict, identifier: str, parent_directory, parent_build_directory, environment, only_target=False):
         """Generate a TargetDescription.
 
         Parameters
@@ -764,8 +764,10 @@ class TargetDescription(_TreeEntry, _NamedLogger):
             The config for this target (e.g. read from a toml)
         identifier : str
             Unique str representation of this target
-        parent : Project
-            The parent project of this target
+        parent_directory : Path
+            The directory of the parent project of this target
+        parent_build_directory : Path
+            The build directory of the parent project of this target
         """
 
         _NamedLogger.__init__(self)
@@ -779,12 +781,13 @@ class TargetDescription(_TreeEntry, _NamedLogger):
 
         self.name = name
         self.config = config
-        self.parent = parent
         self.identifier = identifier
         self.environment = environment
         self.only_target = only_target
+        self.parent_directory = parent_directory
+        self.parent_build_directory = parent_build_directory
 
-        self.root_directory = self.parent.directory / self.config.get("directory", "")
+        self.root_directory = self.parent_directory / self.config.get("directory", "")
 
     def __repr__(self) -> str:
         return f"clang_build.target.TargetDescription('{self.identifier}')"
@@ -798,12 +801,12 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         """
         if self.only_target:
             return (
-                self.parent.build_directory
+                self.parent_build_directory
                 / self.environment.build_type.name.lower()
             )
         else:
             return (
-                self.parent.build_directory
+                self.parent_build_directory
                 / self.name
                 / self.environment.build_type.name.lower()
             )

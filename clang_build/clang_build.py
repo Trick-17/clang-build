@@ -21,6 +21,7 @@ from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
 from .errors import BundleError as _BundleError
 from .errors import RedistributableError as _RedistributableError
+from .api import get_project as _get_project
 
 _v = _VersionInfo('clang-build').semantic_version()
 __version__ = _v.release_string()
@@ -230,7 +231,15 @@ def build(args):
     with _CategoryProgress(categories, environment.progress_disabled) as progress_bar:
         logger = environment.logger
 
-        project = _Project(environment.working_directory, environment)
+        py_file = environment.working_directory / "clang_build_project.py"
+        if py_file.exists():
+            logger.info(f"Using Python API for root project \"{py_file}\"")
+
+            project = _get_project(environment.working_directory, environment.working_directory, environment)
+            if not isinstance(project, _Project):
+                raise RuntimeError(f'Unable to initialize root project:\nThe `get_project` method in "{py_file}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"')
+        else:
+            project = _Project.from_directory(environment.working_directory, environment)
 
         #TODO: Dot file if requested
 
