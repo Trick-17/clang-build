@@ -137,8 +137,8 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Hello!')
 
-    def test_external_scripts(self):
-        clang_build_try_except(['-d', 'test/external_scripts', '-V'])
+    def test_pyapi_directory(self):
+        clang_build_try_except(['-d', 'test/py-api/directory', '-V'])
 
         try:
             output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
@@ -149,6 +149,16 @@ class TestClangBuild(unittest.TestCase):
 
     def test_subproject(self):
         clang_build_try_except(['-d', 'test/subproject', '-V'])
+
+        try:
+            output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
+
+        self.assertEqual(output, 'Hello! mylib::triple(3) returned 9')
+
+    def test_pyapi_subproject(self):
+        clang_build_try_except(['-d', 'test/py-api/subproject', '-V'])
 
         try:
             output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()

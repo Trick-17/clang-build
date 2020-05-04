@@ -324,23 +324,6 @@ class Compilable(Target):
         # Linking setup
         self.link_command = link_command + [str(self.outfile)]
 
-        ## Additional scripts
-        self.before_compile_script = ""
-        self.before_link_script = ""
-        self.after_build_script = ""
-        if (
-            "scripts" in target_description.config
-        ):  ### TODO: maybe the scripts should be named differently
-            self.before_compile_script = target_description.config["scripts"].get(
-                "before_compile", ""
-            )
-            self.before_link_script = target_description.config["scripts"].get(
-                "before_link", ""
-            )
-            self.after_build_script = target_description.config["scripts"].get(
-                "after_build", ""
-            )
-
     def _get_default_flags(self):
         """Returns the default any:`clang_build.flags.BuildFlags` with compile flags but without link flags.
         """
@@ -366,20 +349,6 @@ class Compilable(Target):
         self._logger.info(
             "target needs to build sources %s", [b.name for b in self.needed_buildables]
         )
-
-        # Before-compile step
-        if self.before_compile_script:
-            script_file = self.root_directory.joinpath(
-                self.before_compile_script
-            ).resolve()
-            self._logger.info(f"pre-compile step: '{script_file}'")
-            original_directory = _os.getcwd()
-            _os.chdir(self.root_directory)
-            with open(script_file) as f:
-                code = compile(f.read(), script_file, "exec")
-                exec(code, globals(), locals())
-            _os.chdir(original_directory)
-            self._logger.info(f"finished pre-compile step")
 
         # Execute depfile generation command
         #
@@ -425,18 +394,6 @@ class Compilable(Target):
                 {self.identifier: [source.compile_report for source in self._unsuccessful_compilations]})
 
     def link(self):
-        # Before-link step
-        if self.before_link_script:
-            script_file = self.root_directory.joinpath(self.before_link_script)
-            self._logger.info(f"pre-link step: '{script_file}'")
-            original_directory = _os.getcwd()
-            _os.chdir(self.root_directory)
-            with open(script_file) as f:
-                code = compile(f.read(), script_file, "exec")
-                exec(code, globals(), locals())
-            _os.chdir(original_directory)
-            self._logger.info("finished pre-link step")
-
         self._logger.info(f'link -> "{self.outfile}"')
         self._logger.debug("    " + " ".join(self.link_command))
 
@@ -452,18 +409,6 @@ class Compilable(Target):
         except _subprocess.CalledProcessError as error:
             self.unsuccessful_link = True
             self.link_report = error.output.decode("utf-8").strip()
-
-        ## After-build step
-        if self.after_build_script:
-            script_file = self.root_directory.joinpath(self.after_build_script)
-            self._logger.info(f"after-build step: '{script_file}'")
-            original_directory = _os.getcwd()
-            _os.chdir(self.root_directory)
-            with open(script_file) as f:
-                code = compile(f.read(), script_file, "exec")
-                exec(code, globals(), locals())
-            _os.chdir(original_directory)
-            self._logger.info("finished after-build step")
 
         # Catch link errors
         if self.unsuccessful_link:

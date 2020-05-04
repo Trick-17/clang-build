@@ -1,6 +1,0 @@
-[myexe]
-output_name    = "runHello"
-[myexe.scripts]
-before_compile = "before_compile.py"
-before_link    = "before_link.py"
-after_build    = "after_build.py"
