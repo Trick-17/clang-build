@@ -417,14 +417,15 @@ class Project(_NamedLogger, _TreeEntry):
             and not isinstance(self._project_tree.nodes[target]["data"], Project)
         ]
 
-        ### TODO: requires that the TargetDescriptions know their parent Projects
-        # # Get project sources, if any
-        # project_build_list = list(dict.fromkeys([
-        #     target_description.parent
-        #     for target_description in target_build_description_list
-        # ]))
-        # for project in project_build_list:
-        #     project._download_sources()
+        # Get project sources, if any
+        project_build_list = []
+        for target_description in target_build_description_list:
+            for predecessor in self._project_tree.predecessors(target_description):
+                if type(predecessor) == Project:
+                    project_build_list.append(predecessor)
+        project_build_list = list(dict.fromkeys(project_build_list))
+        for project in project_build_list:
+            project._download_sources()
 
         ### Note: the project_tree needs to be updated directly for dependencies
         ### to be used correctly in the `_target_from_description` function
