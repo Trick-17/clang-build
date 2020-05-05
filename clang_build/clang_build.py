@@ -15,7 +15,6 @@ from pbr.version import VersionInfo as _VersionInfo
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
-from .target import HeaderOnly as _HeaderOnly
 from .progress_bar import CategoryProgress as _CategoryProgress
 from .logging_tools import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
@@ -229,71 +228,13 @@ def build(args):
         categories.append('Generate redistributable')
 
     with _CategoryProgress(categories, environment.progress_disabled) as progress_bar:
-        target_list = []
         logger = environment.logger
-        processpool = environment.processpool
 
         project = _Project(environment.working_directory, environment)
 
         #TODO: Dot file if requested
 
         project.build(environment.build_all, environment.target_list)
-
-        # TODO, errors should be discovered and reported by project
-        # Check for compile errors
-        errors = {}
-        for target in target_list:
-            if target.__class__ is not _HeaderOnly:
-                if target.unsuccessful_builds:
-                    errors[target.identifier] = [source.compile_report for source in target.unsuccessful_builds]
-        if errors:
-            raise _CompileError('Compilation was unsuccessful', errors)
-
-        # Link
-        progress_bar.update()
-        logger.info('Link')
-        for target in target_list:
-            target.link()
-
-        # Check for link errors
-        errors = {}
-        for target in target_list:
-            if target.__class__ is not _HeaderOnly:
-                if target.unsuccessful_link:
-                    errors[target.identifier] = target.link_report
-        if errors:
-            raise _LinkError('Linking was unsuccessful', errors)
-
-        # Bundle
-        if environment.bundle:
-            progress_bar.update()
-            logger.info('Generate bundle')
-            for target in target_list:
-                target.bundle()
-
-            # Check for bundling errors
-            errors = {}
-            for target in target_list:
-                if target.__class__ is not _HeaderOnly:
-                    if target.unsuccessful_bundle:
-                        errors[target.identifier] = target.bundle_report
-            if errors:
-                raise _BundleError('Bundling was unsuccessful', errors)
-
-        if environment.redistributable:
-            progress_bar.update()
-            logger.info('Generate redistributable')
-            for target in target_list:
-                target.redistributable()
-
-            # Check for redistibutable errors
-            errors = {}
-            for target in target_list:
-                if target.__class__ is not _HeaderOnly:
-                    if target.unsuccessful_redistributable:
-                        errors[target.identifier] = target.redistributable_report
-            if errors:
-                raise _RedistributableError('Creating redistributables was unsuccessful', errors)
 
         progress_bar.update()
         logger.info('clang-build finished.')
@@ -328,6 +269,18 @@ def _main():
         logger.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
             printout = f'[{target}]: target did not link. Errors:\n{errors}'
+            logger.error(printout)
+    except _BundleError as bundle_error:
+        logger = _logging.getLogger(__name__)
+        logger.error('Bundling was unsuccessful:')
+        for target, errors in bundle_error.error_dict.items():
+            printout = f'[{target}]: target could not be bundled. Errors:\n{errors}'
+            logger.error(printout)
+    except _RedistributableError as redistributable_error:
+        logger = _logging.getLogger(__name__)
+        logger.error('Redistibutable bundling was unsuccessful:')
+        for target, errors in redistributable_error.error_dict.items():
+            printout = f'[{target}]: target could not be bundled into a redistributable. Errors:\n{errors}'
             logger.error(printout)
 
 

@@ -215,15 +215,15 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertRegex(output, r'Hello from thread 1, nthreads*')
 
-    # def test_mwe_two_targets(self):
-    #     clang_build_try_except(['-d', 'test/multi_target_external', '-V', '--bundle'])
+    def test_mwe_two_targets(self):
+        clang_build_try_except(['-d', 'test/multi_target_external', '-V', '--bundle'])
 
-    #     try:
-    #         output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-    #     except subprocess.CalledProcessError as e:
-    #         self.fail(f'Could not run compiled program. Message:\n{e.output}')
+        try:
+            output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        except subprocess.CalledProcessError as e:
+            self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
-    #     self.assertEqual(output, 'Hello! mylib::calculate() returned 2')
+        self.assertEqual(output, 'Hello! mylib::calculate() returned 2')
 
     def setUp(self):
         logger = logging.getLogger('clang_build')

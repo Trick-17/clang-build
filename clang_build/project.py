@@ -381,9 +381,20 @@ class Project(_NamedLogger, _TreeEntry):
                 target.compile(process_pool, False)
 
         # Link
-        with _Pool(processes=number_of_threads) as process_pool:
-            for target in target_build_list:
-                target.link()
+        for target in target_build_list:
+            target.link()
+
+        # Bundle
+        if self._environment.bundle:
+            with _Pool(processes=number_of_threads) as process_pool:
+                for target in target_build_list:
+                    target.bundle()
+
+        # Redistributable bundle
+        if self._environment.redistributable:
+            with _Pool(processes=number_of_threads) as process_pool:
+                for target in target_build_list:
+                    target.redistributable()
 
     def _get_targets_to_build(
         self, build_all: bool = False, target_list: _Optional[list] = None

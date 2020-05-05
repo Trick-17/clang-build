@@ -23,8 +23,8 @@ from .single_source import SingleSource as _SingleSource
 from .tree_entry import TreeEntry as _TreeEntry
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
-# from .errors import BundleError as _BundleError
-# from .errors import RedistributableError as _RedistributableError
+from .errors import BundleError as _BundleError
+from .errors import RedistributableError as _RedistributableError
 
 
 class Target(_TreeEntry, _NamedLogger):
@@ -513,7 +513,6 @@ class Executable(Compilable):
             if target.__class__ is not HeaderOnly:
                 self.link_command += ["-l" + target.outname]
 
-
     def bundle(self):
         self.unsuccessful_bundle = False
 
@@ -529,6 +528,11 @@ class Executable(Compilable):
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_bundle = True
                 self.bundle_report = error.output.decode("utf-8").strip()
+
+        # Catch bundling errors
+        if self.unsuccessful_bundle:
+            raise _BundleError('Bundling was unsuccessful',
+                {self.identifier: self.bundle_report})
 
         return [self.outfile] + bundle_files
 
@@ -589,6 +593,11 @@ class Executable(Compilable):
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_redistributable = True
                 self.redistributable_report = error.output.decode("utf-8").strip()
+
+        # Check for redistibutable bundling errors
+        if self.unsuccessful_redistributable:
+            raise _RedistributableError('Creating redistributables was unsuccessful',
+                {self.identifier: self.redistributable_report})
 
     def _get_default_flags(self):
         """Returns the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
@@ -664,6 +673,11 @@ class SharedLibrary(Compilable):
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_bundle = True
                 self.bundle_report = error.output.decode("utf-8").strip()
+
+        # Catch bundling errors
+        if self.unsuccessful_bundle:
+            raise _BundleError('Bundling was unsuccessful',
+                {self.identifier: self.bundle_report})
 
         return self_bundle_files + bundle_files
 
