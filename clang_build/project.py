@@ -304,11 +304,11 @@ class Project(_NamedLogger, _TreeEntry):
         subproject_list = []
         for directory in self.config.get("subprojects", []):
             subproject_dir = self._directory / directory
-            if (subproject_dir / "clang_build_project.py").exists():
-                self._logger.info(f"Using python API for subproject \"{subproject_dir / 'clang_build_project.py'}\"")
+            if (subproject_dir / "clang-build.py").exists():
+                self._logger.info(f"Using python API for subproject \"{subproject_dir / 'clang-build.py'}\"")
                 project = _get_project(subproject_dir, self._environment.working_directory, self._environment, parent=self)
                 if not isinstance(project, Project):
-                    raise RuntimeError(f'Unable to initialize subproject:\nThe `get_project` method in "{subproject_dir / "clang_build_project.py"}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"')
+                    raise RuntimeError(f'Unable to initialize subproject:\nThe `get_project` method in "{subproject_dir / "clang-build.py"}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"')
                 subproject_list.append(project)
             else:
                 subproject_list.append(Project.from_directory(subproject_dir, self._environment, parent=self))
@@ -358,7 +358,7 @@ class Project(_NamedLogger, _TreeEntry):
         it generates a default config.
         """
         toml_file = self.directory / "clang-build.toml"
-        py_file = self.directory / "clang_build_project.py"
+        py_file = self.directory / "clang-build.py"
 
         if py_file.exists():
             _LOGGER.info(f"Found python project file '{py_file}'.")

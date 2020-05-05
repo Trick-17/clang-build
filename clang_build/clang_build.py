@@ -231,7 +231,7 @@ def build(args):
     with _CategoryProgress(categories, environment.progress_disabled) as progress_bar:
         logger = environment.logger
 
-        py_file = environment.working_directory / "clang_build_project.py"
+        py_file = environment.working_directory / "clang-build.py"
         if py_file.exists():
             logger.info(f"Using Python API for root project \"{py_file}\"")
 

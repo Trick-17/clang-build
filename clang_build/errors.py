@@ -6,7 +6,7 @@ raised by clang-build if something goes wrong.
 class ApiError(RuntimeError):
     '''
     Error that is raised if using a
-    clang_build_project.py fails in any way.
+    clang-build.py fails in any way.
     '''
     def __init__(self, message, error_dict=None):
         '''
