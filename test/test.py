@@ -141,7 +141,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/py-api/directory', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/default/bin/runHello'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
