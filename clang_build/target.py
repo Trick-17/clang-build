@@ -693,7 +693,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
     TODO: Change Attributes to properties :)
     """
 
-    def __init__(self, name: str, config: dict, parent_project, only_target=False):
+    def __init__(self, name: str, config: dict, parent_project):
         """Generate a TargetDescription.
 
         Parameters
@@ -709,6 +709,8 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         """
         _NamedLogger.__init__(self)
 
+        # The "." character is used by clang-build to create unique
+        # target identifiers and is therefore forbidden in naming
         if "." in name:
             error_message = self.log_message(
                 f"Name contains illegal character '.': {name}"
@@ -716,13 +718,23 @@ class TargetDescription(_TreeEntry, _NamedLogger):
             self._logger.error(error_message)
             raise RuntimeError(error_message)
 
+        # If no name is given, and no "output_name" is configured,
+        # the output_name will be "main"
+        if not name and not config.get("output_name", None):
+            config = {"output_name": "main"}
+
+        # If no name is given it will be "target"
+        if not name:
+            name = "target"
+
         self.name = name
         self.config = config
         self.parent_project = parent_project
-        self.only_target = only_target
 
+        self.only_target = False
         self.environment = self.parent_project.environment
         self._relative_directory = self.config.get("directory", "")
+        self._download_directory = None
 
     def __repr__(self) -> str:
         return f"clang_build.target.TargetDescription('{self.identifier}')"
@@ -736,7 +748,10 @@ class TargetDescription(_TreeEntry, _NamedLogger):
 
     @property
     def root_directory(self):
-        return self.parent_project.directory / self._relative_directory
+        if self._download_directory:
+            return self._download_directory / self._relative_directory
+        else:
+            return self.parent_project.directory / self._relative_directory
 
     @property
     def build_directory(self):
@@ -760,11 +775,8 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         url = self.config.get("url", None)
         if url:
             version = self.config.get("version", None)
-            download_directory = self.build_directory.parent / "external_sources"
-            _git_download_sources(url, download_directory, self._logger, version, self.environment.clone_recursive)
-
-            # self.includeDirectories.append(download_directory)
-            self.root_directory = download_directory / self.config.get("directory", "")
+            self._download_directory = self.build_directory.parent / "external_sources"
+            _git_download_sources(url, self._download_directory, self._logger, version, self.environment.clone_recursive)
 
 
 if __name__ == "__main__":

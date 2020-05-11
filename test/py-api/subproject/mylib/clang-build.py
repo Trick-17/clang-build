@@ -20,8 +20,7 @@ def get_project(directory, environment, parent=None) -> clang_build.project.Proj
             "name": target_name,
             "target_type": "static library"
         },
-        project,
-        environment
+        project
     )
 
     print("target identifier: ", target.identifier)

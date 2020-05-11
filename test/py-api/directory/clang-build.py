@@ -20,4 +20,9 @@ def get_project(directory, environment, parent=None) -> clang_build.project.Proj
             "    std::cerr << \"the version is \" << VERSION_MAJOR << \".\" << VERSION_MINOR << \".\" << VERSION_PATCH << std::endl;\n"
             "    return 0;\n"
             "}")
-    return clang_build.project.Project.from_directory(directory, environment, parent=parent)
+
+    project = clang_build.project.Project("", {}, directory, environment, parent=parent)
+    target = clang_build.target.TargetDescription("", {}, project)
+    project.add_targets([target])
+
+    return project

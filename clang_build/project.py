@@ -223,19 +223,19 @@ class Project(_NamedLogger, _TreeEntry):
         parent = kwargs.get("parent", None)
 
         if parent:
-            logger = parent.logger
+            logger = parent._logger
         else:
             logger = _LOGGER
 
         if py_file.exists():
-            _LOGGER.info(f"Using python project file \"{py_file}\"")
+            logger.info(f"Using python project file \"{py_file}\"")
             project = _get_project(directory, environment.working_directory, environment, parent=parent)
             if not isinstance(project, Project):
                 raise RuntimeError(f'Unable to initialize project:\nThe `get_project` method in "{py_file}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"')
             return project
 
         elif toml_file.exists():
-            _LOGGER.info(f"Found config file '{toml_file}'.")
+            logger.info(f"Found config file '{toml_file}'.")
             config = toml.load(toml_file)
 
         elif parent:
@@ -244,7 +244,7 @@ class Project(_NamedLogger, _TreeEntry):
                 + " which does not have a project file. It is not allowed to add a"
                 + " subproject that does not have a project file."
             )
-            _LOGGER.exception(error_message)
+            logger.exception(error_message)
             raise RuntimeError(error_message)
 
         else:
@@ -264,7 +264,7 @@ class Project(_NamedLogger, _TreeEntry):
 
         return project
 
-    def add_targets(self, target_list):
+    def add_targets(self, target_list: list):
         """Add a list of targets to this project.
 
         This method does the following:
@@ -339,21 +339,10 @@ class Project(_NamedLogger, _TreeEntry):
             self._check_for_circular_dependencies()
 
         # Update the `only_target` flag of the targets in this project
-        targets = [
-            data for data in
-            _nx.get_node_attributes(
-                self._project_tree.subgraph(
-                    self._project_tree.successors(self)
-                ),
-                "data",
-            ).values()
-            if isinstance(data, _TargetDescription)
-        ]
-
-        n_targets = len(targets)
+        n_targets = len(self._current_targets)
         only_target = n_targets == 1 and len(self.config.get("subprojects", [])) == 0
 
-        for target in targets:
+        for target in self._current_targets:
             target.only_target = only_target
 
 
