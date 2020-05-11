@@ -13,10 +13,7 @@ from pathlib import Path as _Path
 from . import platform as _platform
 from .directories import Directories
 from .flags import BuildFlags
-from .git_tools import needs_download as _needs_download
-from .git_tools import clone_repository as _clone_repository
-from .git_tools import checkout_version as _checkout_version
-from .git_tools import get_latest_changes as _get_latest_changes
+from .git_tools import download_sources as _git_download_sources
 from .logging_tools import NamedLogger as _NamedLogger
 from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 from .single_source import SingleSource as _SingleSource
@@ -104,11 +101,9 @@ class Target(_TreeEntry, _NamedLogger):
             Optional. A list of any:`clang_build.target.Target` which this target
             depends on.
         """
-        # Basics
         _NamedLogger.__init__(self)
         self._name = target_description.name
         self._identifier = target_description.identifier
-
         self._environment = target_description.environment
 
         if dependencies is None:
@@ -126,7 +121,6 @@ class Target(_TreeEntry, _NamedLogger):
         self._directories = Directories(files, self._dependencies)
 
         # Compile and link flags
-
         self._build_flags = self._get_default_flags()
 
         # Dependencies' flags
@@ -289,15 +283,14 @@ class Compilable(Target):
             self._logger.error(error_message)
             raise RuntimeError(error_message)
 
-        self.object_directory = self.build_directory.joinpath("obj").resolve()
-        self.depfile_directory = self.build_directory.joinpath("dep").resolve()
-        self.output_folder = self.build_directory.joinpath(output_folder).resolve()
-        self.redistributable_folder = self.build_directory.joinpath("redistributable")
+        self.object_directory = (self.build_directory / "obj").resolve()
+        self.depfile_directory = (self.build_directory / "dep").resolve()
+        self.output_folder = (self.build_directory / output_folder).resolve()
+        self.redistributable_folder = (self.build_directory / "redistributable").resolve()
 
         self.outname = target_description.config.get("output_name", self.name)
-
         self.outfilename = prefix + self.outname + suffix
-        self.outfile = _Path(self.output_folder, self.outfilename).resolve()
+        self.outfile = (self.output_folder / self.outfilename).resolve()
 
         compile_flags = self._build_flags.final_compile_flags_list()
 
@@ -394,14 +387,16 @@ class Compilable(Target):
                 {self.identifier: [source.compile_report for source in self._unsuccessful_compilations]})
 
     def link(self):
+        link_command = str(" ".join(dict.fromkeys(self.link_command)))
         self._logger.info(f'link -> "{self.outfile}"')
-        self._logger.debug("    " + " ".join(self.link_command))
+        self._logger.debug("    " + link_command)
+        link_command = list(link_command.split())
 
         # Execute link command
         try:
             self.output_folder.mkdir(parents=True, exist_ok=True)
             self.link_report = (
-                _subprocess.check_output(self.link_command, stderr=_subprocess.STDOUT)
+                _subprocess.check_output(link_command, stderr=_subprocess.STDOUT)
                 .decode("utf-8")
                 .strip()
             )
@@ -445,7 +440,7 @@ class Executable(Compilable):
         ### Library dependency search paths
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command += ["-L", str(target.output_folder.resolve())]
+                self.link_command.append("-L " + str(target.output_folder.resolve()))
 
         ### Bundling requires extra flags
         if self._environment.bundle:
@@ -456,7 +451,7 @@ class Executable(Compilable):
         ### Link dependencies
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command += ["-l" + target.outname]
+                self.link_command.append("-l" + target.outname)
 
     def bundle(self):
         self.unsuccessful_bundle = False
@@ -484,11 +479,11 @@ class Executable(Compilable):
     def redistributable(self):
         self.unsuccessful_redistributable = False
         if _platform.PLATFORM == "osx":
-            appfolder = self.redistributable_folder.joinpath(f"{self.outname}.app")
-            binfolder = appfolder.joinpath("Contents", "MacOS")
+            appfolder = self.redistributable_folder / f"{self.outname}.app"
+            binfolder = appfolder / "Contents"/ "MacOS"
             try:
                 binfolder.mkdir(parents=True, exist_ok=True)
-                with appfolder.joinpath("Contents", "Info.plist").open(
+                with (appfolder / "Contents"/ "Info.plist").open(
                     mode="w"
                 ) as plist:
                     plist.write(
@@ -579,20 +574,20 @@ class SharedLibrary(Compilable):
         ### Library dependency search paths
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command += ["-L", str(target.output_folder.resolve())]
+                self.link_command.append("-L " + str(target.output_folder.resolve()))
 
         self.link_command += self._build_flags.final_link_flags_list()
 
         ### Link dependencies
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command += ["-l" + target.outname]
+                self.link_command.append("-l" + target.outname)
 
         ### Bundling requires some link flags
         if self._environment.bundle:
             if _platform.PLATFORM == "osx":
                 ### Install name for OSX
-                self.link_command += ["-install_name", f"@rpath/{self.outfilename}"]
+                self.link_command += [f"-install_name @rpath/{self.outfilename}"]
             elif _platform.PLATFORM == "linux":
                 pass
             elif _platform.PLATFORM == "windows":
@@ -698,7 +693,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
     TODO: Change Attributes to properties :)
     """
 
-    def __init__(self, name: str, config: dict, identifier: str, parent_directory, parent_build_directory, environment, only_target=False):
+    def __init__(self, name: str, config: dict, parent_project, only_target=False):
         """Generate a TargetDescription.
 
         Parameters
@@ -709,12 +704,9 @@ class TargetDescription(_TreeEntry, _NamedLogger):
             The config for this target (e.g. read from a toml)
         identifier : str
             Unique str representation of this target
-        parent_directory : Path
-            The directory of the parent project of this target
-        parent_build_directory : Path
-            The build directory of the parent project of this target
+        parent_project : clang_build.project.Project
+            The project to which this target belongs
         """
-
         _NamedLogger.__init__(self)
 
         if "." in name:
@@ -726,13 +718,11 @@ class TargetDescription(_TreeEntry, _NamedLogger):
 
         self.name = name
         self.config = config
-        self.identifier = identifier
-        self.environment = environment
+        self.parent_project = parent_project
         self.only_target = only_target
-        self.parent_directory = parent_directory
-        self.parent_build_directory = parent_build_directory
 
-        self.root_directory = self.parent_directory / self.config.get("directory", "")
+        self.environment = self.parent_project.environment
+        self._relative_directory = self.config.get("directory", "")
 
     def __repr__(self) -> str:
         return f"clang_build.target.TargetDescription('{self.identifier}')"
@@ -741,46 +731,37 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         return f"[{self.identifier}]"
 
     @property
+    def identifier(self):
+        return f"{self.parent_project.identifier}.{self.name}"
+
+    @property
+    def root_directory(self):
+        return self.parent_project.directory / self._relative_directory
+
+    @property
     def build_directory(self):
         """Returns the directory that serves as root build folder for the target.
         """
         if self.only_target:
             return (
-                self.parent_build_directory
+                self.parent_project.build_directory
                 / self.environment.build_type.name.lower()
             )
         else:
             return (
-                self.parent_build_directory
+                self.parent_project.build_directory
                 / self.name
                 / self.environment.build_type.name.lower()
             )
 
-    def download_sources(self):
+    def get_sources(self):
         """External sources, if present, will be downloaded to build_directory/external_sources.
         """
         url = self.config.get("url", None)
         if url:
             version = self.config.get("version", None)
             download_directory = self.build_directory.parent / "external_sources"
-            # Check if directory is already present and non-empty
-            if _needs_download(url, download_directory, version):
-                self._logger.info(
-                    f"downloading external target sources to '{str(download_directory.resolve())}'"
-                )
-                _clone_repository(
-                    url, download_directory, self.environment.clone_recursive
-                )
-                if version:
-                    _checkout_version(version, download_directory, url)
-                else:
-                    _get_latest_changes(download_directory)
-
-            # Otherwise we download the sources
-            else:
-                self._logger.debug(
-                    f"external target sources found in '{str(download_directory.resolve())}'"
-                )
+            _git_download_sources(url, download_directory, self._logger, version, self.environment.clone_recursive)
 
             # self.includeDirectories.append(download_directory)
             self.root_directory = download_directory / self.config.get("directory", "")

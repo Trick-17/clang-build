@@ -1,10 +1,8 @@
 import logging as _logging
 import subprocess as _subprocess
 
-_LOGGER = _logging.getLogger("clang_build.clang_build")
 
-
-def needs_download(url, download_directory, version=None):
+def needs_download(url, download_directory, logger, version=None):
     if download_directory.exists():
         if download_directory.is_dir():
             if any(download_directory.iterdir()):
@@ -19,17 +17,17 @@ def needs_download(url, download_directory, version=None):
                     return True
 
                 if local_url != url:
-                    _LOGGER.debug(
+                    logger.debug(
                         f"External sources folder exists but local url='{local_url}', while target url='{url}'"
                     )
                     return True
 
                 if version:
-                    checkout_version(version, download_directory, url)
+                    checkout_version(version, download_directory, url, logger)
                 else:
-                    get_latest_changes(download_directory)
+                    get_latest_changes(download_directory, logger)
 
-                _LOGGER.debug(
+                logger.debug(
                     f"External sources found in '{download_directory.resolve()}'"
                 )
 
@@ -41,8 +39,8 @@ def needs_download(url, download_directory, version=None):
     return True
 
 
-def clone_repository(url, download_directory, recursive):
-    _LOGGER.debug(f"Downloading external target to '{download_directory}'")
+def clone_repository(url, download_directory, recursive, logger):
+    logger.debug(f"Downloading external sources to '{download_directory}'")
     download_directory.mkdir(parents=True, exist_ok=True)
     try:
         clone_command = ["git", "clone"]
@@ -60,13 +58,13 @@ def clone_repository(url, download_directory, recursive):
         error_message = (
             f"Error trying to download external target. Message " + e.output
         )
-        _LOGGER.exception(error_message)
+        logger.exception(error_message)
         raise RuntimeError(error_message)
 
-    _LOGGER.debug(f"External target downloaded")
+    logger.debug(f"External sources downloaded")
 
 
-def checkout_version(version, repository, url):
+def checkout_version(version, repository, url, logger):
     try:
         _subprocess.run(
             ["git", "fetch"],
@@ -87,10 +85,11 @@ def checkout_version(version, repository, url):
             f"Error trying to checkout version '{version}' from url '{url}'. Message "
             + e.output
         )
-        _LOGGER.exception(error_message)
+        logger.exception(error_message)
         raise RuntimeError(error_message)
 
-def get_latest_changes(repository):
+
+def get_latest_changes(repository, logger):
     try:
         _subprocess.run(
             ["git", "pull"],
@@ -104,5 +103,26 @@ def get_latest_changes(repository):
             f"Unabled to get latest changes in repository '{repository}'. Message "
             + e.output
         )
-        _LOGGER.exception(error_message)
+        logger.exception(error_message)
         raise RuntimeError(error_message)
+
+
+def download_sources(url, directory, logger, version=None, clone_recursively=True):
+    """Download sources using git.
+    """
+    # Check if directory is already present and non-empty
+    if needs_download(url, directory, logger, version):
+        logger.info(
+            f"downloading external sources to '{str(directory.resolve())}'"
+        )
+        clone_repository(
+            url, directory, clone_recursively, logger
+        )
+        if version:
+            checkout_version(version, directory, url, logger)
+        else:
+            get_latest_changes(directory, logger)
+
+    # Otherwise we download the sources
+    else:
+        logger.debug(f"external sources found in '{str(directory.resolve())}'")
