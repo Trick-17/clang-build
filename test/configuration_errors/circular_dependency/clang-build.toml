@@ -1,0 +1,9 @@
+name = "circular_project"
+
+[mylib1]
+target_type = "shared library"
+dependencies = ["mylib2"]
+
+[mylib2]
+target_type = "shared library"
+dependencies = ["mylib1"]

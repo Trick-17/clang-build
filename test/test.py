@@ -11,7 +11,7 @@ from multiprocessing import freeze_support
 from clang_build import clang_build
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
-from clang_build.logging_stream_handler import TqdmHandler as TqdmHandler
+from clang_build.logging_tools import TqdmHandler as TqdmHandler
 
 def on_rm_error( func, path, exc_info):
     # path contains the path of the file that couldn't be removed
@@ -60,7 +60,11 @@ class TestClangBuild(unittest.TestCase):
 
     def test_compile_error(self):
         with self.assertRaises(CompileError):
-            clang_build.build(clang_build.parse_args(['-d', 'test/mwe_build_error', '-V']))
+            clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/compile_error', '-V']))
+
+    def test_link_error(self):
+        with self.assertRaises(LinkError):
+            clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/link_error', '-V']))
 
     def test_script_call(self):
         try:
@@ -147,7 +151,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/subproject', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/mainproject/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
@@ -157,7 +161,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/boost-filesystem', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/myproject/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/myexe', 'build'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
@@ -167,7 +171,7 @@ class TestClangBuild(unittest.TestCase):
         clang_build_try_except(['-d', 'test/c-library', '-V'])
 
         try:
-            output = subprocess.check_output(['./build/mainproject/default/bin/myexe'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+            output = subprocess.check_output(['./build/myexe/default/bin/myexe'], stderr=subprocess.STDOUT).decode('utf-8').strip()
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 

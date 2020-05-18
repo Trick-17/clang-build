@@ -33,6 +33,7 @@ matrix:
           update: true
 
 before_install:
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then ulimit -n 5000; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then curl https://bootstrap.pypa.io/get-pip.py | python3; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export PATH=/usr/local/opt/llvm/bin:$PATH; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export LIBRARY_PATH=/usr/local/opt/llvm/lib:$PATH; fi

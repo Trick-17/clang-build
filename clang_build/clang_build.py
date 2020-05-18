@@ -10,18 +10,13 @@ from multiprocessing import Pool as _Pool
 from multiprocessing import freeze_support as _freeze_support
 import argparse
 import shutil as _shutil
-import toml
 from pbr.version import VersionInfo as _VersionInfo
 
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
-from .target import Executable as _Executable,\
-                    HeaderOnly as _HeaderOnly
-from .io_tools import get_sources_and_headers as _get_sources_and_headers
-from .progress_bar import CategoryProgress as _CategoryProgress,\
-                          IteratorProgress as _IteratorProgress
-from .logging_stream_handler import TqdmHandler as _TqdmHandler
+from .progress_bar import CategoryProgress as _CategoryProgress
+from .logging_tools import TqdmHandler as _TqdmHandler
 from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
 from .errors import BundleError as _BundleError
@@ -193,7 +188,10 @@ class _Environment:
 
         # Multiprocessing pool
         self.processpool = _Pool(processes = args.jobs)
-        self.logger.info(f'Running up to {args.jobs} concurrent build jobs')
+        if args.jobs > 1:
+            self.logger.info(f'Running up to {args.jobs} concurrent build jobs')
+        else:
+            self.logger.info(f'Running 1 build job')
 
         # Build directory
         self.build_directory = _Path('build')
@@ -230,125 +228,13 @@ def build(args):
         categories.append('Generate redistributable')
 
     with _CategoryProgress(categories, environment.progress_disabled) as progress_bar:
-        target_list = []
         logger = environment.logger
-        processpool = environment.processpool
 
-        # Check for build configuration toml file
-        toml_file = _Path(environment.working_directory, 'clang-build.toml')
-        if toml_file.exists():
-            logger.info(f'Found config file: \'{toml_file}\'')
+        project = _Project(environment.working_directory, environment)
 
-            # Parse config file
-            config = toml.load(str(toml_file))
+        #TODO: Dot file if requested
 
-            # Determine if there are multiple projects
-            targets_config = {key: val for key, val in config.items() if key not in ["subproject", "name"]}
-            subprojects_config = {key: val for key, val in config.items() if key == "subproject"}
-            multiple_projects = False
-            if subprojects_config:
-                if targets_config or (len(subprojects_config["subproject"]) > 1):
-                    multiple_projects = True
-
-            # Create root project
-            root_project = _Project(config, environment, multiple_projects, is_root_project=True)
-
-            # Get list of all targets
-            target_list += root_project.get_targets(root_project.target_dont_build_list)
-
-            # # Generate list of all targets
-            # for project in working_projects:
-            #     target_list.append(project.get_targets())
-
-        # Otherwise we try to build it as a simple hello world or mwe project
-        else:
-            files = _get_sources_and_headers('main', {}, environment.working_directory, environment.build_directory)
-
-            if not files['sourcefiles']:
-                error_message = f'Error, no sources and no \'clang-build.toml\' found in folder \'{environment.working_directory}\''
-                logger.error(error_message)
-                raise RuntimeError(error_message)
-            # Create target
-            target_list.append(
-                _Executable(
-                    environment                 = environment,
-                    project_identifier          = '',
-                    name                        = 'main',
-                    root_directory              = environment.working_directory,
-                    build_directory             = environment.build_directory.joinpath(environment.build_type.name.lower()),
-                    headers                     = files['headers'],
-                    include_directories_private = files['include_directories'],
-                    include_directories_public  = files['include_directories_public'],
-                    source_files                = files['sourcefiles']))
-
-        # Build the targets
-        progress_bar.update()
-        logger.info('Compile')
-
-        for target in _IteratorProgress(target_list, environment.progress_disabled, len(target_list), lambda x: x.name):
-            target.compile(environment.processpool, environment.progress_disabled)
-
-        # No parallel linking atm, could be added via
-        # https://stackoverflow.com/a/5288547/2305545
-        #
-
-        processpool.close()
-        processpool.join()
-
-        # Check for compile errors
-        errors = {}
-        for target in target_list:
-            if target.__class__ is not _HeaderOnly:
-                if target.unsuccessful_builds:
-                    errors[target.identifier] = [source.compile_report for source in target.unsuccessful_builds]
-        if errors:
-            raise _CompileError('Compilation was unsuccessful', errors)
-
-        # Link
-        progress_bar.update()
-        logger.info('Link')
-        for target in target_list:
-            target.link()
-
-        # Check for link errors
-        errors = {}
-        for target in target_list:
-            if target.__class__ is not _HeaderOnly:
-                if target.unsuccessful_link:
-                    errors[target.identifier] = target.link_report
-        if errors:
-            raise _LinkError('Linking was unsuccessful', errors)
-
-        # Bundle
-        if environment.bundle:
-            progress_bar.update()
-            logger.info('Generate bundle')
-            for target in target_list:
-                target.bundle()
-
-            # Check for bundling errors
-            errors = {}
-            for target in target_list:
-                if target.__class__ is not _HeaderOnly:
-                    if target.unsuccessful_bundle:
-                        errors[target.identifier] = target.bundle_report
-            if errors:
-                raise _BundleError('Bundling was unsuccessful', errors)
-
-        if environment.redistributable:
-            progress_bar.update()
-            logger.info('Generate redistributable')
-            for target in target_list:
-                target.redistributable()
-
-            # Check for redistibutable errors
-            errors = {}
-            for target in target_list:
-                if target.__class__ is not _HeaderOnly:
-                    if target.unsuccessful_redistributable:
-                        errors[target.identifier] = target.redistributable_report
-            if errors:
-                raise _RedistributableError('Creating redistributables was unsuccessful', errors)
+        project.build(environment.build_all, environment.target_list)
 
         progress_bar.update()
         logger.info('clang-build finished.')
@@ -383,6 +269,18 @@ def _main():
         logger.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
             printout = f'[{target}]: target did not link. Errors:\n{errors}'
+            logger.error(printout)
+    except _BundleError as bundle_error:
+        logger = _logging.getLogger(__name__)
+        logger.error('Bundling was unsuccessful:')
+        for target, errors in bundle_error.error_dict.items():
+            printout = f'[{target}]: target could not be bundled. Errors:\n{errors}'
+            logger.error(printout)
+    except _RedistributableError as redistributable_error:
+        logger = _logging.getLogger(__name__)
+        logger.error('Redistibutable bundling was unsuccessful:')
+        for target, errors in redistributable_error.error_dict.items():
+            printout = f'[{target}]: target could not be bundled into a redistributable. Errors:\n{errors}'
             logger.error(printout)
 
 
