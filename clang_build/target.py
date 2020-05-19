@@ -3,7 +3,6 @@ Target describes a single build or dependency target with all needed paths and
 a list of buildables that comprise it's compile and link steps.
 """
 
-import os as _os
 import shutil as _shutil
 import subprocess as _subprocess
 from abc import abstractmethod

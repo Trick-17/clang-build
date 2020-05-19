@@ -23,7 +23,6 @@ from .errors import CompileError as _CompileError
 from .errors import LinkError as _LinkError
 from .errors import BundleError as _BundleError
 from .errors import RedistributableError as _RedistributableError
-from .api import get_project as _get_project
 
 
 def _setup_logger(log_level=None):
