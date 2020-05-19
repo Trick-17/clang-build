@@ -71,10 +71,10 @@ class Project(_NamedLogger, _TreeEntry):
 
     @property
     def identifier(self) -> str:
-        """Return a unique identifier of this project.
+        """Returns the unique identifier of this project.
 
         The unique identifier for a project can be:
-        - An emtpy string if this is a basic project and no name was given
+        - "project" if this is a basic project and no name was given
         - A simple string if a name was given to this project
         - A string with one or more "." if this is a subproject
         """

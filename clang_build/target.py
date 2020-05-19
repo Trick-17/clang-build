@@ -37,7 +37,7 @@ class Target(_TreeEntry, _NamedLogger):
 
     @property
     def identifier(self):
-        """Return a unique identifier of this target.
+        """Returns the unique identifier of this target.
 
         Targets are identified by their parent projects and their name as
         "[project.subproject.target]".
@@ -743,10 +743,26 @@ class TargetDescription(_TreeEntry, _NamedLogger):
 
     @property
     def identifier(self):
+        """Returns the unique identifier of this target.
+
+        Targets are identified by their parent projects and their name as
+        "[project_name.sub_project_name.target_name]".
+
+        The default target name is "target".
+        """
         return f"{self.parent_project.identifier}.{self.name}"
 
     @property
     def root_directory(self):
+        """Returns the root source directory.
+
+        By default, the "include" and "src" directories are searched relative to
+        this folder.
+
+        The folder can be set by adding a "directory" in the config.
+        If this target has external sources, it is relative to the "external_sources"
+        directory, else it is relative to the parent project's directory.
+        """
         if self._download_directory:
             return self._download_directory / self._relative_directory
         else:
@@ -769,7 +785,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
             )
 
     def get_sources(self):
-        """External sources, if present, will be downloaded to build_directory/external_sources.
+        """External sources, if present, will be downloaded to "build_directory/external_sources".
         """
         url = self.config.get("url", None)
         if url:
