@@ -5,6 +5,7 @@ import textwrap as _textwrap
 from multiprocessing import Pool as _Pool
 from pathlib import Path as _Path
 from typing import Optional as _Optional
+from importlib import util as importlib_util
 
 import networkx as _nx
 import toml
@@ -20,9 +21,30 @@ from .target import TargetDescription as _TargetDescription
 from .tree_entry import TreeEntry as _TreeEntry
 from .git_tools import download_sources as _git_download_sources
 from .git_tools import get_latest_changes as _get_latest_changes
-from .api import get_project as _get_project
 
 _LOGGER = _logging.getLogger("clang_build.clang_build")
+
+
+def _get_project(path, working_directory, environment, parent=None):
+    """Returns a Project created from a "clang-build.py" script.
+
+    This is the basis of the scripting API. The "clang-build.py" script is required to
+    define a method `get_project(working_directory, environment, parent) -> Project`.
+    """
+    module_file_path = path.resolve() / "clang-build.py"
+    module_name = "clang-build"
+
+    module_spec = importlib_util.spec_from_file_location(module_name, module_file_path)
+    if module_spec is None:
+        raise RuntimeError(f'No "{module_name}" module could be found in "{path.resolve()}"')
+
+    clang_build_module = importlib_util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(clang_build_module)
+
+    if clang_build_module.get_project is None:
+        raise RuntimeError(f'Module "{module_name}" in "{path.resolve()}" does not contain a `get_project` method')
+
+    return clang_build_module.get_project(working_directory, environment, parent=parent)
 
 
 class Project(_NamedLogger, _TreeEntry):

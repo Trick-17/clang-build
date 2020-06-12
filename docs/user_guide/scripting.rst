@@ -1,4 +1,4 @@
-Scripting
+Adding projects with custom behaviour
 ==============================================
 
 
@@ -34,13 +34,15 @@ folder or from a configuration `dict`.
 
 .. code-block:: Python
 
-    def get_project(directory, environment, parent=None) -> clang_build.project.Project:
+    from clang_build.project import Project
+
+    def get_project(directory, environment, parent=None) -> Project:
         # Empty project:
-        project = clang_build.project.Project("projectname", {}, directory, environment, parent=parent)
+        project = Project("projectname", {}, directory, environment, parent=parent)
         # Use defaults to initialize from a folder:
-        project = clang_build.project.Project.from_directory(directory, environment, parent=parent)
+        project = Project.from_directory(directory, environment, parent=parent)
         # Use a dictionary:
-        project = clang_build.project.Project.from_config({}, directory, environment, parent=parent)
+        project = Project.from_config({}, directory, environment, parent=parent)
 
 
 Creating targets
@@ -69,7 +71,8 @@ be customised by overriding their `get_sources` functions.
 
     class CustomSources(clang_build.target.TargetDescription):
         def get_sources(self):
-            # Potentially fetch git sources
+            # The base class `get_sources` checks if a `url` was specified in
+            # the config, in which case it will download the sources
             super().get_sources()
             # Write some sources
             # ...

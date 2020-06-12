@@ -3,20 +3,6 @@ Module containing custom errors that are
 raised by clang-build if something goes wrong.
 '''
 
-class ApiError(RuntimeError):
-    '''
-    Error that is raised if using a
-    clang-build.py fails in any way.
-    '''
-    def __init__(self, message, error_dict=None):
-        '''
-        :param message: Message of the error
-        :param error_dict: A dict containing all errors
-                           that occurred during compilation
-        '''
-        super().__init__(message)
-        self.error_dict = error_dict
-
 class CompileError(RuntimeError):
     '''
     Error that is raised if compilation was
