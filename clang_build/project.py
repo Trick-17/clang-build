@@ -306,8 +306,8 @@ class Project(_NamedLogger, _TreeEntry):
         will raise an exception.
         """
         for target in target_list:
-            if isinstance(target, _Target):
-                raise RuntimeError(f"clang_build.project.Project.add_targets: cannot add non-`Target` instance of type {type(target)}")
+            if not (isinstance(target, _TargetDescription) or isinstance(target, _Target)):
+                raise RuntimeError(f"clang_build.project.Project.add_targets: cannot add instance of type {type(target)}, it should be either a TargetDescription or Target.")
 
         self._current_targets += target_list
 
@@ -351,12 +351,11 @@ class Project(_NamedLogger, _TreeEntry):
 
             target.config["dependencies"] = dependency_objs
 
-        # Create new dotfile
+        # Create new dotfile with full dependency graph
         if create_dotfile:
             _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
-        self._check_for_circular_dependencies()
 
-        # Write dotfile with full dependency graph
+        # Check the dependency graph for cycles
         if not self.parent:
             self._check_for_circular_dependencies()
 
