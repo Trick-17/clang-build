@@ -734,6 +734,9 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         self._relative_directory = self.config.get("directory", "")
         self._download_directory = None
 
+        if self.config.get("url"):
+            self._download_directory = self.build_directory.parent / "external_sources"
+
     def __repr__(self) -> str:
         return f"clang_build.target.TargetDescription('{self.identifier}')"
 
@@ -786,10 +789,9 @@ class TargetDescription(_TreeEntry, _NamedLogger):
     def get_sources(self):
         """Download external sources, if present, to "build_directory/external_sources".
         """
-        url = self.config.get("url", None)
-        if url:
+        if self._download_directory:
+            url = self.config.get("url", None)
             version = self.config.get("version", None)
-            self._download_directory = self.build_directory.parent / "external_sources"
             _git_download_sources(url, self._download_directory, self._logger, version, self.environment.clone_recursive)
 
 
