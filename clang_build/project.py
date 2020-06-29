@@ -5,6 +5,7 @@ import textwrap as _textwrap
 from multiprocessing import Pool as _Pool
 from pathlib import Path as _Path
 from typing import Optional as _Optional
+from importlib import util as importlib_util
 
 import networkx as _nx
 import toml
@@ -13,16 +14,37 @@ from .circle import Circle as _Circle
 from .io_tools import get_sources_and_headers as _get_sources_and_headers
 from .logging_tools import NamedLogger as _NamedLogger
 from .target import TARGET_MAP as _TARGET_MAP
+from .target import Target as _Target
 from .target import Executable as _Executable
 from .target import HeaderOnly as _HeaderOnly
 from .target import TargetDescription as _TargetDescription
 from .tree_entry import TreeEntry as _TreeEntry
-from .git_tools import needs_download as _needs_download
-from .git_tools import clone_repository as _clone_repository
-from .git_tools import checkout_version as _checkout_version
+from .git_tools import download_sources as _git_download_sources
 from .git_tools import get_latest_changes as _get_latest_changes
 
 _LOGGER = _logging.getLogger("clang_build.clang_build")
+
+
+def _get_project(directory, environment, parent=None):
+    """Returns a Project created from a "clang-build.py" script.
+
+    This is the basis of the scripting API. The "clang-build.py" script is required to
+    define a method `get_project(directory, environment, parent) -> Project`.
+    """
+    module_file_path = directory.resolve() / "clang-build.py"
+    module_name = "clang-build"
+
+    module_spec = importlib_util.spec_from_file_location(module_name, module_file_path)
+    if module_spec is None:
+        raise RuntimeError(f'No "{module_name}" module could be found in "{directory.resolve()}"')
+
+    clang_build_module = importlib_util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(clang_build_module)
+
+    if clang_build_module.get_project is None:
+        raise RuntimeError(f'Module "{module_name}" in "{directory.resolve()}" does not contain a `get_project` method')
+
+    return clang_build_module.get_project(directory, environment, parent=parent)
 
 
 class Project(_NamedLogger, _TreeEntry):
@@ -71,10 +93,10 @@ class Project(_NamedLogger, _TreeEntry):
 
     @property
     def identifier(self) -> str:
-        """Return a unique identifier of this project.
+        """Returns the unique identifier of this project.
 
         The unique identifier for a project can be:
-        - An emtpy string if this is a basic project and no name was given
+        - "project" if this is a basic project and no name was given
         - A simple string if a name was given to this project
         - A string with one or more "." if this is a subproject
         """
@@ -134,7 +156,7 @@ class Project(_NamedLogger, _TreeEntry):
         """
         return self._current_targets
 
-    def __init__(self, directory, environment, **kwargs):
+    def __init__(self, name, config, directory, environment, **kwargs):
         """Initialise a project.
 
         The procedure for initialisation is:
@@ -154,29 +176,198 @@ class Project(_NamedLogger, _TreeEntry):
         kwargs
             Used for internal purposes only.
         """
-        super().__init__()
+        _NamedLogger.__init__(self)
+        self._name = name
+        self._config = config
         self._directory = _Path(directory)
-        self._parent = kwargs.get("parent", None)
         self._environment = environment
+        self._parent = kwargs.get("parent", None)
+        self._current_targets = []
 
-        self._set_project_tree()
-        self._load_config()
-        self._set_name()
+        if not self.name:
+            if self.parent:
+                error_message = self.parent.log_message(
+                    f"the config defines a subproject in folder {self.directory},"
+                    + " that does not specify a name. It is not allowed to add a"
+                    + " subproject that does not have a name."
+                )
+
+                self._logger.exception(error_message)
+                raise RuntimeError(error_message)
+
+            if "subprojects" in self.config:
+                error_message = self.log_message(
+                    "defining a top-level project with subprojects but without a name"
+                    + " is illegal."
+                )
+
+                self._logger.exception(error_message)
+                raise RuntimeError(error_message)
+
+            self._name = "project"
+
+        if self._parent:
+            self._project_tree = self._parent.project_tree
+        else:
+            self._project_tree = _nx.DiGraph()
+
         self._set_directories()
 
-        self._current_targets = self._get_target_descriptions()
         self._subprojects = self._parse_subprojects()
 
-        self._fill_dependency_tree()
+        self._project_tree.add_node(self, data=self)
+        # Add edges to subprojects
+        self._project_tree.add_edges_from(
+            (self, sub_project) for sub_project in self.subprojects
+        )
 
-        if not self.parent:
-            self._check_for_circular_dependencies()
+        # TODO: the following function name `_get_target_descriptions` is not descriptive
+        self.add_targets(self._get_target_descriptions() + kwargs.get("targets", []))
 
     def __repr__(self) -> str:
         return f"clang_build.project.Project('{self.identifier}')"
 
     def __str__(self) -> str:
         return f"[[{self.identifier}]]"
+
+    @classmethod
+    def from_directory(cls, directory, environment, **kwargs):
+        """Generate a project from a directory.
+
+        This method covers the following cases in order:
+        1. initialization from a "clang-build.py", if present
+        2. initialization from a "clang-build.toml", if present
+        3. defaults without any configuration
+        """
+        ### ----- Get the config
+        toml_file = directory / "clang-build.toml"
+        py_file = directory / "clang-build.py"
+        parent = kwargs.get("parent", None)
+
+        if parent:
+            logger = parent._logger
+            message_suffix = " for subproject"
+        else:
+            logger = _LOGGER
+            message_suffix = ""
+
+        if py_file.exists():
+            logger.info(f"Using python project file \"{py_file}\"{message_suffix}")
+            project = _get_project(directory, environment, parent=parent)
+            if not isinstance(project, Project):
+                raise RuntimeError(f'Unable to initialize project:\nThe `get_project` method in "{py_file}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"')
+            return project
+
+        elif toml_file.exists():
+            logger.info(f"Found config file '{toml_file}'.")
+            config = toml.load(toml_file)
+
+        elif parent:
+            error_message = parent.log_message(
+                f"the config defines a subproject in folder {directory},"
+                + " which does not have a project file. It is not allowed to add a"
+                + " subproject that does not have a project file."
+            )
+            logger.exception(error_message)
+            raise RuntimeError(error_message)
+
+        else:
+            config = {"target": {"output_name": "main"}}
+        ### -----
+
+        return cls.from_config(config, directory, environment, **kwargs)
+
+    @classmethod
+    def from_config(cls, config: dict, directory, environment, **kwargs):
+        """Generate a project from a config dictionary.
+
+        optional kwarg `targets`: Any of the `targets` may be a `Target` or `TargetDescription`
+        """
+        name = str(config.get("name", ""))
+        project = cls(name, config, directory, environment, **kwargs)
+
+        return project
+
+    def add_targets(self, target_list: list):
+        """Add a list of targets to this project.
+
+        This method does the following:
+        - check the validity of targets in the given list
+        - add to the project's target_list
+        - amend the dependency tree:
+          - Add nodes and edges for targets in self
+          - Add edges for dependencies in targets defined in project
+        - optionally create a new dotfile
+        - check for circular dependencies in the project
+
+        This method integrates this project into the global project tree.
+
+        This helper function is part of the initialisation of a project.
+        It adds this project, all targets and their dependencies to the
+        global project tree. If there are illegal dependencies, this function
+        will raise an exception.
+        """
+        for target in target_list:
+            if not (isinstance(target, _TargetDescription) or isinstance(target, _Target)):
+                raise RuntimeError(f"clang_build.project.Project.add_targets: cannot add instance of type {type(target)}, it should be either a TargetDescription or Target.")
+
+        self._current_targets += target_list
+
+        # Add nodes and edges for targets in self
+        for target in target_list:
+            self._project_tree.add_node(target, data=target)
+        self._project_tree.add_edges_from((self, target) for target in target_list)
+
+        # Create a dotfile of the dependency graph
+        create_dotfile = False
+        if self._environment.create_dependency_dotfile and not self._parent:
+            try:
+                import pydot
+                create_dotfile = True
+            except:
+                self._logger.error(f'Could not create dependency dotfile, as pydot is not installed')
+
+        # Create initial dotfile without full dependency resolution
+        if create_dotfile:
+            _Path(self._environment.build_directory).mkdir(parents=True, exist_ok=True)
+            _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
+
+        # Add edges for dependencies in targets defined in project
+        for target in target_list:
+            dependencies = target.config.get("dependencies", [])
+            dependency_objs = []
+            for dependency_name in dependencies:
+                full_name = self._identifier_from_name(dependency_name)
+
+                try:
+                    dependency = self._project_tree.nodes[full_name]["data"]
+                except KeyError:
+                    error_message = target.log_message(
+                        f"the dependency [{dependency_name}] (expanded to [{full_name}]) does not point to a valid target."
+                    )
+                    self._logger.exception(error_message)
+                    raise RuntimeError(error_message)
+
+                dependency_objs.append(dependency)
+                self._project_tree.add_edge(target, dependency)
+
+            target.config["dependencies"] = dependency_objs
+
+        # Create new dotfile with full dependency graph
+        if create_dotfile:
+            _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
+
+        # Check the dependency graph for cycles
+        if not self.parent:
+            self._check_for_circular_dependencies()
+
+        # Update the `only_target` flag of the targets in this project
+        n_targets = len(self._current_targets)
+        only_target = n_targets == 1 and len(self.config.get("subprojects", [])) == 0
+
+        for target in self._current_targets:
+            target.only_target = only_target
+
 
     def _parse_subprojects(self):
         """Generate all subprojects recursively.
@@ -189,10 +380,11 @@ class Project(_NamedLogger, _TreeEntry):
         list
             List of Project objects.
         """
-        return [
-            Project(self._directory.joinpath(directory), self.environment, parent=self)
-            for directory in self.config.get("subprojects", [])
-        ]
+        subproject_list = []
+        for directory in self.config.get("subprojects", []):
+            subproject_dir = self._directory / directory
+            subproject_list.append(Project.from_directory(subproject_dir, self._environment, parent=self))
+        return subproject_list
 
     def _get_target_descriptions(self):
         """Get the list of targets for this project.
@@ -205,11 +397,9 @@ class Project(_NamedLogger, _TreeEntry):
         list
             List of TargetDescription objects
         """
-        n_targets = len([None for key, val in self.config.items() if isinstance(val, dict)])
-        only_target = n_targets == 1 and len(self.config.get("subprojects", [])) == 0
         return [
             _TargetDescription(
-                key, val, self._identifier_from_name(key), self, self.environment, only_target=only_target
+                key, val, self
             )
             for key, val in self.config.items()
             if isinstance(val, dict)
@@ -229,94 +419,6 @@ class Project(_NamedLogger, _TreeEntry):
                     "\n".join("- " + str(circle) for circle in circles), prefix=" " * 3)
             self._logger.exception(error_message)
             raise RuntimeError(self.log_message(error_message))
-
-    def _fill_dependency_tree(self):
-        """Integrate this project into the global project tree.
-
-        This helper function is part of the initialisation of a project.
-        It adds this project, all targets and their dependencies to the
-        global project tree. If there are illegal dependencies, this function
-        will raise an exception.
-        """
-        # Add self
-        self._project_tree.add_node(self, data=self)
-
-        # Add nodes and edges for targets in self
-        for target in self._current_targets:
-            self._project_tree.add_node(target, data=target)
-        self._project_tree.add_edges_from(
-            (self, target) for target in self._current_targets
-        )
-
-        # Add edges to subprojects
-        self._project_tree.add_edges_from(
-            (self, sub_project) for sub_project in self.subprojects
-        )
-
-        # Create a dotfile of the dependency graph
-        create_dotfile = False
-        if self._environment.create_dependency_dotfile and not self._parent:
-            try:
-                import pydot
-                create_dotfile = True
-            except:
-                _LOGGER.error(f'Could not create dependency dotfile, as pydot is not installed')
-
-        # Create initial dotfile without full dependency resolution
-        if create_dotfile:
-            _Path(self._environment.build_directory).mkdir(parents=True, exist_ok=True)
-            _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
-
-        # Add edges for dependencies in targets defined in project
-        for target in self._current_targets:
-            dependencies = target.config.get("dependencies", [])
-            dependency_objs = []
-            for dependency_name in dependencies:
-                full_name = self._identifier_from_name(dependency_name)
-
-                try:
-                    dependency = self._project_tree.nodes[full_name]["data"]
-                except KeyError:
-                    error_message = target.log_message(
-                        f"the dependency [{dependency_name}] does not point to a valid target."
-                    )
-                    self._logger.exception(error_message)
-                    raise RuntimeError(error_message)
-
-                dependency_objs.append(dependency)
-                self._project_tree.add_edge(target, dependency)
-
-            target.config["dependencies"] = dependency_objs
-
-        # Write dotfile with full dependency graph
-        if create_dotfile:
-            _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
-
-    def _load_config(self):
-        """Try to find a toml file and return a config.
-
-        This helper function is part of the initialisation of a project.
-        It searches for a toml file and (if it finds one) loads it. Otherwise
-        it generates a default config.
-        """
-        toml_file = self.directory / "clang-build.toml"
-
-        if toml_file.exists():
-            _LOGGER.info(f"Found config file '{toml_file}'.")
-            self._config = toml.load(toml_file)
-
-        elif self.parent:
-            error_message = self.parent.log_message(
-                f"the config defines a subproject in folder {self.directory},"
-                + " that does not have a project file. It is not allowed to add a"
-                + " subproject that does not have a project file."
-            )
-
-            _LOGGER.exception(error_message)
-            raise RuntimeError(error_message)
-
-        else:
-            self._config = {"target": {"output_name": "main"}}
 
     def build(
         self,
@@ -355,12 +457,19 @@ class Project(_NamedLogger, _TreeEntry):
         ]
 
         # Get project sources, if any
-        project_build_list = list(dict.fromkeys([
-            target_description.parent
-            for target_description in target_build_description_list
-        ]))
+        project_build_list = []
+        for target_description in target_build_description_list:
+            for predecessor in self._project_tree.predecessors(target_description):
+                if isinstance(predecessor, Project):
+                    project_build_list.append(predecessor)
+        project_build_list = list(dict.fromkeys(project_build_list))
         for project in project_build_list:
-            project._download_sources()
+            project.get_sources()
+
+        for target in target_build_description_list:
+            parent_project = next(self._project_tree.predecessors(target))
+            target.parent_directory = parent_project._directory
+            target.parent_build_directory = parent_project._build_directory
 
         ### Note: the project_tree needs to be updated directly for dependencies
         ### to be used correctly in the `_target_from_description` function
@@ -374,6 +483,9 @@ class Project(_NamedLogger, _TreeEntry):
                 self._project_tree.nodes[target]["data"] = target_instance
             else:
                 target_build_list.append(target)
+
+        if not target_build_list:
+            self._logger.info("No targets to be built")
 
         # Compile
         with _Pool(processes=number_of_threads) as process_pool:
@@ -469,7 +581,7 @@ class Project(_NamedLogger, _TreeEntry):
         if self._config.get("url", None):
             self._directory = self.build_directory / "external_sources" / str(self._config.get("directory", ""))
 
-    def _set_name(self):
+    def _set_name(self, name=""):
         """Set the name.
 
         This helper function is part of the initialisation of a project.
@@ -480,7 +592,7 @@ class Project(_NamedLogger, _TreeEntry):
         - This project is not a sub-project and
         - This project does not have any sub-projects
         """
-        self._name = str(self.config.get("name", ""))
+        self._name = name
 
         if not self.name:
             if self.parent:
@@ -490,7 +602,7 @@ class Project(_NamedLogger, _TreeEntry):
                     + " subproject that does not have a name."
                 )
 
-                _LOGGER.exception(error_message)
+                self._logger.exception(error_message)
                 raise RuntimeError(error_message)
 
             if "subprojects" in self.config:
@@ -499,21 +611,10 @@ class Project(_NamedLogger, _TreeEntry):
                     + " is illegal."
                 )
 
-                _LOGGER.exception(error_message)
+                self._logger.exception(error_message)
                 raise RuntimeError(error_message)
 
             self._name = "project"
-
-    def _set_project_tree(self):
-        """Set the global project tree for this project.
-
-        Takes it from its parent if the parent project exists.
-        Else it creates one.
-        """
-        if self.parent:
-            self._project_tree = self.parent.project_tree
-        else:
-            self._project_tree = _nx.DiGraph()
 
     def _get_dependencies(self, target_description):
         dependencies = [
@@ -523,7 +624,7 @@ class Project(_NamedLogger, _TreeEntry):
 
         # Are there executables named as dependencies?
         executable_dependencies = [
-            target for target in dependencies if target.__class__ is _Executable
+            target for target in dependencies if isinstance(target, _Executable)
         ]
         if executable_dependencies:
             exelist = ", ".join([f"[{dep.name}]" for dep in executable_dependencies])
@@ -563,7 +664,7 @@ class Project(_NamedLogger, _TreeEntry):
         dependencies = self._get_dependencies(target_description)#, self._project_tree)
 
         # Sources
-        target_description.download_sources()
+        target_description.get_sources()
         files = _get_sources_and_headers(
             target_description.name,
             target_description.config,
@@ -597,30 +698,13 @@ class Project(_NamedLogger, _TreeEntry):
             )
             return _Executable(target_description, files, dependencies)
 
-    def _download_sources(self):
+    def get_sources(self):
         """External sources, if present, will be downloaded to build_directory/external_sources.
         """
         url = self._config.get("url", None)
         if url:
             version = self._config.get("version", None)
             download_directory = self.build_directory / "external_sources"
-            # Check if directory is already present and non-empty
-            if _needs_download(url, download_directory, version):
-                self._logger.info(
-                    f"downloading external project sources to '{str(download_directory.resolve())}'"
-                )
-                _clone_repository(
-                    url, download_directory, self.environment.clone_recursive
-                )
-                if version:
-                    _checkout_version(version, download_directory, url)
-                else:
-                    _get_latest_changes(download_directory)
-
-            # Otherwise we download the sources
-            else:
-                self._logger.debug(
-                    f"external project sources found in '{str(download_directory.resolve())}'"
-                )
+            _git_download_sources(url, download_directory, self._logger, version, self._environment.clone_recursive)
 
             self._directory = download_directory / self._config.get("directory", "")

@@ -124,23 +124,13 @@ class BuildFlags:
         self.compile_public += cf
         self.link_public += lf
 
+    def add_bundling_flags(self):
+        self.link_private += _platform.PLATFORM_BUNDLING_LINKER_FLAGS
+
     def final_compile_flags_list(self):
         # TODO: Add max_dialect and plattform specific flags here as well
         #       Need to see how we get around the target-type-specific flags issue
-        return self._generate_flag_list(
-            self.compile_private + self.compile_public
-        )
+        return list(dict.fromkeys(self.compile_private + self.compile_public))
 
     def final_link_flags_list(self):
-        return self._generate_flag_list(
-            self.link_private + self.link_public
-        )
-
-
-    def _generate_flag_list(self, flags):
-        # TODO: The below line (making flags unique) is still wrong. Should be removed!
-        flags = list(dict.fromkeys(flags))
-        return list(str(" ".join(flags)).split())
-
-    def add_bundling_flags(self):
-        self.link_private += _platform.PLATFORM_BUNDLING_LINKER_FLAGS
+        return list(dict.fromkeys(self.link_private + self.link_public))

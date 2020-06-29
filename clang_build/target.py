@@ -3,7 +3,6 @@ Target describes a single build or dependency target with all needed paths and
 a list of buildables that comprise it's compile and link steps.
 """
 
-import os as _os
 import shutil as _shutil
 import subprocess as _subprocess
 from abc import abstractmethod
@@ -13,10 +12,7 @@ from pathlib import Path as _Path
 from . import platform as _platform
 from .directories import Directories
 from .flags import BuildFlags
-from .git_tools import needs_download as _needs_download
-from .git_tools import clone_repository as _clone_repository
-from .git_tools import checkout_version as _checkout_version
-from .git_tools import get_latest_changes as _get_latest_changes
+from .git_tools import download_sources as _git_download_sources
 from .logging_tools import NamedLogger as _NamedLogger
 from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 from .single_source import SingleSource as _SingleSource
@@ -41,7 +37,7 @@ class Target(_TreeEntry, _NamedLogger):
 
     @property
     def identifier(self):
-        """Return a unique identifier of this target.
+        """Return the unique identifier of this target.
 
         Targets are identified by their parent projects and their name as
         "[project.subproject.target]".
@@ -65,7 +61,7 @@ class Target(_TreeEntry, _NamedLogger):
 
     @property
     def build_directory(self):
-        """Returns the directory which serves as the root build folder
+        """Return the directory which serves as the root build folder
         for this target.
         """
         return self._build_directory
@@ -78,7 +74,7 @@ class Target(_TreeEntry, _NamedLogger):
 
     @property
     def directories(self):
-        """Returns the any:`clang_build.directories.Directories` in use
+        """Return the any:`clang_build.directories.Directories` in use
         by this target.
         """
         return self._directories
@@ -104,11 +100,9 @@ class Target(_TreeEntry, _NamedLogger):
             Optional. A list of any:`clang_build.target.Target` which this target
             depends on.
         """
-        # Basics
         _NamedLogger.__init__(self)
         self._name = target_description.name
         self._identifier = target_description.identifier
-
         self._environment = target_description.environment
 
         if dependencies is None:
@@ -126,7 +120,6 @@ class Target(_TreeEntry, _NamedLogger):
         self._directories = Directories(files, self._dependencies)
 
         # Compile and link flags
-
         self._build_flags = self._get_default_flags()
 
         # Dependencies' flags
@@ -156,7 +149,7 @@ class Target(_TreeEntry, _NamedLogger):
 
     @abstractmethod
     def compile(self, process_pool, progress_disabled):
-        """Compiles the target, if applicable.
+        """Compile the target, if applicable.
 
         This produces an OS-dependent output in the build/bin folder.
         """
@@ -164,7 +157,7 @@ class Target(_TreeEntry, _NamedLogger):
 
     @abstractmethod
     def link(self):
-        """Links the target, if applicable.
+        """Link the target, if applicable.
 
         This produces an OS-dependent output in the corresponding build folder:
         - "bin" for executables and shared objects
@@ -173,8 +166,8 @@ class Target(_TreeEntry, _NamedLogger):
         pass
 
     def bundle(self):
-        """For executable and shared library targets, bundles shared library
-        dependencies into the binary output folder and amends the rpath if
+        """For executable and shared library targets, bundle shared library
+        dependencies into the binary output folder and amend the rpath if
         necessary.
 
         They can therefore be used without amending the system PATH or similar.
@@ -186,7 +179,7 @@ class Target(_TreeEntry, _NamedLogger):
         return bundle_files
 
     def redistributable(self):
-        """Creates a redistributable bundle, suitable for installation.
+        """Create a redistributable bundle, suitable for installation.
 
         The redistributable bundle contains
         - an "include" folder with the public headers (preserving folder structure).
@@ -198,7 +191,7 @@ class Target(_TreeEntry, _NamedLogger):
 
     @property
     def build_flags(self):
-        """Returns the any:`clang_build.flags.BuildFlags` of this target.
+        """Return the any:`clang_build.flags.BuildFlags` of this target.
         """
         return self._build_flags
 
@@ -232,7 +225,6 @@ class HeaderOnly(Target):
         self._build_flags.make_private_flags_public()
         self._directories.make_private_directories_public()
 
-
     def link(self):
         self._logger.info("header-only target does not require linking.")
 
@@ -240,12 +232,12 @@ class HeaderOnly(Target):
         self._logger.info("header-only target does not require compiling.")
 
     def _get_default_flags(self):
-        """Returns the default any:`clang_build.flags.BuildFlags` without compile or link flags.
+        """Return the default any:`clang_build.flags.BuildFlags` without compile or link flags.
         """
         return BuildFlags(self._environment.build_type)
 
     def _add_dependency_flags(self, target):
-        """Forwards dependencies' public and interface flags.
+        """Forward dependencies' public and interface flags.
         """
         self._build_flags.forward_public_flags(target)
         self._build_flags.forward_interface_flags(target)
@@ -289,15 +281,14 @@ class Compilable(Target):
             self._logger.error(error_message)
             raise RuntimeError(error_message)
 
-        self.object_directory = self.build_directory.joinpath("obj").resolve()
-        self.depfile_directory = self.build_directory.joinpath("dep").resolve()
-        self.output_folder = self.build_directory.joinpath(output_folder).resolve()
-        self.redistributable_folder = self.build_directory.joinpath("redistributable")
+        self.object_directory = (self.build_directory / "obj").resolve()
+        self.depfile_directory = (self.build_directory / "dep").resolve()
+        self.output_folder = (self.build_directory / output_folder).resolve()
+        self.redistributable_folder = (self.build_directory / "redistributable").resolve()
 
         self.outname = target_description.config.get("output_name", self.name)
-
         self.outfilename = prefix + self.outname + suffix
-        self.outfile = _Path(self.output_folder, self.outfilename).resolve()
+        self.outfile = (self.output_folder / self.outfilename).resolve()
 
         compile_flags = self._build_flags.final_compile_flags_list()
 
@@ -324,25 +315,8 @@ class Compilable(Target):
         # Linking setup
         self.link_command = link_command + [str(self.outfile)]
 
-        ## Additional scripts
-        self.before_compile_script = ""
-        self.before_link_script = ""
-        self.after_build_script = ""
-        if (
-            "scripts" in target_description.config
-        ):  ### TODO: maybe the scripts should be named differently
-            self.before_compile_script = target_description.config["scripts"].get(
-                "before_compile", ""
-            )
-            self.before_link_script = target_description.config["scripts"].get(
-                "before_link", ""
-            )
-            self.after_build_script = target_description.config["scripts"].get(
-                "after_build", ""
-            )
-
     def _get_default_flags(self):
-        """Returns the default any:`clang_build.flags.BuildFlags` with compile flags but without link flags.
+        """Return the default any:`clang_build.flags.BuildFlags` with compile flags but without link flags.
         """
         return BuildFlags(self._environment.build_type, default_compile_flags=True)
 
@@ -366,20 +340,6 @@ class Compilable(Target):
         self._logger.info(
             "target needs to build sources %s", [b.name for b in self.needed_buildables]
         )
-
-        # Before-compile step
-        if self.before_compile_script:
-            script_file = self.root_directory.joinpath(
-                self.before_compile_script
-            ).resolve()
-            self._logger.info(f"pre-compile step: '{script_file}'")
-            original_directory = _os.getcwd()
-            _os.chdir(self.root_directory)
-            with open(script_file) as f:
-                code = compile(f.read(), script_file, "exec")
-                exec(code, globals(), locals())
-            _os.chdir(original_directory)
-            self._logger.info(f"finished pre-compile step")
 
         # Execute depfile generation command
         #
@@ -425,26 +385,16 @@ class Compilable(Target):
                 {self.identifier: [source.compile_report for source in self._unsuccessful_compilations]})
 
     def link(self):
-        # Before-link step
-        if self.before_link_script:
-            script_file = self.root_directory.joinpath(self.before_link_script)
-            self._logger.info(f"pre-link step: '{script_file}'")
-            original_directory = _os.getcwd()
-            _os.chdir(self.root_directory)
-            with open(script_file) as f:
-                code = compile(f.read(), script_file, "exec")
-                exec(code, globals(), locals())
-            _os.chdir(original_directory)
-            self._logger.info("finished pre-link step")
-
+        link_command = str(" ".join(dict.fromkeys(self.link_command)))
         self._logger.info(f'link -> "{self.outfile}"')
-        self._logger.debug("    " + " ".join(self.link_command))
+        self._logger.debug("    " + link_command)
+        link_command = list(link_command.split())
 
         # Execute link command
         try:
             self.output_folder.mkdir(parents=True, exist_ok=True)
             self.link_report = (
-                _subprocess.check_output(self.link_command, stderr=_subprocess.STDOUT)
+                _subprocess.check_output(link_command, stderr=_subprocess.STDOUT)
                 .decode("utf-8")
                 .strip()
             )
@@ -452,18 +402,6 @@ class Compilable(Target):
         except _subprocess.CalledProcessError as error:
             self.unsuccessful_link = True
             self.link_report = error.output.decode("utf-8").strip()
-
-        ## After-build step
-        if self.after_build_script:
-            script_file = self.root_directory.joinpath(self.after_build_script)
-            self._logger.info(f"after-build step: '{script_file}'")
-            original_directory = _os.getcwd()
-            _os.chdir(self.root_directory)
-            with open(script_file) as f:
-                code = compile(f.read(), script_file, "exec")
-                exec(code, globals(), locals())
-            _os.chdir(original_directory)
-            self._logger.info("finished after-build step")
 
         # Catch link errors
         if self.unsuccessful_link:
@@ -500,7 +438,7 @@ class Executable(Compilable):
         ### Library dependency search paths
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command += ["-L", str(target.output_folder.resolve())]
+                self.link_command.append("-L " + str(target.output_folder.resolve()))
 
         ### Bundling requires extra flags
         if self._environment.bundle:
@@ -511,7 +449,7 @@ class Executable(Compilable):
         ### Link dependencies
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command += ["-l" + target.outname]
+                self.link_command.append("-l" + target.outname)
 
     def bundle(self):
         self.unsuccessful_bundle = False
@@ -539,11 +477,11 @@ class Executable(Compilable):
     def redistributable(self):
         self.unsuccessful_redistributable = False
         if _platform.PLATFORM == "osx":
-            appfolder = self.redistributable_folder.joinpath(f"{self.outname}.app")
-            binfolder = appfolder.joinpath("Contents", "MacOS")
+            appfolder = self.redistributable_folder / f"{self.outname}.app"
+            binfolder = appfolder / "Contents"/ "MacOS"
             try:
                 binfolder.mkdir(parents=True, exist_ok=True)
-                with appfolder.joinpath("Contents", "Info.plist").open(
+                with (appfolder / "Contents"/ "Info.plist").open(
                     mode="w"
                 ) as plist:
                     plist.write(
@@ -600,12 +538,12 @@ class Executable(Compilable):
                 {self.identifier: self.redistributable_report})
 
     def _get_default_flags(self):
-        """Returns the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
+        """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
         """
         return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
-        """Adds dependencies' public and interface flags to its own and forwards their public flags.
+        """Add dependencies' public and interface flags to the own and forward their public flags.
         """
         self._build_flags.apply_public_flags(target)
         self._build_flags.forward_public_flags(target)
@@ -634,20 +572,20 @@ class SharedLibrary(Compilable):
         ### Library dependency search paths
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command += ["-L", str(target.output_folder.resolve())]
+                self.link_command.append("-L " + str(target.output_folder.resolve()))
 
         self.link_command += self._build_flags.final_link_flags_list()
 
         ### Link dependencies
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command += ["-l" + target.outname]
+                self.link_command.append("-l" + target.outname)
 
         ### Bundling requires some link flags
         if self._environment.bundle:
             if _platform.PLATFORM == "osx":
                 ### Install name for OSX
-                self.link_command += ["-install_name", f"@rpath/{self.outfilename}"]
+                self.link_command += [f"-install_name @rpath/{self.outfilename}"]
             elif _platform.PLATFORM == "linux":
                 pass
             elif _platform.PLATFORM == "windows":
@@ -682,12 +620,12 @@ class SharedLibrary(Compilable):
         return self_bundle_files + bundle_files
 
     def _get_default_flags(self):
-        """Returns the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
+        """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
         """
         return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
-        """Adds dependencies' public and interface flags to its own and forwards their public flags.
+        """Add dependencies' public and interface flags to the own and forwards their public flags.
         """
         self._build_flags.apply_public_flags(target)
         self._build_flags.forward_public_flags(target)
@@ -722,7 +660,7 @@ class StaticLibrary(Compilable):
                 ]
 
     def _add_dependency_flags(self, target):
-        """Adds dependencies' public flags to its own and forwards their public and interface flags.
+        """Add dependencies' public flags to the own and forwards their public and interface flags.
 
         This is done, because the dependency's interface flags will contain a header-only or static
         library's link dependencies, which cannot be applied to this static library either.
@@ -753,7 +691,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
     TODO: Change Attributes to properties :)
     """
 
-    def __init__(self, name: str, config: dict, identifier: str, parent, environment, only_target=False):
+    def __init__(self, name: str, config: dict, parent_project):
         """Generate a TargetDescription.
 
         Parameters
@@ -764,12 +702,13 @@ class TargetDescription(_TreeEntry, _NamedLogger):
             The config for this target (e.g. read from a toml)
         identifier : str
             Unique str representation of this target
-        parent : Project
-            The parent project of this target
+        parent_project : clang_build.project.Project
+            The project to which this target belongs
         """
-
         _NamedLogger.__init__(self)
 
+        # The "." character is used by clang-build to create unique
+        # target identifiers and is therefore forbidden in naming
         if "." in name:
             error_message = self.log_message(
                 f"Name contains illegal character '.': {name}"
@@ -777,14 +716,26 @@ class TargetDescription(_TreeEntry, _NamedLogger):
             self._logger.error(error_message)
             raise RuntimeError(error_message)
 
+        # If no name is given, and no "output_name" is configured,
+        # the output_name will be "main"
+        if not name and not config.get("output_name", None):
+            config = {"output_name": "main"}
+
+        # If no name is given it will be "target"
+        if not name:
+            name = "target"
+
         self.name = name
         self.config = config
-        self.parent = parent
-        self.identifier = identifier
-        self.environment = environment
-        self.only_target = only_target
+        self.parent_project = parent_project
 
-        self.root_directory = self.parent.directory / self.config.get("directory", "")
+        self.only_target = False
+        self.environment = self.parent_project.environment
+        self._relative_directory = self.config.get("directory", "")
+        self._download_directory = None
+
+        if self.config.get("url"):
+            self._download_directory = self.build_directory.parent / "external_sources"
 
     def __repr__(self) -> str:
         return f"clang_build.target.TargetDescription('{self.identifier}')"
@@ -793,49 +744,55 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         return f"[{self.identifier}]"
 
     @property
+    def identifier(self):
+        """Return the unique identifier of this target.
+
+        Targets are identified by their parent projects and their name as
+        "[project_name.sub_project_name.target_name]".
+
+        The default target name is "target".
+        """
+        return f"{self.parent_project.identifier}.{self.name}"
+
+    @property
+    def root_directory(self):
+        """Return the root source directory.
+
+        By default, the "include" and "src" directories are searched relative to
+        this folder.
+
+        The folder can be set by adding a "directory" in the config.
+        If this target has external sources, it is relative to the "external_sources"
+        directory, else it is relative to the parent project's directory.
+        """
+        if self._download_directory:
+            return self._download_directory / self._relative_directory
+        else:
+            return self.parent_project.directory / self._relative_directory
+
+    @property
     def build_directory(self):
-        """Returns the directory that serves as root build folder for the target.
+        """Return the directory that serves as root build folder for the target.
         """
         if self.only_target:
             return (
-                self.parent.build_directory
+                self.parent_project.build_directory
                 / self.environment.build_type.name.lower()
             )
         else:
             return (
-                self.parent.build_directory
+                self.parent_project.build_directory
                 / self.name
                 / self.environment.build_type.name.lower()
             )
 
-    def download_sources(self):
-        """External sources, if present, will be downloaded to build_directory/external_sources.
+    def get_sources(self):
+        """Download external sources, if present, to "build_directory/external_sources".
         """
-        url = self.config.get("url", None)
-        if url:
+        if self._download_directory:
+            url = self.config.get("url", None)
             version = self.config.get("version", None)
-            download_directory = self.build_directory.parent / "external_sources"
-            # Check if directory is already present and non-empty
-            if _needs_download(url, download_directory, version):
-                self._logger.info(
-                    f"downloading external target sources to '{str(download_directory.resolve())}'"
-                )
-                _clone_repository(
-                    url, download_directory, self.environment.clone_recursive
-                )
-                if version:
-                    _checkout_version(version, download_directory, url)
-                else:
-                    _get_latest_changes(download_directory)
-
-            # Otherwise we download the sources
-            else:
-                self._logger.debug(
-                    f"external target sources found in '{str(download_directory.resolve())}'"
-                )
-
-            # self.includeDirectories.append(download_directory)
-            self.root_directory = download_directory / self.config.get("directory", "")
+            _git_download_sources(url, self._download_directory, self._logger, version, self.environment.clone_recursive)
 
 
 if __name__ == "__main__":
