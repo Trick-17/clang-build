@@ -286,6 +286,9 @@ class Compilable(Target):
         self.output_folder = (self.build_directory / output_folder).resolve()
         self.redistributable_folder = (self.build_directory / "redistributable").resolve()
 
+        prefix = target_description.config.get("output_prefix", prefix)
+        suffix = target_description.config.get("output_suffix", suffix)
+
         self.outname = target_description.config.get("output_name", self.name)
         self.outfilename = prefix + self.outname + suffix
         self.outfile = (self.output_folder / self.outfilename).resolve()
@@ -719,7 +722,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         # If no name is given, and no "output_name" is configured,
         # the output_name will be "main"
         if not name and not config.get("output_name", None):
-            config = {"output_name": "main"}
+            config["output_name"] = "main"
 
         # If no name is given it will be "target"
         if not name:
