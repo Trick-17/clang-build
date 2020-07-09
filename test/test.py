@@ -235,6 +235,24 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Hello! mylib::calculate() returned 2')
 
+    def test_pybind11(self):
+        clang_build_try_except(['-d', 'test/pybind11', '-V'])
+
+        pylib_dir = os.path.abspath(os.path.join("build", "pylib", "default", "lib"))
+        sys.path.insert(0, pylib_dir)
+
+        try:
+            import pylib
+            output = pylib.triple(3)
+            self.assertEqual(output, 9)
+
+        except ImportError:
+            if os.path.exists(pylib_dir):
+                print(f'Expected location "{pylib_dir}" contains: {os.listdir(pylib_dir)}')
+            else:
+                print(f'Expected location "{pylib_dir}" does not exist!')
+            self.fail('Import of pylib failed!')
+
     def setUp(self):
         logger = logging.getLogger('clang_build')
         logger.setLevel(logging.INFO)
