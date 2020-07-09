@@ -56,16 +56,39 @@
     Platform specific flags that are added to the compilation of
     static libraries.
 
+.. data:: PLATFORM_PYTHON_INCLUDE_PATH
+
+    Include directory that can be added in order to use the Python
+    headers.
+
+.. data:: PLATFORM_PYTHON_LIBRARY_PATH
+
+    Library directory that can be added in order to link to the
+    Python library.
+
+.. data:: PLATFORM_PYTHON_LIBRARY_NAME
+
+    Python library name that can be used to link Python.
+
+.. data:: PLATFORM_PYTHON_EXTENSION_SUFFIX
+
+    The platform- and Python-specific suffix for binary extension
+    modules.
 """
 
 from sys import platform as _platform
+from sys import version_info as _version_info
+from pathlib import Path as _Path
+from sysconfig import get_paths as _get_paths
+from sysconfig import get_config_var as _get_config_var
 
-if _platform == 'linux' or _platform == 'linux2':
+
+if _platform == 'linux':
     # Linux
     PLATFORM = 'linux'
-    EXECUTABLE_PREFIX = ''
-    EXECUTABLE_SUFFIX = ''
-    EXECUTABLE_OUTPUT = 'bin'
+    EXECUTABLE_PREFIX     = ''
+    EXECUTABLE_SUFFIX     = ''
+    EXECUTABLE_OUTPUT     = 'bin'
     SHARED_LIBRARY_PREFIX = 'lib'
     SHARED_LIBRARY_SUFFIX = '.so'
     SHARED_LIBRARY_OUTPUT = 'lib'
@@ -75,13 +98,19 @@ if _platform == 'linux' or _platform == 'linux2':
     PLATFORM_EXTRA_FLAGS_EXECUTABLE = []
     PLATFORM_EXTRA_FLAGS_SHARED     = ['-fpic']
     PLATFORM_EXTRA_FLAGS_STATIC     = []
-    PLATFORM_BUNDLING_LINKER_FLAGS = ["-Wl,-rpath,$ORIGIN"]
+    PLATFORM_BUNDLING_LINKER_FLAGS  = ["-Wl,-rpath,$ORIGIN"]
+
+    PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
+    PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "lib"
+    PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}.{_version_info.minor}"
+    PLATFORM_PYTHON_EXTENSION_SUFFIX = _get_config_var('EXT_SUFFIX')
+
 elif _platform == 'darwin':
-    # OS X
+    # OSX
     PLATFORM = 'osx'
-    EXECUTABLE_PREFIX = ''
-    EXECUTABLE_SUFFIX = ''
-    EXECUTABLE_OUTPUT = 'bin'
+    EXECUTABLE_PREFIX     = ''
+    EXECUTABLE_SUFFIX     = ''
+    EXECUTABLE_OUTPUT     = 'bin'
     SHARED_LIBRARY_PREFIX = 'lib'
     SHARED_LIBRARY_SUFFIX = '.dylib'
     SHARED_LIBRARY_OUTPUT = 'lib'
@@ -91,13 +120,19 @@ elif _platform == 'darwin':
     PLATFORM_EXTRA_FLAGS_EXECUTABLE = []
     PLATFORM_EXTRA_FLAGS_SHARED     = []
     PLATFORM_EXTRA_FLAGS_STATIC     = []
-    PLATFORM_BUNDLING_LINKER_FLAGS = ["-Wl,-rpath,@executable_path"]
+    PLATFORM_BUNDLING_LINKER_FLAGS  = ["-Wl,-rpath,@executable_path"]
+
+    PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
+    PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "lib"
+    PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}.{_version_info.minor}"
+    PLATFORM_PYTHON_EXTENSION_SUFFIX = _get_config_var('EXT_SUFFIX')
+
 elif _platform == 'win32':
     # Windows
     PLATFORM = 'windows'
-    EXECUTABLE_PREFIX = ''
-    EXECUTABLE_SUFFIX = '.exe'
-    EXECUTABLE_OUTPUT = 'bin'
+    EXECUTABLE_PREFIX     = ''
+    EXECUTABLE_SUFFIX     = '.exe'
+    EXECUTABLE_OUTPUT     = 'bin'
     SHARED_LIBRARY_PREFIX = ''
     SHARED_LIBRARY_SUFFIX = '.dll'
     SHARED_LIBRARY_OUTPUT = 'bin'
@@ -107,6 +142,12 @@ elif _platform == 'win32':
     PLATFORM_EXTRA_FLAGS_EXECUTABLE = ['-Xclang', '-flto-visibility-public-std']
     PLATFORM_EXTRA_FLAGS_SHARED     = ['-Xclang', '-flto-visibility-public-std']
     PLATFORM_EXTRA_FLAGS_STATIC     = ['-Xclang', '-flto-visibility-public-std']
-    PLATFORM_BUNDLING_LINKER_FLAGS = []
+    PLATFORM_BUNDLING_LINKER_FLAGS  = []
+
+    PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
+    PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "libs"
+    PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}{_version_info.minor}"
+    PLATFORM_PYTHON_EXTENSION_SUFFIX = _get_config_var('EXT_SUFFIX')
+
 else:
     raise RuntimeError('Platform ' + _platform + 'is currently not supported.')

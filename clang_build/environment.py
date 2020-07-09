@@ -9,6 +9,7 @@ from multiprocessing import Pool as _Pool
 
 from .clang_build import __version__
 from .dialect_check import get_max_supported_compiler_dialect as _get_max_supported_compiler_dialect
+from .platform import PLATFORM_PYTHON_INCLUDE_PATH, PLATFORM_PYTHON_LIBRARY_PATH
 
 
 def _find_clang(logger):
@@ -34,6 +35,8 @@ def _find_clang(logger):
     logger.info(f'clang executable:    {clang}')
     logger.info(f'clang++ executable:  {clangpp}')
     logger.info(f'llvm-ar executable:  {clang_ar}')
+    logger.info(f'Python headers in:   {PLATFORM_PYTHON_INCLUDE_PATH}')
+    logger.info(f'Python library in:   {PLATFORM_PYTHON_LIBRARY_PATH}')
 
     return clang, clangpp, clang_ar
 
