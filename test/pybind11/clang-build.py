@@ -23,8 +23,10 @@ def get_project(directory, environment, parent=None) -> clang_build.project.Proj
                 "compile": ['-Wno-deprecated-declarations'],
                 "link": ['-Wno-deprecated-declarations', f'-L {py_library_dir}', f'-l{py_library_name}']
             },
-            "windows.flags": {
-                "compile": ['-Dstrdup=_strdup']
+            "windows": {
+                "flags": {
+                    "compile": ['-Dstrdup=_strdup']
+                }
             },
         },
         project
