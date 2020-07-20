@@ -9,6 +9,7 @@ from pathlib import Path as _Path
 from multiprocessing import freeze_support
 
 from clang_build import clang_build
+from clang_build import platform
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
 from clang_build.logging_tools import TqdmHandler as TqdmHandler
@@ -205,14 +206,14 @@ class TestClangBuild(unittest.TestCase):
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
-        from sys import platform as _platform
-        if _platform == 'linux' or _platform == 'linux2':
+        if platform.PLATFORM == 'linux':
             self.assertEqual(output, 'Hello Linux!')
-        elif _platform == 'darwin':
+        elif platform.PLATFORM == 'osx':
             self.assertEqual(output, 'Hello OSX!')
-        elif _platform == 'win32':
+        elif platform.PLATFORM == 'windows':
             self.assertEqual(output, 'Hello Windows!')
         else:
+            from sys import platform as _platform
             raise RuntimeError('Tried to run test_platform_flags on unsupported platform ' + _platform)
 
     def test_openmp(self):
@@ -238,7 +239,7 @@ class TestClangBuild(unittest.TestCase):
     def test_pybind11(self):
         clang_build_try_except(['-d', 'test/pybind11', '-V'])
 
-        pylib_dir = os.path.abspath(os.path.join("build", "pylib", "default", "lib"))
+        pylib_dir = os.path.abspath(os.path.join("build", "pylib", "default", platform.SHARED_LIBRARY_OUTPUT))
         sys.path.insert(0, pylib_dir)
 
         try:
