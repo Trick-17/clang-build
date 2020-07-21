@@ -22,7 +22,7 @@ from .tree_entry import TreeEntry as _TreeEntry
 from .git_tools import download_sources as _git_download_sources
 from .git_tools import get_latest_changes as _get_latest_changes
 
-_LOGGER = _logging.getLogger("clang_build.clang_build")
+_LOGGER = _logging.getLogger(__name__)
 
 
 def _get_project(directory, environment, parent=None):
@@ -176,10 +176,17 @@ class Project(_NamedLogger, _TreeEntry):
         kwargs
             Used for internal purposes only.
         """
-        _NamedLogger.__init__(self)
+        _NamedLogger.__init__(self, _LOGGER)
         self._name = name
         self._config = config
         self._directory = _Path(directory)
+        if not self._directory.exists():
+            error_message = (
+                f"ERROR: specified non-existent directory '{self._directory}'"
+            )
+            _LOGGER.error(error_message)
+            raise RuntimeError(error_message)
+
         self._environment = environment
         self._parent = kwargs.get("parent", None)
         self._current_targets = []
@@ -521,6 +528,7 @@ class Project(_NamedLogger, _TreeEntry):
         """
         if build_all:
             build_descendants_of = [self]
+            _LOGGER.info("Building all targets...")
         elif target_list:
             build_descendants_of = target_list
         else:
