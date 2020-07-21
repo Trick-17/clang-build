@@ -25,26 +25,26 @@ from .git_tools import get_latest_changes as _get_latest_changes
 _LOGGER = _logging.getLogger("clang_build.clang_build")
 
 
-def _get_project(path, working_directory, environment, parent=None):
+def _get_project(directory, environment, parent=None):
     """Returns a Project created from a "clang-build.py" script.
 
     This is the basis of the scripting API. The "clang-build.py" script is required to
-    define a method `get_project(working_directory, environment, parent) -> Project`.
+    define a method `get_project(directory, environment, parent) -> Project`.
     """
-    module_file_path = path.resolve() / "clang-build.py"
+    module_file_path = directory.resolve() / "clang-build.py"
     module_name = "clang-build"
 
     module_spec = importlib_util.spec_from_file_location(module_name, module_file_path)
     if module_spec is None:
-        raise RuntimeError(f'No "{module_name}" module could be found in "{path.resolve()}"')
+        raise RuntimeError(f'No "{module_name}" module could be found in "{directory.resolve()}"')
 
     clang_build_module = importlib_util.module_from_spec(module_spec)
     module_spec.loader.exec_module(clang_build_module)
 
     if clang_build_module.get_project is None:
-        raise RuntimeError(f'Module "{module_name}" in "{path.resolve()}" does not contain a `get_project` method')
+        raise RuntimeError(f'Module "{module_name}" in "{directory.resolve()}" does not contain a `get_project` method')
 
-    return clang_build_module.get_project(working_directory, environment, parent=parent)
+    return clang_build_module.get_project(directory, environment, parent=parent)
 
 
 class Project(_NamedLogger, _TreeEntry):
@@ -246,12 +246,14 @@ class Project(_NamedLogger, _TreeEntry):
 
         if parent:
             logger = parent._logger
+            message_suffix = " for subproject"
         else:
             logger = _LOGGER
+            message_suffix = ""
 
         if py_file.exists():
-            logger.info(f"Using python project file \"{py_file}\"")
-            project = _get_project(directory, environment.working_directory, environment, parent=parent)
+            logger.info(f"Using python project file \"{py_file}\"{message_suffix}")
+            project = _get_project(directory, environment, parent=parent)
             if not isinstance(project, Project):
                 raise RuntimeError(f'Unable to initialize project:\nThe `get_project` method in "{py_file}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"')
             return project
@@ -306,8 +308,8 @@ class Project(_NamedLogger, _TreeEntry):
         will raise an exception.
         """
         for target in target_list:
-            if isinstance(target, _Target):
-                raise RuntimeError(f"clang_build.project.Project.add_targets: cannot add non-`Target` instance of type {type(target)}")
+            if not (isinstance(target, _TargetDescription) or isinstance(target, _Target)):
+                raise RuntimeError(f"clang_build.project.Project.add_targets: cannot add instance of type {type(target)}, it should be either a TargetDescription or Target.")
 
         self._current_targets += target_list
 
@@ -351,12 +353,11 @@ class Project(_NamedLogger, _TreeEntry):
 
             target.config["dependencies"] = dependency_objs
 
-        # Create new dotfile
+        # Create new dotfile with full dependency graph
         if create_dotfile:
             _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
-        self._check_for_circular_dependencies()
 
-        # Write dotfile with full dependency graph
+        # Check the dependency graph for cycles
         if not self.parent:
             self._check_for_circular_dependencies()
 
@@ -382,14 +383,7 @@ class Project(_NamedLogger, _TreeEntry):
         subproject_list = []
         for directory in self.config.get("subprojects", []):
             subproject_dir = self._directory / directory
-            if (subproject_dir / "clang-build.py").exists():
-                self._logger.info(f"Using python project file \"{subproject_dir / 'clang-build.py'}\" for subproject")
-                project = _get_project(subproject_dir, self._environment.working_directory, self._environment, parent=self)
-                if not isinstance(project, Project):
-                    raise RuntimeError(f'Unable to initialize subproject:\nThe `get_project` method in "{subproject_dir / "clang-build.py"}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"')
-                subproject_list.append(project)
-            else:
-                subproject_list.append(Project.from_directory(subproject_dir, self._environment, parent=self))
+            subproject_list.append(Project.from_directory(subproject_dir, self._environment, parent=self))
         return subproject_list
 
     def _get_target_descriptions(self):
