@@ -147,6 +147,7 @@ class Clang:
         -------
         str
             Flag string of the latest supported dialect
+
         """
         supported_dialects = []
         for dialect in range(30):

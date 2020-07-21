@@ -69,11 +69,11 @@ class SingleSource:
         self.object_file = _Path(object_directory,  relpath, self.source_file.stem + '.o')
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
-        compiler = environment.clangpp
-        max_cpp_dialect = environment.max_cpp_dialect
+        compiler = str(environment.compiler.clangpp)
+        max_cpp_dialect = environment.compiler.max_cpp_dialect
         # Unset dialect flag and use clang if source file is not C++
         if source_file.suffix in [".c", ".cc", ".m"]:
-            compiler = environment.clang
+            compiler = str(environment.compiler.clang)
             max_cpp_dialect = ''
 
         self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)

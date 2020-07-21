@@ -529,6 +529,10 @@ class Project(_NamedLogger, _TreeEntry):
         if build_all:
             build_descendants_of = [self]
             _LOGGER.info("Building all targets...")
+            if target_list:
+                error_message = f"Cannot build [all] targets and only [{target_list}]!"
+                _LOGGER.error(error_message)
+                raise ValueError(error_message)
         elif target_list:
             build_descendants_of = target_list
         else:

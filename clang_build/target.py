@@ -3,6 +3,7 @@ Target describes a single build or dependency target with all needed paths and
 a list of buildables that comprise it's compile and link steps.
 """
 
+import logging as _logging
 import shutil as _shutil
 import subprocess as _subprocess
 from abc import abstractmethod
@@ -11,17 +12,18 @@ from pathlib import Path as _Path
 
 from . import platform as _platform
 from .directories import Directories
+from .errors import BundleError as _BundleError
+from .errors import CompileError as _CompileError
+from .errors import LinkError as _LinkError
+from .errors import RedistributableError as _RedistributableError
 from .flags import BuildFlags
 from .git_tools import download_sources as _git_download_sources
 from .logging_tools import NamedLogger as _NamedLogger
 from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 from .single_source import SingleSource as _SingleSource
 from .tree_entry import TreeEntry as _TreeEntry
-from .errors import CompileError as _CompileError
-from .errors import LinkError as _LinkError
-from .errors import BundleError as _BundleError
-from .errors import RedistributableError as _RedistributableError
 
+_LOGGER = _logging.getLogger(__name__)
 
 class Target(_TreeEntry, _NamedLogger):
     """Base class for all kinds of target, whose sources have been gathered.
@@ -100,7 +102,7 @@ class Target(_TreeEntry, _NamedLogger):
             Optional. A list of any:`clang_build.target.Target` which this target
             depends on.
         """
-        _NamedLogger.__init__(self)
+        _NamedLogger.__init__(self, _LOGGER)
         self._name = target_description.name
         self._identifier = target_description.identifier
         self._environment = target_description.environment
@@ -422,7 +424,7 @@ class Executable(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[target_description.environment.clangpp, "-o"],
+            link_command=[str(target_description.environment.compiler.clangpp), "-o"],
             output_folder=_platform.EXECUTABLE_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
             prefix=_platform.EXECUTABLE_PREFIX,
@@ -556,7 +558,7 @@ class SharedLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[target_description.environment.clangpp, "-shared", "-o"],
+            link_command=[str(target_description.environment.compiler.clangpp), "-shared", "-o"],
             output_folder=_platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
@@ -638,7 +640,7 @@ class StaticLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[target_description.environment.clang_ar, "rc"],
+            link_command=[str(target_description.environment.compiler.clang_ar), "rc"],
             output_folder=_platform.STATIC_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
             prefix=_platform.STATIC_LIBRARY_PREFIX,
@@ -705,7 +707,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         parent_project : clang_build.project.Project
             The project to which this target belongs
         """
-        _NamedLogger.__init__(self)
+        _NamedLogger.__init__(self, _LOGGER)
 
         # The "." character is used by clang-build to create unique
         # target identifiers and is therefore forbidden in naming
