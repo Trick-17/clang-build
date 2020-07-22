@@ -1,8 +1,6 @@
 import logging as _logging
 import tqdm as _tqdm
 
-_LOGGER = _logging.getLogger("clang_build.clang_build")
-
 class TqdmHandler(_logging.StreamHandler):
     def __init__(self):
         _logging.StreamHandler.__init__(self)
@@ -16,8 +14,8 @@ class NamedLoggerAdapter(_logging.LoggerAdapter):
         return '%s: %s' % (self.extra['tree_element'].__str__(), msg), kwargs
 
 class NamedLogger:
-    def __init__(self):
-        self._logger = NamedLoggerAdapter(_LOGGER, {'tree_element': self})
+    def __init__(self, logger):
+        self._logger = NamedLoggerAdapter(logger, {'tree_element': self})
 
     def log_message(self, message: str) -> str:
         """
