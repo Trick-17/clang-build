@@ -18,11 +18,12 @@ install:
   # Install python packages
   - "%PYTHON%/Scripts/pip.exe install twine"
   - "%PYTHON%/Scripts/pip.exe install codecov"
+  - "%PYTHON%/Scripts/pip.exe install pytest"
 
 test_script:
   # test/hello
   - "%PYTHON%/python setup.py develop"
-  - "%PYTHON%/Scripts/coverage run test/test.py"
+  - "%PYTHON%/Scripts/coverage run -m pytest test"
   - "%PYTHON%/Scripts/coverage combine"
   - "%PYTHON%/Scripts/codecov"
   #- "%PYTHON%/python setup.py develop"

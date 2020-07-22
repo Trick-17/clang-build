@@ -44,6 +44,12 @@ def _setup_logger(log_level=None):
         ch.setFormatter(formatter)
         _LOGGER.addHandler(ch)
 
+def _check_positive(value):
+    value = int(value)
+    if value <= 0:
+        raise _argparse.ArgumentTypeError("%s is negative")
+
+    return value
 
 def parse_args(args):
     _command_line_description = (
@@ -60,6 +66,7 @@ def parse_args(args):
                         action='store_true')
     parser.add_argument('-d', '--directory',
                         type=_Path,
+                        default=_Path(),
                         help='set the root source directory')
     parser.add_argument('-b', '--build-type',
                         choices=list(_BuildType),
@@ -78,7 +85,7 @@ def parse_args(args):
                         help='also build sources which have already been built',
                         action='store_true')
     parser.add_argument('-j', '--jobs',
-                        type=int,
+                        type=_check_positive,
                         default=1,
                         help='set the number of concurrent build jobs')
     parser.add_argument('--debug',
@@ -103,14 +110,15 @@ def build(args):
     # Create container of environment variables
     environment = _Environment(vars(args))
 
-    categories = ['Configure', 'Compile', 'Link']
-    if environment.bundle:
-        categories.append('Generate bundle')
-    if environment.redistributable:
-        categories.append('Generate redistributable')
+    categories = ['Configure', 'Build']
+    #if environment.bundle:
+    #    categories.append('Generate bundle')
+    #if environment.redistributable:
+    #    categories.append('Generate redistributable')
 
     with _CategoryProgress(categories, not args.progress) as progress_bar:
         project = _Project.from_directory(args.directory, environment)
+        progress_bar.update()
         project.build(args.all, args.targets, args.jobs)
         progress_bar.update()
 

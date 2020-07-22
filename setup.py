@@ -8,4 +8,5 @@ if __name__ == '__main__':
     setuptools.setup(
         python_requires='>=3.7',
         setup_requires=['pbr<4'],
-        pbr=True)
+        pbr=True,
+        tests_require=['pytest'])
