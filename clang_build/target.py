@@ -352,8 +352,6 @@ class Compilable(Target):
         #
         #
         self._logger.info(f"generate dependency files")
-        for b in self.needed_buildables:
-            self._logger.debug(" ".join(b.dependency_command))
         self.needed_buildables = list(
             _get_build_progress_bar(
                 process_pool.imap(
