@@ -281,9 +281,9 @@ class Clang:
         success = True
         _LOGGER.debug(f"Running: {' '.join(command)}")
         try:
-            report = _subprocess.check_output(command, encoding="utf8").strip()
+            report = _subprocess.check_output(command, encoding="utf8", stderr=_subprocess.STDOUT)
         except _subprocess.CalledProcessError as error:
             success = False
             report = error.output.strip()
-
+            
         return success, report
