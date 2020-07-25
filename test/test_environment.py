@@ -14,7 +14,7 @@ def test_build_type():
     env = Environment({})
     assert env.build_type == BuildType.Default
 
-    env = Environment({"build-type": BuildType.Release})
+    env = Environment({"build_type": BuildType.Release})
     assert env.build_type == BuildType.Release
 
 
