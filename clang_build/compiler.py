@@ -47,7 +47,7 @@ class Clang:
         self.clangpp = self._find("clang++")
         self.clang_ar = self._find("llvm-ar")
 
-        self.max_cpp_dialect = self._get_max_supported_compiler_dialect(self.clangpp)
+        self.max_cpp_dialect = self._get_max_supported_compiler_dialect()
 
         _LOGGER.info("llvm root directory: %s", self.clangpp.parents[0])
         _LOGGER.info("clang executable:    %s", self.clang)
@@ -144,7 +144,7 @@ class Clang:
 
         """
         _, report = self._run_clang_command(
-            [str(clangpp), "-std=dummpy", "-x", "c++", "-E", "-"]
+            [str(self.clangpp), "-std=dummpy", "-x", "c++", "-E", "-"]
         )
 
         for line in reversed(report.splitlines()):
@@ -152,6 +152,8 @@ class Clang:
                 continue
 
             return "-std=" + _search(r"'(c\+\+..)'", line).group(1)
+
+        raise RuntimeError("Could not find a supported C++ standard.")
 
     def _get_driver(self, source_file):
         if source_file.suffix in [".c", ".cc", ".m"]:
@@ -279,9 +281,9 @@ class Clang:
         success = True
         _LOGGER.debug(f"Running: {' '.join(command)}")
         try:
-            report = _subprocess.check_output(command, encoding="utf8").strip()
+            report = _subprocess.check_output(command, encoding="utf8", stderr=_subprocess.STDOUT)
         except _subprocess.CalledProcessError as error:
             success = False
             report = error.output.strip()
-
+            
         return success, report
