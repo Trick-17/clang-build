@@ -1,26 +1,6 @@
 from .build_type import BuildType
 from . import platform as _platform
 
-def _parse_flags_config(options, build_type, flags_kind='flags'):
-    flags_dicts   = []
-    compile_flags = []
-    link_flags    = []
-
-    if flags_kind in options:
-        flags_dicts.append(options.get(flags_kind, {}))
-
-    flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
-
-    for fdict in flags_dicts:
-        compile_flags += fdict.get('compile', [])
-        link_flags    += fdict.get('link', [])
-
-        if build_type != BuildType.Default:
-            compile_flags += fdict.get(f'compile_{build_type}', [])
-
-    return compile_flags, link_flags
-
-
 class BuildFlags:
     DEFAULT_COMPILE_FLAGS = {
         BuildType.Default: ["-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-Werror"],
@@ -73,6 +53,8 @@ class BuildFlags:
         self.compile_public = []
         self.link_public = []
 
+        self._build_type = build_type
+
         if default_compile_flags:
             self.compile_default = self.DEFAULT_COMPILE_FLAGS[BuildType.Default]
             # self.compile_private += DEFAULT_COMPILE_FLAGS.get(BuildType.Default, [])
@@ -108,19 +90,19 @@ class BuildFlags:
         self.compile_interface += target.build_flags.compile_interface
         self.link_interface += target.build_flags.link_interface
 
-    def add_target_flags(self, config, build_type):
+    def add_target_flags(self, config):
         # Own private flags
-        cf, lf = _parse_flags_config(config, build_type, "flags")
+        cf, lf = self._parse_flags_config(config, "flags")
         self.compile_private += cf
         self.link_private += lf
 
         # Own interface flags
-        cf, lf = _parse_flags_config(config, build_type, "interface-flags")
+        cf, lf = self._parse_flags_config(config, "interface-flags")
         self.compile_interface += cf
         self.link_interface += lf
 
         # Own public flags
-        cf, lf = _parse_flags_config(config, build_type, "public-flags")
+        cf, lf = self._parse_flags_config(config, "public-flags")
         self.compile_public += cf
         self.link_public += lf
 
@@ -134,3 +116,22 @@ class BuildFlags:
 
     def final_link_flags_list(self):
         return list(dict.fromkeys(self.link_private + self.link_public))
+
+    def _parse_flags_config(self, options, flags_kind='flags'):
+        flags_dicts   = []
+        compile_flags = []
+        link_flags    = []
+
+        if flags_kind in options:
+            flags_dicts.append(options.get(flags_kind, {}))
+
+        flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
+
+        for fdict in flags_dicts:
+            compile_flags += fdict.get('compile', [])
+            link_flags    += fdict.get('link', [])
+
+            if self._build_type != BuildType.Default:
+                compile_flags += fdict.get(f'compile_{self._build_type}', [])
+
+        return compile_flags, link_flags
