@@ -147,7 +147,7 @@ class Clang:
             [str(self.clangpp), "-std=dummpy", "-x", "c++", "-E", "-"]
         )
 
-        for line in reversed(report):
+        for line in reversed(report.splitlines()):
             if "draft" in line or "gnu" in line:
                 continue
 
@@ -161,7 +161,7 @@ class Clang:
         else:
             return [str(self.clangpp), self.max_cpp_dialect]
 
-    def compile(self, source_file, object_file, flags):
+    def compile(self, source_file, object_file, flags=None):
         """Compile a given source file into an object file.
 
         If the object file is placed into a non-existing folder, this
@@ -191,7 +191,7 @@ class Clang:
         return self._run_clang_command(
             self._get_driver(source_file)
             + ["-c", str(source_file), "-o", str(object_file)]
-            + flags
+            + (flags if flags else [])
         )
 
     def generate_dependency_file(self, source_file, dependency_file, flags):
@@ -285,5 +285,5 @@ class Clang:
         except _subprocess.CalledProcessError as error:
             success = False
             report = error.output.strip()
-            
+
         return success, report
