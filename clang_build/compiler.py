@@ -161,4 +161,4 @@ class Clang:
                 if "draft" in line or "gnu" in line:
                     continue
 
-                return _search(r"'(c\+\+..)'", line).group(1)
+                return "-std=" + _search(r"'(c\+\+..)'", line).group(1)
