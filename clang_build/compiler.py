@@ -134,13 +134,8 @@ class Clang:
         return True
 
     @_lru_cache(maxsize=1)
-    def _get_max_supported_compiler_dialect(self, clangpp):
+    def _get_max_supported_compiler_dialect(self):
         """Check the maximally supported C++ dialect.
-
-        Parameters
-        ----------
-        clangpp : :any:`pathlib.Path`
-            Path to the clang++ executable
 
         Returns
         -------
@@ -150,7 +145,7 @@ class Clang:
         """
         try:
             _subprocess.run(
-                [str(clangpp), "-std=dummpy", "-x", "c++", "-E", "-"],
+                [str(self.clangpp), "-std=dummpy", "-x", "c++", "-E", "-"],
                 check=True,
                 stdout=_subprocess.PIPE,
                 stderr=_subprocess.PIPE,
@@ -162,3 +157,5 @@ class Clang:
                     continue
 
                 return "-std=" + _search(r"'(c\+\+..)'", line).group(1)
+
+            raise RuntimeError("Could not find a supported C++ standard.")
