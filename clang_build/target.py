@@ -263,7 +263,7 @@ class Compilable(Target):
         self,
         target_description,
         files,
-        link_command,
+        link_output_type,
         output_folder,
         platform_flags,
         prefix,
@@ -287,6 +287,10 @@ class Compilable(Target):
         self.depfile_directory = (self.build_directory / "dep").resolve()
         self.output_folder = (self.build_directory / output_folder).resolve()
         self.redistributable_folder = (self.build_directory / "redistributable").resolve()
+        self.link_output_type = link_output_type
+        self.link_command = []
+        self.unsuccessful_link = None
+        self.link_report = None
 
         self.outname = target_description.config.get("output_name", self.name)
         self.outfilename = prefix + self.outname + suffix
@@ -314,8 +318,6 @@ class Compilable(Target):
         # If compilation of buildables fail, they will be stored here later
         self._unsuccessful_compilations = []
 
-        # Linking setup
-        self.link_command = link_command + [str(self.outfile)]
 
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags but without link flags.
@@ -350,8 +352,6 @@ class Compilable(Target):
         #
         #
         self._logger.info(f"generate dependency files")
-        for b in self.needed_buildables:
-            self._logger.debug(" ".join(b.dependency_command))
         self.needed_buildables = list(
             _get_build_progress_bar(
                 process_pool.imap(
@@ -387,23 +387,9 @@ class Compilable(Target):
                 {self.identifier: [source.compile_report for source in self._unsuccessful_compilations]})
 
     def link(self):
-        link_command = str(" ".join(dict.fromkeys(self.link_command)))
         self._logger.info(f'link -> "{self.outfile}"')
-        self._logger.debug("    " + link_command)
-        link_command = list(link_command.split())
-
-        # Execute link command
-        try:
-            self.output_folder.mkdir(parents=True, exist_ok=True)
-            self.link_report = (
-                _subprocess.check_output(link_command, stderr=_subprocess.STDOUT)
-                .decode("utf-8")
-                .strip()
-            )
-            self.unsuccessful_link = False
-        except _subprocess.CalledProcessError as error:
-            self.unsuccessful_link = True
-            self.link_report = error.output.decode("utf-8").strip()
+        self.unsuccessful_link, self.link_report = self._environment.compiler.link(
+            self.outfile, self.link_command, self.link_output_type)
 
         # Catch link errors
         if self.unsuccessful_link:
@@ -424,7 +410,7 @@ class Executable(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[str(target_description.environment.compiler.clangpp), "-o"],
+            link_output_type="executable",
             output_folder=_platform.EXECUTABLE_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
             prefix=_platform.EXECUTABLE_PREFIX,
@@ -558,7 +544,7 @@ class SharedLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[str(target_description.environment.compiler.clangpp), "-shared", "-o"],
+            link_output_type="shared",
             output_folder=_platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
@@ -640,7 +626,7 @@ class StaticLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[str(target_description.environment.compiler.clang_ar), "rc"],
+            link_output_type="static",
             output_folder=_platform.STATIC_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
             prefix=_platform.STATIC_LIBRARY_PREFIX,

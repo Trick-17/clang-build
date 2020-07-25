@@ -69,49 +69,22 @@ class SingleSource:
         self.object_file = _Path(object_directory,  relpath, self.source_file.stem + '.o')
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
-        compiler = str(environment.compiler.clangpp)
-        max_cpp_dialect = environment.compiler.max_cpp_dialect
-        # Unset dialect flag and use clang if source file is not C++
-        if source_file.suffix in [".c", ".cc", ".m"]:
-            compiler = str(environment.compiler.clang)
-            max_cpp_dialect = ''
+        self.compiler = environment.compiler
 
         self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)
 
-        flags = compile_flags + include_strings
+        self.flags = compile_flags + include_strings
+        self.platform_flags = platform_flags
 
         self.compilation_failed = False
 
-        # prepare everything for dependency file generation
-        self.dependency_command = [compiler, max_cpp_dialect, '-E', '-MMD', str(self.source_file), '-MF', str(self.depfile)] + flags
-
-        # prepare everything for compilation
-        self.compile_command = [compiler, max_cpp_dialect, '-c', str(self.source_file), '-o', str(self.object_file)] + flags + platform_flags
-
 
     def generate_depfile(self):
-        # TODO: logging in multiprocess
-        # _LOGGER.debug('    ' + ' '.join(dependency_command))
-        try:
-            self.depfile.parents[0].mkdir(parents=True, exist_ok=True)
-            self.depfile_report = _subprocess.check_output(self.dependency_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
-            self.depfile_failed = False
-        except _subprocess.CalledProcessError as error:
-            self.depfile_failed = True
-            self.depfile_report = error.output.decode('utf-8').strip()
+        self.depfile_failed, self.depfile_report = self.compiler.generate_dependency_file(self.source_file, self.depfile, self.flags)
 
 
     def compile(self):
-        # TODO: logging in multiprocess
-        # _LOGGER.debug('    ' + ' '.join(self.compile_command))
-        try:
-            self.object_file.parents[0].mkdir(parents=True, exist_ok=True)
-            self.compile_report = _subprocess.check_output(self.compile_command, stderr=_subprocess.STDOUT).decode('utf-8').strip()
-            self.compilation_failed = False
-        except _subprocess.CalledProcessError as error:
-            self.compilation_failed = True
-            self.compile_report = error.output.decode('utf-8').strip()
-
+        self.compilation_failed, self.compile_report = self.compiler.compile(self.source_file, self.object_file, self.flags + self.platform_flags)
 
 if __name__ == '__name__':
     _freeze_support()

@@ -148,17 +148,145 @@ class Clang:
             Flag string of the latest supported dialect
 
         """
-        try:
-            _subprocess.run(
-                [str(clangpp), "-std=dummpy", "-x", "c++", "-E", "-"],
-                check=True,
-                stdout=_subprocess.PIPE,
-                stderr=_subprocess.PIPE,
-                encoding="utf8",
-            )
-        except _subprocess.CalledProcessError as subprocess_error:
-            for line in reversed(subprocess_error.stderr.splitlines()):
-                if "draft" in line or "gnu" in line:
-                    continue
+        _, report = self._run_clang_command(
+            [str(clangpp), "-std=dummpy", "-x", "c++", "-E", "-"]
+        )
 
-                return "-std=" + _search(r"'(c\+\+..)'", line).group(1)
+        for line in reversed(report.splitlines()):
+            if "draft" in line or "gnu" in line:
+                continue
+
+            return "-std=" + _search(r"'(c\+\+..)'", line).group(1)
+
+    def _get_driver(self, source_file):
+        if source_file.suffix in [".c", ".cc", ".m"]:
+            return [str(self.clang)]
+        else:
+            return [str(self.clangpp), self.max_cpp_dialect]
+
+    def compile(self, source_file, object_file, flags):
+        """Compile a given source file into an object file.
+
+        If the object file is placed into a non-existing folder, this
+        folder is generated before compilation.
+
+        Parameters
+        ----------
+        source_file : pathlib.Path
+            The source file to compile
+
+        object_file : pathlib.Path
+            The object file to generate during compilation
+
+        flags : list of str
+            List of flags to pass to the compiler
+
+        Returns
+        -------
+        bool
+            True if the compilation was successful, else False
+        str
+            Output of the compiler
+
+        """
+        object_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        return self._run_clang_command(
+            self._get_driver(source_file)
+            + ["-c", str(source_file), "-o", str(object_file)]
+            + flags
+        )
+
+    def generate_dependency_file(self, source_file, dependency_file, flags):
+        """Generate a dependency file for a given source file.
+
+        If the dependency file is placed into a non-existing folder, this
+        folder is generated before compilation.
+
+        Parameters
+        ----------
+        source_file : pathlib.Path
+            The source file to compile
+
+        dependency_file : pathlib.Path
+            The dependency file to generate
+
+        flags : list of str
+            List of flags to pass to the compiler
+
+        Returns
+        -------
+        bool
+            True if the dependency file generation was successful, else False
+        str
+            Output of the compiler
+
+        """
+        dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        return self._run_clang_command(
+            self._get_driver(source_file)
+            + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
+            + flags
+        )
+
+    _LINKER_OPTIONS = {
+        "executable": ["-o"],
+        "shared": ["-shared", "-o"],
+        "static": ["rc"],
+    }
+
+    def link(self, output_file, command, output_type):
+        """Link into the given output_file.
+
+        The command should contain all object files, library search paths
+        and libraries against which to link. If the output_file is placed
+        in a non-existing folder, the folder and all required parents
+        are generated.
+
+        Parameters
+        ----------
+        output_file : pathlib.Path
+            The output file to generate
+        command : list of str
+            All objects files and search paths etc should be in here
+        output_type : str
+            One of the following three: "executable", "shared", "static"
+
+        Returns
+        -------
+        bool
+            True if linking was successful, False otherwise
+        str
+            The output of the linker
+
+        Raises
+        ------
+        ValueError
+            If an output_type other than the allowed ones is passed
+
+        """
+        output_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        try:
+            type_flags = self._LINKER_OPTIONS[output_type]
+        except KeyError:
+            raise ValueError(
+                f"Invalid output type: {output_type}. Valid options are: "
+                + f"{list(self._LINKER_OPTIONS.keys())}"
+            )
+
+        return self._run_clang_command(
+            [str(self.clang_ar)] + type_flags + str(output_file) + command
+        )
+
+    def _run_clang_command(self, command):
+        success = True
+        _LOGGER.debug(f"Running: {' '.join(command)}")
+        try:
+            report = _subprocess.check_output(command, encoding="utf8").strip()
+        except _subprocess.CalledProcessError as error:
+            success = False
+            report = error.output.strip()
+
+        return success, report
