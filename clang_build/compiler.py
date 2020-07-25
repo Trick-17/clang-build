@@ -134,13 +134,8 @@ class Clang:
         return True
 
     @_lru_cache(maxsize=1)
-    def _get_max_supported_compiler_dialect(self, clangpp):
+    def _get_max_supported_compiler_dialect(self):
         """Check the maximally supported C++ dialect.
-
-        Parameters
-        ----------
-        clangpp : :any:`pathlib.Path`
-            Path to the clang++ executable
 
         Returns
         -------
