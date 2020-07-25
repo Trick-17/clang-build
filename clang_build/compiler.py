@@ -157,7 +157,7 @@ class Clang:
                 encoding="utf8",
             )
         except _subprocess.CalledProcessError as subprocess_error:
-            for line in subprocess_error.stderr.splitlines():
+            for line in reversed(subprocess_error.stderr.splitlines()):
                 if "draft" in line or "gnu" in line:
                     continue
 
