@@ -426,7 +426,7 @@ class Executable(Compilable):
         ### Library dependency search paths
         for target in self.dependencies:
             if target.__class__ is not HeaderOnly:
-                self.link_command.append("-L " + str(target.output_folder.resolve()))
+                self.link_command.append("-L" + str(target.output_folder.resolve()))
 
         ### Bundling requires extra flags
         if self._environment.bundle:
