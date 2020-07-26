@@ -274,7 +274,7 @@ class Clang:
             )
 
         return self._run_clang_command(
-            [str(self.clang_ar)] + type_flags + str(output_file) + command
+            [str(self.clang_ar)] + type_flags + [str(output_file)] + command
         )
 
     def _run_clang_command(self, command):
@@ -285,5 +285,5 @@ class Clang:
         except _subprocess.CalledProcessError as error:
             success = False
             report = error.output.strip()
-            
+
         return success, report
