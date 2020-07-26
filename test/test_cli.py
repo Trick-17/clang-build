@@ -1,8 +1,11 @@
-from pathlib import Path
 import subprocess
+from pathlib import Path
+from shutil import rmtree
+
+import pytest
+
 from clang_build import clang_build as cli
 from clang_build.build_type import BuildType
-import pytest
 
 
 def cli_argument_check(
@@ -44,10 +47,13 @@ def test_cli_arguments():
 
 
 def test_hello_world_mwe():
-    cli.build(cli.parse_args(["-d", "test/mwe"]))
-    output = (
-        subprocess.check_output(["./build/default/bin/main"], stderr=subprocess.STDOUT)
-        .decode("utf-8")
-        .strip()
-    )
-    assert output == "Hello!"
+    try:
+        cli.build(cli.parse_args(["-d", "test/mwe"]))
+        output = (
+            subprocess.check_output(["./build/default/bin/main"], stderr=subprocess.STDOUT)
+            .decode("utf-8")
+            .strip()
+        )
+        assert output == "Hello!"
+    finally:
+        rmtree("build", ignore_errors=True)
