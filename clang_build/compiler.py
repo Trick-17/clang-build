@@ -5,7 +5,7 @@ import shutil as _shutil
 import subprocess as _subprocess
 from functools import lru_cache as _lru_cache
 from pathlib import Path as _Path
-
+from re import search as _search
 
 _LOGGER = _logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class Clang:
         self.clangpp = self._find("clang++")
         self.clang_ar = self._find("llvm-ar")
 
-        self.max_cpp_dialect = self._get_max_supported_compiler_dialect(self.clangpp)
+        self.max_cpp_dialect = self._get_max_supported_compiler_dialect()
 
         _LOGGER.info("llvm root directory: %s", self.clangpp.parents[0])
         _LOGGER.info("clang executable:    %s", self.clang)
@@ -99,7 +99,8 @@ class Clang:
         """
         return "-std=c++{:02d}".format(year)
 
-    def _dialect_exists(self, year, clangpp):
+    @_lru_cache(maxsize=1)
+    def dialect_exists(self, year):
         """Check if a given dialect flag is valid.
 
         Parameters
@@ -107,8 +108,6 @@ class Clang:
         year : int
             The last two digits of the dialect.
             For example 11 for `C++11`.
-        clangpp : :any:`pathlib.Path`
-            Path to the clang++ executable
 
         Returns
         -------
@@ -120,7 +119,7 @@ class Clang:
         std_opt = self._get_dialect_flag(year)
         try:
             _subprocess.run(
-                [str(clangpp), std_opt, "-x", "c++", "-E", "-"],
+                [str(self.clangpp), std_opt, "-x", "c++", "-E", "-"],
                 check=True,
                 input=b"",
                 stdout=_subprocess.PIPE,
@@ -135,13 +134,8 @@ class Clang:
         return True
 
     @_lru_cache(maxsize=1)
-    def _get_max_supported_compiler_dialect(self, clangpp):
+    def _get_max_supported_compiler_dialect(self):
         """Check the maximally supported C++ dialect.
-
-        Parameters
-        ----------
-        clangpp : :any:`pathlib.Path`
-            Path to the clang++ executable
 
         Returns
         -------
@@ -149,12 +143,19 @@ class Clang:
             Flag string of the latest supported dialect
 
         """
-        supported_dialects = []
-        for dialect in range(30):
-            if self._dialect_exists(dialect, clangpp):
-                supported_dialects.append(dialect)
+        try:
+            _subprocess.run(
+                [str(self.clangpp), "-std=dummpy", "-x", "c++", "-E", "-"],
+                check=True,
+                stdout=_subprocess.PIPE,
+                stderr=_subprocess.PIPE,
+                encoding="utf8",
+            )
+        except _subprocess.CalledProcessError as subprocess_error:
+            for line in reversed(subprocess_error.stderr.splitlines()):
+                if "draft" in line or "gnu" in line:
+                    continue
 
-        if supported_dialects:
-            return self._get_dialect_flag(max(supported_dialects))
-        else:
-            return self._get_dialect_flag(98)
+                return "-std=" + _search(r"'(c\+\+..)'", line).group(1)
+
+            raise RuntimeError("Could not find a supported C++ standard.")
