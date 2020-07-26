@@ -285,5 +285,5 @@ class Clang:
         except _subprocess.CalledProcessError as error:
             success = False
             report = error.output.strip()
-
+            
         return success, report

@@ -365,8 +365,6 @@ class Compilable(Target):
 
         # Execute compile command
         self._logger.info("compile object files")
-        for b in self.needed_buildables:
-            self._logger.debug(" ".join(b.compile_command))
         self.needed_buildables = list(
             _get_build_progress_bar(
                 process_pool.imap(compile_single_source, self.needed_buildables),
