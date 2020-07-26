@@ -129,7 +129,7 @@ class Target(_TreeEntry, _NamedLogger):
             # Header only libraries will forward all non-private flags
             self._add_dependency_flags(target)
 
-        self._build_flags.add_target_flags(target_description.config, self._environment.build_type)
+        self._build_flags.add_target_flags(target_description.config)
 
     def __repr__(self) -> str:
         return f"clang_build.target.Target('{self.identifier}')"
