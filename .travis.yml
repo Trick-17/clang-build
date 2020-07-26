@@ -46,6 +46,7 @@ before_install:
 install:
   - pip3 install setuptools
   - pip3 install codecov
+  - pip3 install pytest
   - python3 setup.py develop
 
 script:

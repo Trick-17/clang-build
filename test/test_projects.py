@@ -37,16 +37,7 @@ def clang_build_try_except( args ):
             logger.error(printout)
 
 class TestClangBuild(unittest.TestCase):
-    def test_hello_world_mwe(self):
-        clang_build_try_except(['-d', 'test/mwe'])
-
-        try:
-            output = subprocess.check_output(['./build/default/bin/main'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError as e:
-            self.fail(f'Could not run compiled program. Message:\n{e.output}')
-
-        self.assertEqual(output, 'Hello!')
-
+    
     def test_build_types(self):
         for build_type in ['release', 'relwithdebinfo', 'debug', 'coverage']:
             clang_build_try_except(['-d', 'test/mwe', '-b', build_type])

@@ -5,7 +5,7 @@ import shutil as _shutil
 import subprocess as _subprocess
 from functools import lru_cache as _lru_cache
 from pathlib import Path as _Path
-
+from re import search as _search
 
 _LOGGER = _logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class Clang:
         self.clangpp = self._find("clang++")
         self.clang_ar = self._find("llvm-ar")
 
-        self.max_cpp_dialect = self._get_max_supported_compiler_dialect(self.clangpp)
+        self.max_cpp_dialect = self._get_max_supported_compiler_dialect()
 
         _LOGGER.info("llvm root directory: %s", self.clangpp.parents[0])
         _LOGGER.info("clang executable:    %s", self.clang)
@@ -99,7 +99,8 @@ class Clang:
         """
         return "-std=c++{:02d}".format(year)
 
-    def _dialect_exists(self, year, clangpp):
+    @_lru_cache(maxsize=1)
+    def dialect_exists(self, year):
         """Check if a given dialect flag is valid.
 
         Parameters
@@ -107,8 +108,6 @@ class Clang:
         year : int
             The last two digits of the dialect.
             For example 11 for `C++11`.
-        clangpp : :any:`pathlib.Path`
-            Path to the clang++ executable
 
         Returns
         -------
@@ -120,7 +119,7 @@ class Clang:
         std_opt = self._get_dialect_flag(year)
         try:
             _subprocess.run(
-                [str(clangpp), std_opt, "-x", "c++", "-E", "-"],
+                [str(self.clangpp), std_opt, "-x", "c++", "-E", "-"],
                 check=True,
                 input=b"",
                 stdout=_subprocess.PIPE,
@@ -135,13 +134,8 @@ class Clang:
         return True
 
     @_lru_cache(maxsize=1)
-    def _get_max_supported_compiler_dialect(self, clangpp):
+    def _get_max_supported_compiler_dialect(self):
         """Check the maximally supported C++ dialect.
-
-        Parameters
-        ----------
-        clangpp : :any:`pathlib.Path`
-            Path to the clang++ executable
 
         Returns
         -------
@@ -149,12 +143,147 @@ class Clang:
             Flag string of the latest supported dialect
 
         """
-        supported_dialects = []
-        for dialect in range(30):
-            if self._dialect_exists(dialect, clangpp):
-                supported_dialects.append(dialect)
+        _, report = self._run_clang_command(
+            [str(self.clangpp), "-std=dummpy", "-x", "c++", "-E", "-"]
+        )
 
-        if supported_dialects:
-            return self._get_dialect_flag(max(supported_dialects))
+        for line in reversed(report.splitlines()):
+            if "draft" in line or "gnu" in line:
+                continue
+
+            return "-std=" + _search(r"'(c\+\+..)'", line).group(1)
+
+        raise RuntimeError("Could not find a supported C++ standard.")
+
+    def _get_driver(self, source_file):
+        if source_file.suffix in [".c", ".cc", ".m"]:
+            return [str(self.clang)]
         else:
-            return self._get_dialect_flag(98)
+            return [str(self.clangpp), self.max_cpp_dialect]
+
+    def compile(self, source_file, object_file, flags=None):
+        """Compile a given source file into an object file.
+
+        If the object file is placed into a non-existing folder, this
+        folder is generated before compilation.
+
+        Parameters
+        ----------
+        source_file : pathlib.Path
+            The source file to compile
+
+        object_file : pathlib.Path
+            The object file to generate during compilation
+
+        flags : list of str
+            List of flags to pass to the compiler
+
+        Returns
+        -------
+        bool
+            True if the compilation was successful, else False
+        str
+            Output of the compiler
+
+        """
+        object_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        return self._run_clang_command(
+            self._get_driver(source_file)
+            + ["-c", str(source_file), "-o", str(object_file)]
+            + (flags if flags else [])
+        )
+
+    def generate_dependency_file(self, source_file, dependency_file, flags):
+        """Generate a dependency file for a given source file.
+
+        If the dependency file is placed into a non-existing folder, this
+        folder is generated before compilation.
+
+        Parameters
+        ----------
+        source_file : pathlib.Path
+            The source file to compile
+
+        dependency_file : pathlib.Path
+            The dependency file to generate
+
+        flags : list of str
+            List of flags to pass to the compiler
+
+        Returns
+        -------
+        bool
+            True if the dependency file generation was successful, else False
+        str
+            Output of the compiler
+
+        """
+        dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        return self._run_clang_command(
+            self._get_driver(source_file)
+            + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
+            + flags
+        )
+
+    def link(self, output_file, command, output_type):
+        """Link into the given output_file.
+
+        The command should contain all object files, library search paths
+        and libraries against which to link. If the output_file is placed
+        in a non-existing folder, the folder and all required parents
+        are generated.
+
+        Parameters
+        ----------
+        output_file : pathlib.Path
+            The output file to generate
+        command : list of str
+            All objects files and search paths etc should be in here
+        output_type : str
+            One of the following three: "executable", "shared", "static"
+
+        Returns
+        -------
+        bool
+            True if linking was successful, False otherwise
+        str
+            The output of the linker
+
+        Raises
+        ------
+        ValueError
+            If an output_type other than the allowed ones is passed
+
+        """
+        output_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        options = {
+            "executable": [str(self.clangpp), "-o"],
+            "shared" : [str(self.clangpp), "-shared", "-o"],
+            "static": [str(self.clang_ar), "rc"]
+        }
+
+        try:
+            driver = options[output_type]
+        except KeyError:
+            raise ValueError(
+                f"Invalid output type: {output_type}. Valid options are: "
+                + f"{list(options.keys())}"
+            )
+
+        return self._run_clang_command(
+            driver + [str(output_file)] + command
+        )
+
+    def _run_clang_command(self, command):
+        success = True
+        _LOGGER.debug(f"Running: {' '.join(command)}")
+        try:
+            report = _subprocess.check_output(command, encoding="utf8", stderr=_subprocess.STDOUT)
+        except _subprocess.CalledProcessError as error:
+            success = False
+            report = error.output.strip()
+
+        return success, report
