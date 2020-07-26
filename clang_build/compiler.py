@@ -227,12 +227,6 @@ class Clang:
             + flags
         )
 
-    _LINKER_OPTIONS = {
-        "executable": ["-o"],
-        "shared": ["-shared", "-o"],
-        "static": ["rc"],
-    }
-
     def link(self, output_file, command, output_type):
         """Link into the given output_file.
 
@@ -265,16 +259,22 @@ class Clang:
         """
         output_file.parents[0].mkdir(parents=True, exist_ok=True)
 
+        options = {
+            "executable": [str(self.clangpp), "-o"],
+            "shared" : [str(self.clangpp), "-shared", "-o"],
+            "static": [str(self.clang_ar), "rc"]
+        }
+
         try:
-            type_flags = self._LINKER_OPTIONS[output_type]
+            driver = options[output_type]
         except KeyError:
             raise ValueError(
                 f"Invalid output type: {output_type}. Valid options are: "
-                + f"{list(self._LINKER_OPTIONS.keys())}"
+                + f"{list(options.keys())}"
             )
 
         return self._run_clang_command(
-            [str(self.clang_ar)] + type_flags + str(output_file) + command
+            driver + [str(output_file)] + command
         )
 
     def _run_clang_command(self, command):
@@ -285,5 +285,5 @@ class Clang:
         except _subprocess.CalledProcessError as error:
             success = False
             report = error.output.strip()
-            
+
         return success, report

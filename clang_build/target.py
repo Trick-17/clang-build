@@ -386,8 +386,10 @@ class Compilable(Target):
 
     def link(self):
         self._logger.info(f'link -> "{self.outfile}"')
-        self.unsuccessful_link, self.link_report = self._environment.compiler.link(
+        success, self.link_report = self._environment.compiler.link(
             self.outfile, self.link_command, self.link_output_type)
+
+        self.unsuccessful_link = not success
 
         # Catch link errors
         if self.unsuccessful_link:

@@ -80,11 +80,13 @@ class SingleSource:
 
 
     def generate_depfile(self):
-        self.depfile_failed, self.depfile_report = self.compiler.generate_dependency_file(self.source_file, self.depfile, self.flags)
+        success, self.depfile_report = self.compiler.generate_dependency_file(self.source_file, self.depfile, self.flags)
+        self.depfile_failed = not success
 
 
     def compile(self):
-        self.compilation_failed, self.compile_report = self.compiler.compile(self.source_file, self.object_file, self.flags + self.platform_flags)
+        success, self.compile_report = self.compiler.compile(self.source_file, self.object_file, self.flags + self.platform_flags)
+        self.compilation_failed = not success
 
 if __name__ == '__name__':
     _freeze_support()
