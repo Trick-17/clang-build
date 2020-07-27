@@ -5,31 +5,36 @@ env:
 
 matrix:
   include:
-    - language: python
-      os: linux
+    - os: linux
+      dist: bionic
+      language: python
       env: DEPLOY=true
-      python: 3.6
+      python: "3.8"
       addons:
         apt:
           packages:
-          - ca-certificates
           - libc++-dev
-          - g++-7
           - clang
           - libiomp-dev
+          - python3.8-dev
+          - python3.8-venv
           sources:
           - sourceline: 'ppa:ubuntu-toolchain-r/test'
-          - sourceline: 'ppa:jonathonf/gcc-7.1'
           - sourceline: 'ppa:deadsnakes/ppa'
-      dist: trusty
-    - language: cpp
-      os: osx
-      env: DEPLOY=false
+    - os: osx
       osx_image: xcode10
+      language: cpp
+      cache:
+        directories:
+          - $HOME/Library/Caches/Homebrew
+      before_cache:
+        - brew cleanup
+      env: DEPLOY=false
       addons:
         homebrew:
           packages:
           - llvm
+          - python3
           update: true
 
 before_install:
