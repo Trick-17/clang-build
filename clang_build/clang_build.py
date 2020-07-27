@@ -24,10 +24,10 @@ from .errors import LinkError as _LinkError
 from .errors import BundleError as _BundleError
 from .errors import RedistributableError as _RedistributableError
 
+_LOGGER = _logging.getLogger(__name__)
 
 def _setup_logger(log_level=None):
-    logger = _logging.getLogger(__name__)
-    logger.setLevel(_logging.DEBUG)
+    _LOGGER.setLevel(_logging.DEBUG)
 
     # create formatter _and add it to the handlers
     formatter = _logging.Formatter('%(message)s')
@@ -36,13 +36,13 @@ def _setup_logger(log_level=None):
     fh = _logging.FileHandler('clang-build.log', mode='w')
     fh.setLevel(_logging.DEBUG)
     fh.setFormatter(formatter)
-    logger.addHandler(fh)
+    _LOGGER.addHandler(fh)
 
     if log_level is not None:
         ch = _TqdmHandler()
         ch.setLevel(log_level)
         ch.setFormatter(formatter)
-        logger.addHandler(ch)
+        _LOGGER.addHandler(ch)
 
 
 def parse_args(args):
@@ -72,8 +72,8 @@ def parse_args(args):
                         action='store_true')
     target_group.add_argument('-t', '--targets',
                         type=str,
-                        default="",
-                        help='only these targets and their dependencies should be built (comma-separated list)')
+                        nargs="+",
+                        help='only these targets and their dependencies should be built')
     parser.add_argument('-f', '--force-build',
                         help='also build sources which have already been built',
                         action='store_true')
@@ -101,7 +101,7 @@ def parse_args(args):
 
 def build(args):
     # Create container of environment variables
-    environment = _Environment(args)
+    environment = _Environment(vars(args))
 
     categories = ['Configure', 'Compile', 'Link']
     if environment.bundle:
@@ -109,15 +109,12 @@ def build(args):
     if environment.redistributable:
         categories.append('Generate redistributable')
 
-    with _CategoryProgress(categories, environment.progress_disabled) as progress_bar:
-        logger = environment.logger
-
-        project = _Project.from_directory(environment.working_directory, environment)
-
-        project.build(environment.build_all, environment.target_list)
-
+    with _CategoryProgress(categories, not args.progress) as progress_bar:
+        project = _Project.from_directory(args.directory, environment)
+        project.build(args.all, args.targets, args.jobs)
         progress_bar.update()
-    logger.info('clang-build finished.')
+
+    _LOGGER.info('clang-build finished.')
 
 
 def _main():
@@ -138,30 +135,26 @@ def _main():
         build(args)
 
     except _CompileError as compile_error:
-        logger = _logging.getLogger(__name__)
-        logger.error('Compilation was unsuccessful:')
+        _LOGGER.error('Compilation was unsuccessful:')
         for target, errors in compile_error.error_dict.items():
             printout = f'[{target}]: target did not compile. Errors:\n'
             printout += ' '.join(errors)
-            logger.error(printout)
+            _LOGGER.error(printout)
     except _LinkError as link_error:
-        logger = _logging.getLogger(__name__)
-        logger.error('Linking was unsuccessful:')
+        _LOGGER.error('Linking was unsuccessful:')
         for target, errors in link_error.error_dict.items():
             printout = f'[{target}]: target did not link. Errors:\n{errors}'
-            logger.error(printout)
+            _LOGGER.error(printout)
     except _BundleError as bundle_error:
-        logger = _logging.getLogger(__name__)
-        logger.error('Bundling was unsuccessful:')
+        _LOGGER.error('Bundling was unsuccessful:')
         for target, errors in bundle_error.error_dict.items():
             printout = f'[{target}]: target could not be bundled. Errors:\n{errors}'
-            logger.error(printout)
+            _LOGGER.error(printout)
     except _RedistributableError as redistributable_error:
-        logger = _logging.getLogger(__name__)
-        logger.error('Redistibutable bundling was unsuccessful:')
+        _LOGGER.error('Redistibutable bundling was unsuccessful:')
         for target, errors in redistributable_error.error_dict.items():
             printout = f'[{target}]: target could not be bundled into a redistributable. Errors:\n{errors}'
-            logger.error(printout)
+            _LOGGER.error(printout)
 
 
 if __name__ == '__main__':
