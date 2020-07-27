@@ -9,7 +9,7 @@ from pathlib import Path as _Path
 
 from .build_type import BuildType as _BuildType
 from .clang_build import __version__
-from .compiler import Clang as _Clang
+from .tool_chains import LLVM as _Clang
 
 _LOGGER = _logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class Environment:
         # TODO: Move this out
         _LOGGER.info(f"clang-build {__version__}")
 
-        self.compiler = _Clang()
+        self.tool_chain = _Clang()
 
         # Build type (Default, Release, Debug)
         self.build_type = args.get("build_type", _BuildType.Default)

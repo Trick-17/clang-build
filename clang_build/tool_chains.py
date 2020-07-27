@@ -1,4 +1,4 @@
-"""Module containing compiler specifics."""
+"""Module containing tool chaines used for compiling and linking."""
 
 import logging as _logging
 import shutil as _shutil
@@ -13,24 +13,22 @@ _LOGGER = _logging.getLogger(__name__)
 
 
 class LLVM:
-    """Class of the clang compiler and related tools.
+    """Class of the LLVM tool chain, i.e. the clang compiler etc.
 
-    This class bundles various paths and attributes of
-    the installed clang compiler. The clang version used
-    is the one that would be used if `clang` or `clang++`
-    were called in the terminal directly.
+    This class abstracts away many features of the compiler and provides
+    mildly generic compile, link and archive functions.
 
     Attributes
     ----------
-    clang : :any:`pathlib.Path`
+    c_compiler : :any:`pathlib.Path`
         Path to the `clang` executable
-    clangpp : :any:`pathlib.Path`
+    cpp_compiler : :any:`pathlib.Path`
         Path to the `clang++` executable
-    clang_ar : :any:`pathlib.Path`
+    archiver : :any:`pathlib.Path`
         Path to the `llvm-ar` executable
     max_cpp_dialect : str
         Compile flag for the latest supported
-        dialect of the found compiler
+        C++ standard of the found compiler
 
     """
 
@@ -56,8 +54,8 @@ class LLVM:
         _LOGGER.info("clang++ executable:  %s", self.cpp_compiler)
         _LOGGER.info("llvm-ar executable:  %s", self.archiver)
         _LOGGER.info("Newest supported C++ dialect: %s", self.max_cpp_dialect)
-        _LOGGER.info(f'Python headers in:   {PLATFORM_PYTHON_INCLUDE_PATH}')
-        _LOGGER.info(f'Python library in:   {PLATFORM_PYTHON_LIBRARY_PATH}')
+        _LOGGER.info("Python headers in:   %s", PLATFORM_PYTHON_INCLUDE_PATH)
+        _LOGGER.info("Python library in:   %s", PLATFORM_PYTHON_LIBRARY_PATH)
 
     def _find(self, executable):
         """Find path of executable.
@@ -288,7 +286,8 @@ class LLVM:
             + ["-o", str(output_file)]
         )
         command += [str(o) for o in object_files]
-        command += self.max_cpp_dialect + flags
+        command += [self.max_cpp_dialect]
+        command += flags
         command += ["-L" + str(directory) for directory in library_directories]
         command += ["-l" + str(library) for library in libraries]
 

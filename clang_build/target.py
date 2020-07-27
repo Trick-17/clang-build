@@ -141,13 +141,11 @@ class Target(_TreeEntry, _NamedLogger):
     def _get_default_flags(self):
         """Overload to return any:`clang_build.flags.BuildFlags`, which the target should use.
         """
-        pass
 
     @abstractmethod
     def _add_dependency_flags(self, target):
         """Overload to add flags from dependencies of this target to its own.
         """
-        pass
 
     @abstractmethod
     def compile(self, process_pool, progress_disabled):
@@ -155,7 +153,6 @@ class Target(_TreeEntry, _NamedLogger):
 
         This produces an OS-dependent output in the build/bin folder.
         """
-        pass
 
     @abstractmethod
     def link(self):
@@ -277,7 +274,7 @@ class Compilable(Target):
 
         self.source_files = files["sourcefiles"]
         self.is_c_target = not any(
-            not (f.suffix.tolower() in ['.c', '.cc']) for f in self.source_files
+            not (f.suffix.lower() in ['.c', '.cc']) for f in self.source_files
         )
 
         if not self.source_files:
@@ -515,7 +512,7 @@ class Executable(Compilable):
         self._build_flags.apply_interface_flags(target)
 
     def link(self):
-        success, self.link_report = self._environment.compiler.link(
+        success, self.link_report = self._environment.tool_chain.link(
             [buildable.object_file for buildable in self.buildables],
             self.outfile,
             self._build_flags.final_link_flags_list(),
@@ -591,7 +588,7 @@ class SharedLibrary(Compilable):
         self._build_flags.apply_interface_flags(target)
 
     def link(self):
-        success, self.link_report = self._environment.compiler.link(
+        success, self.link_report = self._environment.tool_chain.link(
             [buildable.object_file for buildable in self.buildables],
             self.outfile,
             self._build_flags.final_link_flags_list(),
@@ -642,7 +639,7 @@ class StaticLibrary(Compilable):
     def link(self):
         # Although not really a "link" procedure, but really only an archiving procedure
         # for simplicity's sake, this is also called link
-        success, self.link_report = self._environment.compiler.link(
+        success, self.link_report = self._environment.tool_chain.link(
             [buildable.object_file for buildable in self.buildables],
             self.outfile)
 
