@@ -8,7 +8,6 @@ from multiprocessing import Pool as _Pool
 from pathlib import Path as _Path
 
 from .build_type import BuildType as _BuildType
-from .clang_build import __version__
 from .compiler import Clang as _Clang
 
 _LOGGER = _logging.getLogger(__name__)
@@ -20,8 +19,6 @@ class Environment:
 
     def __init__(self, args):
 
-        # TODO: Move this out
-        _LOGGER.info(f"clang-build {__version__}")
 
         self.compiler = _Clang()
 
