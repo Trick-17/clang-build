@@ -9,15 +9,19 @@ from pathlib import Path as _Path
 from multiprocessing import freeze_support
 
 from clang_build import clang_build
+from clang_build import platform
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
 from clang_build.logging_tools import TqdmHandler as TqdmHandler
 
 def on_rm_error( func, path, exc_info):
     # path contains the path of the file that couldn't be removed
-    # let's just assume that it's read-only and unlink it.
-    os.chmod( path, stat.S_IWRITE )
-    os.unlink( path )
+    # let's just assume that it's read-only and try to unlink it.
+    try:
+        os.chmod( path, stat.S_IWRITE )
+        os.unlink( path )
+    except:
+        print(f'Error trying to clean up file "{path}":\n{exc_info}')
 
 def clang_build_try_except( args ):
     try:
@@ -205,14 +209,14 @@ class TestClangBuild(unittest.TestCase):
         except subprocess.CalledProcessError as e:
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
-        from sys import platform as _platform
-        if _platform == 'linux' or _platform == 'linux2':
+        if platform.PLATFORM == 'linux':
             self.assertEqual(output, 'Hello Linux!')
-        elif _platform == 'darwin':
+        elif platform.PLATFORM == 'osx':
             self.assertEqual(output, 'Hello OSX!')
-        elif _platform == 'win32':
+        elif platform.PLATFORM == 'windows':
             self.assertEqual(output, 'Hello Windows!')
         else:
+            from sys import platform as _platform
             raise RuntimeError('Tried to run test_platform_flags on unsupported platform ' + _platform)
 
     def test_openmp(self):
@@ -234,6 +238,24 @@ class TestClangBuild(unittest.TestCase):
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'Hello! mylib::calculate() returned 2')
+
+    def test_pybind11(self):
+        clang_build_try_except(['-d', 'test/pybind11', '-V'])
+
+        pylib_dir = os.path.abspath(os.path.join("build", "pylib", "default", platform.SHARED_LIBRARY_OUTPUT))
+        sys.path.insert(0, pylib_dir)
+
+        try:
+            import pylib
+            output = pylib.triple(3)
+            self.assertEqual(output, 9)
+
+        except ImportError:
+            if os.path.exists(pylib_dir):
+                print(f'Expected location "{pylib_dir}" contains: {os.listdir(pylib_dir)}')
+            else:
+                print(f'Expected location "{pylib_dir}" does not exist!')
+            self.fail('Import of pylib failed!')
 
     def setUp(self):
         logger = logging.getLogger('clang_build')
