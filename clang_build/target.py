@@ -129,7 +129,7 @@ class Target(_TreeEntry, _NamedLogger):
             # Header only libraries will forward all non-private flags
             self._add_dependency_flags(target)
 
-        self._build_flags.add_target_flags(target_description.config, self._environment.build_type)
+        self._build_flags.add_target_flags(target_description.config)
 
     def __repr__(self) -> str:
         return f"clang_build.target.Target('{self.identifier}')"
@@ -292,6 +292,9 @@ class Compilable(Target):
         self.link_command = []
         self.unsuccessful_link = None
         self.link_report = None
+
+        prefix = target_description.config.get("output_prefix", prefix)
+        suffix = target_description.config.get("output_suffix", suffix)
 
         self.outname = target_description.config.get("output_name", self.name)
         self.outfilename = prefix + self.outname + suffix
@@ -695,7 +698,7 @@ class TargetDescription(_TreeEntry, _NamedLogger):
         # If no name is given, and no "output_name" is configured,
         # the output_name will be "main"
         if not name and not config.get("output_name", None):
-            config = {"output_name": "main"}
+            config["output_name"] = "main"
 
         # If no name is given it will be "target"
         if not name:

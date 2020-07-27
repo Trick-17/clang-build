@@ -7,6 +7,8 @@ from functools import lru_cache as _lru_cache
 from pathlib import Path as _Path
 from re import search as _search
 
+from .platform import PLATFORM_PYTHON_INCLUDE_PATH, PLATFORM_PYTHON_LIBRARY_PATH
+
 _LOGGER = _logging.getLogger(__name__)
 
 
@@ -54,6 +56,8 @@ class LLVM:
         _LOGGER.info("clang++ executable:  %s", self.cpp_compiler)
         _LOGGER.info("llvm-ar executable:  %s", self.archiver)
         _LOGGER.info("Newest supported C++ dialect: %s", self.max_cpp_dialect)
+        _LOGGER.info(f'Python headers in:   {PLATFORM_PYTHON_INCLUDE_PATH}')
+        _LOGGER.info(f'Python library in:   {PLATFORM_PYTHON_LIBRARY_PATH}')
 
     def _find(self, executable):
         """Find path of executable.
