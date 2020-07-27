@@ -10,7 +10,7 @@ from re import search as _search
 _LOGGER = _logging.getLogger(__name__)
 
 
-class Clang:
+class LLVM:
     """Class of the clang compiler and related tools.
 
     This class bundles various paths and attributes of
@@ -43,16 +43,16 @@ class Clang:
             If a compiler or linker tool wasn't found on the system.
 
         """
-        self.clang = self._find("clang")
-        self.clangpp = self._find("clang++")
-        self.clang_ar = self._find("llvm-ar")
+        self.c_compiler = self._find("clang")
+        self.cpp_compiler = self._find("clang++")
+        self.archiver = self._find("llvm-ar")
 
         self.max_cpp_dialect = self._get_max_supported_compiler_dialect()
 
-        _LOGGER.info("llvm root directory: %s", self.clangpp.parents[0])
-        _LOGGER.info("clang executable:    %s", self.clang)
-        _LOGGER.info("clang++ executable:  %s", self.clangpp)
-        _LOGGER.info("llvm-ar executable:  %s", self.clang_ar)
+        _LOGGER.info("llvm root directory: %s", self.cpp_compiler.parents[0])
+        _LOGGER.info("clang executable:    %s", self.c_compiler)
+        _LOGGER.info("clang++ executable:  %s", self.cpp_compiler)
+        _LOGGER.info("llvm-ar executable:  %s", self.archiver)
         _LOGGER.info("Newest supported C++ dialect: %s", self.max_cpp_dialect)
 
     def _find(self, executable):
@@ -119,7 +119,7 @@ class Clang:
         std_opt = self._get_dialect_flag(year)
         try:
             _subprocess.run(
-                [str(self.clangpp), std_opt, "-x", "c++", "-E", "-"],
+                [str(self.cpp_compiler), std_opt, "-x", "c++", "-E", "-"],
                 check=True,
                 input=b"",
                 stdout=_subprocess.PIPE,
@@ -144,7 +144,7 @@ class Clang:
 
         """
         _, report = self._run_clang_command(
-            [str(self.clangpp), "-std=dummpy", "-x", "c++", "-E", "-"]
+            [str(self.cpp_compiler), "-std=dummpy", "-x", "c++", "-E", "-"]
         )
 
         for line in reversed(report.splitlines()):
@@ -155,13 +155,22 @@ class Clang:
 
         raise RuntimeError("Could not find a supported C++ standard.")
 
-    def _get_driver(self, source_file):
-        if source_file.suffix in [".c", ".cc", ".m"]:
-            return [str(self.clang)]
-        else:
-            return [str(self.clangpp), self.max_cpp_dialect]
 
-    def compile(self, source_file, object_file, flags):
+    def _get_compiler(self, is_c_target):
+        return [str(self.c_compiler)] if is_c_target else [str(self.cpp_compiler)]
+
+    def _get_compiler_command(self, source_file, object_file, include_directories, flags, is_c_target):
+        return (
+            self._get_compiler(is_c_target)
+            + (["-o", str(object_file)] if object_file else [])
+            + ["-c", str(source_file)]
+            + ([self.max_cpp_dialect] if not is_c_target else [])
+            + flags
+            + [item for include_directory in include_directories for item in ["-I", str(include_directory)]]
+        )
+
+
+    def compile(self, source_file, object_file, include_directories, flags, is_c_target):
         """Compile a given source file into an object file.
 
         If the object file is placed into a non-existing folder, this
@@ -189,12 +198,12 @@ class Clang:
         object_file.parents[0].mkdir(parents=True, exist_ok=True)
 
         return self._run_clang_command(
-            self._get_driver(source_file)
-            + ["-c", str(source_file), "-o", str(object_file)]
-            + flags
+            self._get_compiler_command(source_file, object_file, include_directories, flags, is_c_target)
         )
 
-    def generate_dependency_file(self, source_file, dependency_file, flags):
+    def generate_dependency_file(
+        self, source_file, dependency_file, flags, include_directories, is_c_target
+    ):
         """Generate a dependency file for a given source file.
 
         If the dependency file is placed into a non-existing folder, this
@@ -222,12 +231,20 @@ class Clang:
         dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
         return self._run_clang_command(
-            self._get_driver(source_file)
+            self._get_compiler_command(source_file, None, include_directories, flags, is_c_target)
             + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
-            + flags
         )
 
-    def link(self, output_file, command, output_type):
+    def link(
+        self,
+        object_files,
+        output_file,
+        flags,
+        library_directories,
+        libraries,
+        is_library,
+        is_c_target,
+    ):
         """Link into the given output_file.
 
         The command should contain all object files, library search paths
@@ -237,12 +254,18 @@ class Clang:
 
         Parameters
         ----------
+        object_files : list of pathlib.Path
+            Object files to link
         output_file : pathlib.Path
             The output file to generate
-        command : list of str
-            All objects files and search paths etc should be in here
-        output_type : str
-            One of the following three: "executable", "shared", "static"
+        flags : list of str
+            Flags to pass to the linker
+        library_directories : list of pathlib.Path
+            Directories to search for libraries during linking
+        libraries : list of pathlib.Path
+            Libraries to link to
+        is_library : bool
+            If true, create a shared library. Else, create an executable.
 
         Returns
         -------
@@ -251,39 +274,55 @@ class Clang:
         str
             The output of the linker
 
-        Raises
-        ------
-        ValueError
-            If an output_type other than the allowed ones is passed
+        """
+        _LOGGER.info(f'link -> "{output_file}"')
+        output_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        command = (
+            self._get_compiler(is_c_target)
+            + (["-shared"] if is_library else [])
+            + ["-o", str(output_file)]
+        )
+        command += [str(o) for o in object_files]
+        command += self.max_cpp_dialect + flags
+        command += ["-L" + str(directory) for directory in library_directories]
+        command += ["-l" + str(library) for library in libraries]
+
+        return self._run_clang_command(command)
+
+    def archive(self, object_files, output_file):
+        """Archive object files into a static library.
+
+        Parameters
+        ----------
+        object_files : list of pathlib.Path
+            Object files to put in a static library
+        output_file : pathlib.Path
+            The static library to create
+
+        Returns
+        -------
+        Returns
+        -------
+        bool
+            True if archiving was successful, False otherwise
+        str
+            The output of the archiver
 
         """
         output_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        options = {
-            "executable": [str(self.clangpp), "-o"],
-            "shared" : [str(self.clangpp), "-shared", "-o"],
-            "static": [str(self.clang_ar), "rc"]
-        }
-
-        try:
-            driver = options[output_type]
-        except KeyError:
-            raise ValueError(
-                f"Invalid output type: {output_type}. Valid options are: "
-                + f"{list(options.keys())}"
-            )
-
-        return self._run_clang_command(
-            driver + [str(output_file)] + command
+        command = str(self.archiver) + (
+            ["rc", output_file] + [str(o) for o in object_files]
         )
 
+        return self._run_clang_command(command)
+
     def _run_clang_command(self, command):
-        success = True
         _LOGGER.debug(f"Running: {' '.join(command)}")
         try:
-            report = _subprocess.check_output(command, encoding="utf8", stderr=_subprocess.STDOUT)
+            return True, _subprocess.check_output(
+                command, encoding="utf8", stderr=_subprocess.STDOUT
+            )
         except _subprocess.CalledProcessError as error:
-            success = False
-            report = error.output.strip()
-
-        return success, report
+            return False, error.output.strip()

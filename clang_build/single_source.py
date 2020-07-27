@@ -48,12 +48,12 @@ class SingleSource:
             self,
             environment,
             source_file,
-            platform_flags,
             current_target_root_path,
             depfile_directory,
             object_directory,
-            include_strings,
-            compile_flags):
+            include_directories,
+            compile_flags,
+            is_c_target):
 
         # Get the relative file path
         self.name        = source_file.name
@@ -70,22 +70,33 @@ class SingleSource:
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
         self.compiler = environment.compiler
+        self.is_c_target = is_c_target
 
         self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)
 
-        self.flags = compile_flags + include_strings
-        self.platform_flags = platform_flags
+        self.include_directories = include_directories
+        self.flags = compile_flags
 
         self.compilation_failed = False
 
 
     def generate_depfile(self):
-        success, self.depfile_report = self.compiler.generate_dependency_file(self.source_file, self.depfile, self.flags)
+        success, self.depfile_report = self.compiler.generate_dependency_file(
+            self.source_file,
+            self.depfile,
+            self.flags,
+            self.include_directories,
+            self.is_c_target)
         self.depfile_failed = not success
 
 
     def compile(self):
-        success, self.compile_report = self.compiler.compile(self.source_file, self.object_file, self.flags + self.platform_flags)
+        success, self.compile_report = self.compiler.compile(
+            self.source_file,
+            self.object_file,
+            self.flags,
+            self.include_directories,
+            self.is_c_target)
         self.compilation_failed = not success
 
 if __name__ == '__name__':

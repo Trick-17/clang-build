@@ -263,7 +263,6 @@ class Compilable(Target):
         self,
         target_description,
         files,
-        link_output_type,
         output_folder,
         platform_flags,
         prefix,
@@ -277,6 +276,9 @@ class Compilable(Target):
         )
 
         self.source_files = files["sourcefiles"]
+        self.is_c_target = not any(
+            not (f.suffix.tolower() in ['.c', '.cc']) for f in self.source_files
+        )
 
         if not self.source_files:
             error_message = f"[{self.identifier}]: ERROR: Target was defined as a {self.__class__.__name__} but no source files were found"
@@ -287,7 +289,6 @@ class Compilable(Target):
         self.depfile_directory = (self.build_directory / "dep").resolve()
         self.output_folder = (self.build_directory / output_folder).resolve()
         self.redistributable_folder = (self.build_directory / "redistributable").resolve()
-        self.link_output_type = link_output_type
         self.link_command = []
         self.unsuccessful_link = None
         self.link_report = None
@@ -296,21 +297,21 @@ class Compilable(Target):
         self.outfilename = prefix + self.outname + suffix
         self.outfile = (self.output_folder / self.outfilename).resolve()
 
-        compile_flags = self._build_flags.final_compile_flags_list()
+        compile_flags = self._build_flags.final_compile_flags_list() + platform_flags
 
         # Buildables which this Target contains
-        self.include_directories_command = self._directories.include_command()
+        include_directories = self._directories.final_directories_list()
 
         self.buildables = [
             _SingleSource(
                 environment=self._environment,
                 source_file=source_file,
-                platform_flags=platform_flags,
                 current_target_root_path=self.root_directory,
                 depfile_directory=self.depfile_directory,
                 object_directory=self.object_directory,
-                include_strings=self.include_directories_command,
+                include_directories=include_directories,
                 compile_flags=compile_flags,
+                is_c_target=self.is_c_target
             )
             for source_file in self.source_files
         ]
@@ -385,16 +386,7 @@ class Compilable(Target):
                 {self.identifier: [source.compile_report for source in self._unsuccessful_compilations]})
 
     def link(self):
-        self._logger.info(f'link -> "{self.outfile}"')
-        success, self.link_report = self._environment.compiler.link(
-            self.outfile, self.link_command, self.link_output_type)
-
-        self.unsuccessful_link = not success
-
-        # Catch link errors
-        if self.unsuccessful_link:
-            raise _LinkError('Linking was unsuccessful',
-                {self.identifier: self.link_report})
+        pass
 
 
 class Executable(Compilable):
@@ -410,7 +402,6 @@ class Executable(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_output_type="executable",
             output_folder=_platform.EXECUTABLE_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
             prefix=_platform.EXECUTABLE_PREFIX,
@@ -418,26 +409,9 @@ class Executable(Compilable):
             dependencies=dependencies,
         )
 
-        ### Link self
-        self.link_command += [
-            str(buildable.object_file) for buildable in self.buildables
-        ]
-
-        ### Library dependency search paths
-        for target in self.dependencies:
-            if target.__class__ is not HeaderOnly:
-                self.link_command.append("-L" + str(target.output_folder.resolve()))
-
         ### Bundling requires extra flags
         if self._environment.bundle:
             self._build_flags.add_bundling_flags()
-
-        self.link_command += self._build_flags.final_link_flags_list()
-
-        ### Link dependencies
-        for target in self.dependencies:
-            if target.__class__ is not HeaderOnly:
-                self.link_command.append("-l" + target.outname)
 
     def bundle(self):
         self.unsuccessful_bundle = False
@@ -537,6 +511,17 @@ class Executable(Compilable):
         self._build_flags.forward_public_flags(target)
         self._build_flags.apply_interface_flags(target)
 
+    def link(self):
+        success, self.link_report = self._environment.compiler.link(
+            [buildable.object_file for buildable in self.buildables],
+            self.outfile,
+            self._build_flags.final_link_flags_list(),
+            [target.output_folder.resolve() for target in self.dependencies if target.__class__ is not HeaderOnly],
+            [target.outname for target in self.dependencies if target.__class__ is not HeaderOnly],
+            False,
+            self.is_c_target)
+
+        self.unsuccessful_link = not success
 
 class SharedLibrary(Compilable):
     def __init__(self, target_description, files, dependencies=None):
@@ -544,7 +529,6 @@ class SharedLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_output_type="shared",
             output_folder=_platform.SHARED_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
             prefix=_platform.SHARED_LIBRARY_PREFIX,
@@ -552,32 +536,16 @@ class SharedLibrary(Compilable):
             dependencies=dependencies,
         )
 
-        ### Link self
-        self.link_command += [
-            str(buildable.object_file) for buildable in self.buildables
-        ]
-
-        ### Library dependency search paths
-        for target in self.dependencies:
-            if target.__class__ is not HeaderOnly:
-                self.link_command.append("-L " + str(target.output_folder.resolve()))
-
-        self.link_command += self._build_flags.final_link_flags_list()
-
-        ### Link dependencies
-        for target in self.dependencies:
-            if target.__class__ is not HeaderOnly:
-                self.link_command.append("-l" + target.outname)
-
+        # TODO: This has to go to the flags department I guess
         ### Bundling requires some link flags
-        if self._environment.bundle:
-            if _platform.PLATFORM == "osx":
-                ### Install name for OSX
-                self.link_command += [f"-install_name @rpath/{self.outfilename}"]
-            elif _platform.PLATFORM == "linux":
-                pass
-            elif _platform.PLATFORM == "windows":
-                pass
+        #if self._environment.bundle:
+        #    if _platform.PLATFORM == "osx":
+        #        ### Install name for OSX
+        #        self.link_command += ["-install_name", f"@rpath/{self.outfilename}"]
+        #    elif _platform.PLATFORM == "linux":
+        #        pass
+        #    elif _platform.PLATFORM == "windows":
+        #        pass
 
     def bundle(self):
         self.unsuccessful_bundle = False
@@ -619,6 +587,18 @@ class SharedLibrary(Compilable):
         self._build_flags.forward_public_flags(target)
         self._build_flags.apply_interface_flags(target)
 
+    def link(self):
+        success, self.link_report = self._environment.compiler.link(
+            [buildable.object_file for buildable in self.buildables],
+            self.outfile,
+            self._build_flags.final_link_flags_list(),
+            [target.output_folder.resolve() for target in self.dependencies if target.__class__ is not HeaderOnly],
+            [target.outname for target in self.dependencies if target.__class__ is not HeaderOnly],
+            True,
+            self.is_c_target)
+
+        self.unsuccessful_link = not success
+
 
 class StaticLibrary(Compilable):
     def __init__(self, target_description, files, dependencies=None):
@@ -626,7 +606,6 @@ class StaticLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_output_type="static",
             output_folder=_platform.STATIC_LIBRARY_OUTPUT,
             platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
             prefix=_platform.STATIC_LIBRARY_PREFIX,
@@ -635,9 +614,9 @@ class StaticLibrary(Compilable):
         )
 
         ### Link self
-        self.link_command += [
-            str(buildable.object_file) for buildable in self.buildables
-        ]
+        # self.link_command += [
+        #     str(buildable.object_file) for buildable in self.buildables
+        # ]
         self.link_command += self._build_flags.final_link_flags_list()
 
         ### Link dependencies
@@ -650,12 +629,21 @@ class StaticLibrary(Compilable):
     def _add_dependency_flags(self, target):
         """Add dependencies' public flags to the own and forwards their public and interface flags.
 
-        This is done, because the dependency's interface flags will contain a header-only or static
-        library's link dependencies, which cannot be applied to this static library either.
+        This is done, because the dependency's interface flags cannot be applied to this static
+        library but only to the shared library or executable that includes this static library.
         """
         self._build_flags.apply_public_flags(target)
         self._build_flags.forward_public_flags(target)
         self._build_flags.forward_interface_flags(target)
+
+    def link(self):
+        # Although not really a "link" procedure, but really only an archiving procedure
+        # for simplicity's sake, this is also called link
+        success, self.link_report = self._environment.compiler.link(
+            [buildable.object_file for buildable in self.buildables],
+            self.outfile)
+
+        self.unsuccessful_link = not success
 
 
 TARGET_MAP = {
