@@ -16,9 +16,12 @@ from clang_build.logging_tools import TqdmHandler as TqdmHandler
 
 def on_rm_error( func, path, exc_info):
     # path contains the path of the file that couldn't be removed
-    # let's just assume that it's read-only and unlink it.
-    os.chmod( path, stat.S_IWRITE )
-    os.unlink( path )
+    # let's just assume that it's read-only and try to unlink it.
+    try:
+        os.chmod( path, stat.S_IWRITE )
+        os.unlink( path )
+    except:
+        print(f'Error trying to clean up file "{path}":\n{exc_info}')
 
 def clang_build_try_except( args ):
     try:
