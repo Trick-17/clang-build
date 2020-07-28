@@ -114,7 +114,7 @@ class BuildFlags:
     def final_compile_flags_list(self):
         # TODO: Add max_dialect and plattform specific flags here as well
         #       Need to see how we get around the target-type-specific flags issue
-        return list(dict.fromkeys(self.compile_private + self.compile_public))
+        return self._language_flags() + list(dict.fromkeys(self.compile_private + self.compile_public))
 
     def _language_flags(self):
         return [] if self._for_c_target else [self._tool_chain.max_cpp_standard]
