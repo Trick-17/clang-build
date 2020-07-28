@@ -38,7 +38,7 @@ class BuildFlags:
     }
 
     def __init__(
-        self, build_type, default_compile_flags=False, default_link_flags=False
+        self, build_type, tool_chain, for_c_target, default_compile_flags=False, default_link_flags=False
     ):
         # TODO: Store default flags separately
         self.compile_default = []
@@ -54,6 +54,8 @@ class BuildFlags:
         self.link_public = []
 
         self._build_type = build_type
+        self._tool_chain = tool_chain
+        self._for_c_target = for_c_target
 
         if default_compile_flags:
             self.compile_default = self.DEFAULT_COMPILE_FLAGS[BuildType.Default]
@@ -114,8 +116,11 @@ class BuildFlags:
         #       Need to see how we get around the target-type-specific flags issue
         return list(dict.fromkeys(self.compile_private + self.compile_public))
 
+    def _language_flags(self):
+        return [] if self._for_c_target else [self._tool_chain.max_cpp_standard]
+
     def final_link_flags_list(self):
-        return list(dict.fromkeys(self.link_private + self.link_public))
+        return self._language_flags() + list(dict.fromkeys(self.link_private + self.link_public))
 
     def _parse_flags_config(self, options, flags_kind='flags'):
         flags_dicts   = []

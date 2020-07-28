@@ -233,7 +233,7 @@ class HeaderOnly(Target):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` without compile or link flags.
         """
-        return BuildFlags(self._environment.build_type)
+        return BuildFlags(self._environment.build_type, self._environment.tool_chain, True)
 
     def _add_dependency_flags(self, target):
         """Forward dependencies' public and interface flags.
@@ -266,15 +266,15 @@ class Compilable(Target):
         suffix,
         dependencies=None,
     ):
+        self.source_files = files["sourcefiles"]
+        self.is_c_target = not any(
+            not (f.suffix.lower() in ['.c', '.cc']) for f in self.source_files
+        )
+
         super().__init__(
             target_description=target_description,
             files=files,
             dependencies=dependencies,
-        )
-
-        self.source_files = files["sourcefiles"]
-        self.is_c_target = not any(
-            not (f.suffix.lower() in ['.c', '.cc']) for f in self.source_files
         )
 
         if not self.source_files:
@@ -323,7 +323,7 @@ class Compilable(Target):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags but without link flags.
         """
-        return BuildFlags(self._environment.build_type, default_compile_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.tool_chain, self.is_c_target, default_compile_flags=True)
 
     def compile(self, process_pool, progress_disabled):
         """From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed.
@@ -502,7 +502,7 @@ class Executable(Compilable):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
         """
-        return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.tool_chain, self.is_c_target, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
         """Add dependencies' public and interface flags to the own and forward their public flags.
@@ -578,7 +578,7 @@ class SharedLibrary(Compilable):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
         """
-        return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.tool_chain, self.is_c_target, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
         """Add dependencies' public and interface flags to the own and forwards their public flags.

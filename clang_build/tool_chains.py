@@ -26,7 +26,7 @@ class LLVM:
         Path to the `clang++` executable
     archiver : :any:`pathlib.Path`
         Path to the `llvm-ar` executable
-    max_cpp_dialect : str
+    max_cpp_standard : str
         Compile flag for the latest supported
         C++ standard of the found compiler
 
@@ -47,13 +47,13 @@ class LLVM:
         self.cpp_compiler = self._find("clang++")
         self.archiver = self._find("llvm-ar")
 
-        self.max_cpp_dialect = self._get_max_supported_compiler_dialect()
+        self.max_cpp_standard = self._get_max_supported_compiler_dialect()
 
         _LOGGER.info("llvm root directory: %s", self.cpp_compiler.parents[0])
         _LOGGER.info("clang executable:    %s", self.c_compiler)
         _LOGGER.info("clang++ executable:  %s", self.cpp_compiler)
         _LOGGER.info("llvm-ar executable:  %s", self.archiver)
-        _LOGGER.info("Newest supported C++ dialect: %s", self.max_cpp_dialect)
+        _LOGGER.info("Newest supported C++ dialect: %s", self.max_cpp_standard)
         _LOGGER.info("Python headers in:   %s", PLATFORM_PYTHON_INCLUDE_PATH)
         _LOGGER.info("Python library in:   %s", PLATFORM_PYTHON_LIBRARY_PATH)
 
@@ -166,7 +166,6 @@ class LLVM:
             self._get_compiler(is_c_target)
             + (["-o", str(object_file)] if object_file else [])
             + ["-c", str(source_file)]
-            + ([self.max_cpp_dialect] if not is_c_target else [])
             + flags
             + [item for include_directory in include_directories for item in ["-I", str(include_directory)]]
         )
@@ -286,7 +285,6 @@ class LLVM:
             + ["-o", str(output_file)]
         )
         command += [str(o) for o in object_files]
-        command += [self.max_cpp_dialect]
         command += flags
         command += ["-L" + str(directory) for directory in library_directories]
         command += ["-l" + str(library) for library in libraries]
