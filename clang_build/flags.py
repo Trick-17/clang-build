@@ -1,42 +1,7 @@
 from .build_type import BuildType
-from . import platform as _platform
+from .platform import PLATFORM as _PLATFORM
 
 class BuildFlags:
-    DEFAULT_COMPILE_FLAGS = {
-        BuildType.Default: ["-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-Werror"],
-        BuildType.Release: ["-O3", "-DNDEBUG"],
-        BuildType.RelWithDebInfo: ["-O3", "-g3", "-DNDEBUG"],
-        BuildType.Debug: [
-            "-Og",
-            "-g3",
-            "-DDEBUG",
-            "-fno-optimize-sibling-calls",
-            "-fno-omit-frame-pointer",
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-        ],
-        BuildType.Coverage: [
-            "-Og",
-            "-g3",
-            "-DDEBUG",
-            "-fno-optimize-sibling-calls",
-            "-fno-omit-frame-pointer",
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-            "--coverage",
-            "-fno-inline",
-        ],
-    }
-    DEFAULT_LINK_FLAGS = {
-        BuildType.Debug: ["-fsanitize=address", "-fsanitize=undefined"],
-        BuildType.Coverage: [
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-            "--coverage",
-            "-fno-inline",
-        ],
-    }
-
     def __init__(
         self, build_type, tool_chain, for_c_target, default_compile_flags=False, default_link_flags=False
     ):
@@ -58,16 +23,16 @@ class BuildFlags:
         self._for_c_target = for_c_target
 
         if default_compile_flags:
-            self.compile_default = self.DEFAULT_COMPILE_FLAGS[BuildType.Default]
+            self.compile_default = tool_chain.DEFAULT_COMPILE_FLAGS[BuildType.Default]
             # self.compile_private += DEFAULT_COMPILE_FLAGS.get(BuildType.Default, [])
             if build_type != BuildType.Default:
-                self.compile_default = self.DEFAULT_COMPILE_FLAGS.get(
+                self.compile_default = tool_chain.DEFAULT_COMPILE_FLAGS.get(
                     build_type, []
                 )
                 # self.compile_private += DEFAULT_COMPILE_FLAGS.get(build_type, [])
 
         if default_link_flags:
-            self.link_default = self.DEFAULT_LINK_FLAGS.get(build_type, [])
+            self.link_default = tool_chain.DEFAULT_LINK_FLAGS.get(build_type, [])
             # self.link_private += DEFAULT_LINK_FLAGS.get(build_type, [])
 
     def make_private_flags_public(self):
@@ -109,7 +74,7 @@ class BuildFlags:
         self.link_public += lf
 
     def add_bundling_flags(self):
-        self.link_private += _platform.PLATFORM_BUNDLING_LINKER_FLAGS
+        self.link_private += self._tool_chain.platform_defaults['PLATFORM_BUNDLING_LINKER_FLAGS']
 
     def final_compile_flags_list(self):
         # TODO: Add max_dialect and plattform specific flags here as well
@@ -130,7 +95,7 @@ class BuildFlags:
         if flags_kind in options:
             flags_dicts.append(options.get(flags_kind, {}))
 
-        flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
+        flags_dicts.append(options.get(_PLATFORM, {}).get(flags_kind, {}))
 
         for fdict in flags_dicts:
             compile_flags += fdict.get('compile', [])

@@ -6,8 +6,13 @@ import subprocess as _subprocess
 from functools import lru_cache as _lru_cache
 from pathlib import Path as _Path
 from re import search as _search
+from sys import version_info as _version_info
+from sys import platform as _platform
+from sysconfig import get_paths as _get_paths
+from sysconfig import get_config_var as _get_config_var
 
 from .platform import PLATFORM_PYTHON_INCLUDE_PATH, PLATFORM_PYTHON_LIBRARY_PATH
+from .build_type import BuildType
 
 _LOGGER = _logging.getLogger(__name__)
 
@@ -32,6 +37,92 @@ class LLVM:
 
     """
 
+    DEFAULT_COMPILE_FLAGS = {
+        BuildType.Default: ["-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-Werror"],
+        BuildType.Release: ["-O3", "-DNDEBUG"],
+        BuildType.RelWithDebInfo: ["-O3", "-g3", "-DNDEBUG"],
+        BuildType.Debug: [
+            "-Og",
+            "-g3",
+            "-DDEBUG",
+            "-fno-optimize-sibling-calls",
+            "-fno-omit-frame-pointer",
+            "-fsanitize=address",
+            "-fsanitize=undefined",
+        ],
+        BuildType.Coverage: [
+            "-Og",
+            "-g3",
+            "-DDEBUG",
+            "-fno-optimize-sibling-calls",
+            "-fno-omit-frame-pointer",
+            "-fsanitize=address",
+            "-fsanitize=undefined",
+            "--coverage",
+            "-fno-inline",
+        ],
+    }
+    DEFAULT_LINK_FLAGS = {
+        BuildType.Debug: ["-fsanitize=address", "-fsanitize=undefined"],
+        BuildType.Coverage: [
+            "-fsanitize=address",
+            "-fsanitize=undefined",
+            "--coverage",
+            "-fno-inline",
+        ],
+    }
+
+    PLATFORM_DEFAULTS = {
+        "linux": {
+            'PLATFORM':                        'linux',
+            'EXECUTABLE_PREFIX':               '',
+            'EXECUTABLE_SUFFIX':               '',
+            'EXECUTABLE_OUTPUT':               'bin',
+            'SHARED_LIBRARY_PREFIX':           'lib',
+            'SHARED_LIBRARY_SUFFIX':           '.so',
+            'SHARED_LIBRARY_OUTPUT':           'lib',
+            'STATIC_LIBRARY_PREFIX':           'lib',
+            'STATIC_LIBRARY_SUFFIX':           '.a',
+            'STATIC_LIBRARY_OUTPUT':           'lib',
+            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': [],
+            'PLATFORM_EXTRA_FLAGS_SHARED':     ['-fpic'],
+            'PLATFORM_EXTRA_FLAGS_STATIC':     [],
+            'PLATFORM_BUNDLING_LINKER_FLAGS':  ["-Wl,-rpath,$ORIGIN"]
+        },
+        "darwin": {
+            'PLATFORM':                        'osx',
+            'EXECUTABLE_PREFIX':               '',
+            'EXECUTABLE_SUFFIX':               '',
+            'EXECUTABLE_OUTPUT':               'bin',
+            'SHARED_LIBRARY_PREFIX':           'lib',
+            'SHARED_LIBRARY_SUFFIX':           '.dylib',
+            'SHARED_LIBRARY_OUTPUT':           'lib',
+            'STATIC_LIBRARY_PREFIX':           'lib',
+            'STATIC_LIBRARY_SUFFIX':           '.a',
+            'STATIC_LIBRARY_OUTPUT':           'lib',
+            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': [],
+            'PLATFORM_EXTRA_FLAGS_SHARED':     [],
+            'PLATFORM_EXTRA_FLAGS_STATIC':     [],
+            'PLATFORM_BUNDLING_LINKER_FLAGS':  ["-Wl,-rpath,@executable_path"]
+        },
+        "win32": {
+            'PLATFORM':                        'windows',
+            'EXECUTABLE_PREFIX':               '',
+            'EXECUTABLE_SUFFIX':               '.exe',
+            'EXECUTABLE_OUTPUT':               'bin',
+            'SHARED_LIBRARY_PREFIX':           '',
+            'SHARED_LIBRARY_SUFFIX':           '.dll',
+            'SHARED_LIBRARY_OUTPUT':           'bin',
+            'STATIC_LIBRARY_PREFIX':           '',
+            'STATIC_LIBRARY_SUFFIX':           '.lib',
+            'STATIC_LIBRARY_OUTPUT':           'lib',
+            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': ['-Xclang', '-flto-visibility-public-std'],
+            'PLATFORM_EXTRA_FLAGS_SHARED':     ['-Xclang', '-flto-visibility-public-std'],
+            'PLATFORM_EXTRA_FLAGS_STATIC':     ['-Xclang', '-flto-visibility-public-std'],
+            'PLATFORM_BUNDLING_LINKER_FLAGS':  []
+        }
+    }
+
     _UNSUPPORTED_DIALECT_MESSAGE = "error: invalid value 'c++{0:02d}'"
 
     def __init__(self):
@@ -48,6 +139,8 @@ class LLVM:
         self.archiver = self._find("llvm-ar")
 
         self.max_cpp_standard = self._get_max_supported_compiler_dialect()
+
+        self.platform_defaults = self.PLATFORM_DEFAULTS[_platform]
 
         _LOGGER.info("llvm root directory: %s", self.cpp_compiler.parents[0])
         _LOGGER.info("clang executable:    %s", self.c_compiler)

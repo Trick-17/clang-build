@@ -86,20 +86,14 @@ from sysconfig import get_config_var as _get_config_var
 if _platform == 'linux':
     # Linux
     PLATFORM = 'linux'
-    EXECUTABLE_PREFIX     = ''
-    EXECUTABLE_SUFFIX     = ''
-    EXECUTABLE_OUTPUT     = 'bin'
-    SHARED_LIBRARY_PREFIX = 'lib'
-    SHARED_LIBRARY_SUFFIX = '.so'
-    SHARED_LIBRARY_OUTPUT = 'lib'
-    STATIC_LIBRARY_PREFIX = 'lib'
-    STATIC_LIBRARY_SUFFIX = '.a'
-    STATIC_LIBRARY_OUTPUT = 'lib'
-    PLATFORM_EXTRA_FLAGS_EXECUTABLE = []
-    PLATFORM_EXTRA_FLAGS_SHARED     = ['-fpic']
-    PLATFORM_EXTRA_FLAGS_STATIC     = []
-    PLATFORM_BUNDLING_LINKER_FLAGS  = ["-Wl,-rpath,$ORIGIN"]
+    PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
+    PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "lib"
+    PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}.{_version_info.minor}"
+    PLATFORM_PYTHON_EXTENSION_SUFFIX = _get_config_var('EXT_SUFFIX')
 
+elif _platform == 'emscripten':
+    # Linux
+    PLATFORM = 'emscripten'
     PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
     PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "lib"
     PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}.{_version_info.minor}"
@@ -108,20 +102,6 @@ if _platform == 'linux':
 elif _platform == 'darwin':
     # OSX
     PLATFORM = 'osx'
-    EXECUTABLE_PREFIX     = ''
-    EXECUTABLE_SUFFIX     = ''
-    EXECUTABLE_OUTPUT     = 'bin'
-    SHARED_LIBRARY_PREFIX = 'lib'
-    SHARED_LIBRARY_SUFFIX = '.dylib'
-    SHARED_LIBRARY_OUTPUT = 'lib'
-    STATIC_LIBRARY_PREFIX = 'lib'
-    STATIC_LIBRARY_SUFFIX = '.a'
-    STATIC_LIBRARY_OUTPUT = 'lib'
-    PLATFORM_EXTRA_FLAGS_EXECUTABLE = []
-    PLATFORM_EXTRA_FLAGS_SHARED     = []
-    PLATFORM_EXTRA_FLAGS_STATIC     = []
-    PLATFORM_BUNDLING_LINKER_FLAGS  = ["-Wl,-rpath,@executable_path"]
-
     PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
     PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "lib"
     PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}.{_version_info.minor}"
@@ -130,20 +110,6 @@ elif _platform == 'darwin':
 elif _platform == 'win32':
     # Windows
     PLATFORM = 'windows'
-    EXECUTABLE_PREFIX     = ''
-    EXECUTABLE_SUFFIX     = '.exe'
-    EXECUTABLE_OUTPUT     = 'bin'
-    SHARED_LIBRARY_PREFIX = ''
-    SHARED_LIBRARY_SUFFIX = '.dll'
-    SHARED_LIBRARY_OUTPUT = 'bin'
-    STATIC_LIBRARY_PREFIX = ''
-    STATIC_LIBRARY_SUFFIX = '.lib'
-    STATIC_LIBRARY_OUTPUT = 'lib'
-    PLATFORM_EXTRA_FLAGS_EXECUTABLE = ['-Xclang', '-flto-visibility-public-std']
-    PLATFORM_EXTRA_FLAGS_SHARED     = ['-Xclang', '-flto-visibility-public-std']
-    PLATFORM_EXTRA_FLAGS_STATIC     = ['-Xclang', '-flto-visibility-public-std']
-    PLATFORM_BUNDLING_LINKER_FLAGS  = []
-
     PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
     PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "libs"
     PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}{_version_info.minor}"
