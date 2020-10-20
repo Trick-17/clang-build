@@ -21,7 +21,7 @@ def get_project(directory, environment, parent=None) -> clang_build.project.Proj
             "include_directories": [py_include_dir],
             "flags": {
                 "compile": ['-Wno-deprecated-declarations'],
-                "link": ['-Wno-deprecated-declarations', f'-L {py_library_dir}', f'-l{py_library_name}']
+                "link": ['-Wno-deprecated-declarations', f'-L{py_library_dir}', f'-l{py_library_name}']
             },
             "windows": {
                 "flags": {
