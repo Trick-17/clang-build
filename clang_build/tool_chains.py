@@ -406,8 +406,9 @@ class LLVM:
         """
         output_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        command = str(self.archiver) + (
-            ["rc", output_file] + [str(o) for o in object_files]
+        command = (
+            [str(self.archiver), "rc", str(output_file)]
+            + [str(o) for o in object_files]
         )
 
         return self._run_clang_command(command)
