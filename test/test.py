@@ -242,7 +242,7 @@ class TestClangBuild(unittest.TestCase):
     def test_pybind11(self):
         clang_build_try_except(['-d', 'test/pybind11', '-V'])
 
-        pylib_dir = os.path.abspath(os.path.join("build", "pylib", "default", platform.SHARED_LIBRARY_OUTPUT))
+        pylib_dir = os.path.abspath(os.path.join("build", "pylib", "default", platform.SHARED_LIBRARY_OUTPUT_DIR))
         sys.path.insert(0, pylib_dir)
 
         try:

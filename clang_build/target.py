@@ -10,7 +10,7 @@ from abc import abstractmethod
 from multiprocessing import freeze_support as _freeze_support
 from pathlib import Path as _Path
 
-from .platform import PLATFORM as _PLATFORM
+from . import platform as _platform
 from .directories import Directories
 from .errors import BundleError as _BundleError
 from .errors import CompileError as _CompileError
@@ -402,7 +402,7 @@ class Executable(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            output_folder=target_description.environment.tool_chain.platform_defaults['EXECUTABLE_OUTPUT'],
+            output_folder=_platform.EXECUTABLE_OUTPUT_DIR,
             platform_flags=target_description.environment.tool_chain.platform_defaults['PLATFORM_EXTRA_FLAGS_EXECUTABLE'],
             prefix=target_description.environment.tool_chain.platform_defaults['EXECUTABLE_PREFIX'],
             suffix=target_description.environment.tool_chain.platform_defaults['EXECUTABLE_SUFFIX'],
@@ -438,7 +438,7 @@ class Executable(Compilable):
 
     def redistributable(self):
         self.unsuccessful_redistributable = False
-        if _PLATFORM == "osx":
+        if _platform.PLATFORM == "osx":
             appfolder = self.redistributable_folder / f"{self.outname}.app"
             binfolder = appfolder / "Contents"/ "MacOS"
             try:
@@ -479,14 +479,14 @@ class Executable(Compilable):
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_redistributable = True
                 self.redistributable_report = error.output.decode("utf-8").strip()
-        elif _PLATFORM == "linux":
+        elif _platform.PLATFORM == "linux":
             try:
                 self.redistributable_folder.mkdir(parents=True, exist_ok=True)
                 # TODO: gather includes and shared libraries
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_redistributable = True
                 self.redistributable_report = error.output.decode("utf-8").strip()
-        elif _PLATFORM == "windows":
+        elif _platform.PLATFORM == "windows":
             try:
                 self.redistributable_folder.mkdir(parents=True, exist_ok=True)
                 # TODO: gather includes and shared libraries
@@ -534,7 +534,7 @@ class SharedLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            output_folder=target_description.environment.tool_chain.platform_defaults['SHARED_LIBRARY_OUTPUT'],
+            output_folder=_platform.SHARED_LIBRARY_OUTPUT_DIR,
             platform_flags=target_description.environment.tool_chain.platform_defaults['PLATFORM_EXTRA_FLAGS_SHARED'],
             prefix=target_description.environment.tool_chain.platform_defaults['SHARED_LIBRARY_PREFIX'],
             suffix=target_description.environment.tool_chain.platform_defaults['SHARED_LIBRARY_SUFFIX'],
@@ -557,7 +557,7 @@ class SharedLibrary(Compilable):
 
         ### Gather
         self_bundle_files = [self.outfile]
-        if _PLATFORM == "windows":
+        if _platform.PLATFORM == "windows":
             self_bundle_files.append(_Path(str(self.outfile)[:-3] + "exp"))
             self_bundle_files.append(_Path(str(self.outfile)[:-3] + "lib"))
 
@@ -616,7 +616,7 @@ class StaticLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            output_folder=target_description.environment.tool_chain.platform_defaults['STATIC_LIBRARY_OUTPUT'],
+            output_folder=_platform.STATIC_LIBRARY_OUTPUT_DIR,
             platform_flags=target_description.environment.tool_chain.platform_defaults['PLATFORM_EXTRA_FLAGS_STATIC'],
             prefix=target_description.environment.tool_chain.platform_defaults['STATIC_LIBRARY_PREFIX'],
             suffix=target_description.environment.tool_chain.platform_defaults['STATIC_LIBRARY_SUFFIX'],

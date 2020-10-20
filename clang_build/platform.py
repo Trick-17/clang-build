@@ -86,14 +86,9 @@ from sysconfig import get_config_var as _get_config_var
 if _platform == 'linux':
     # Linux
     PLATFORM = 'linux'
-    PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
-    PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "lib"
-    PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}.{_version_info.minor}"
-    PLATFORM_PYTHON_EXTENSION_SUFFIX = _get_config_var('EXT_SUFFIX')
-
-elif _platform == 'emscripten':
-    # Linux
-    PLATFORM = 'emscripten'
+    EXECUTABLE_OUTPUT_DIR            = 'bin'
+    SHARED_LIBRARY_OUTPUT_DIR        = 'lib'
+    STATIC_LIBRARY_OUTPUT_DIR        = 'lib'
     PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
     PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "lib"
     PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}.{_version_info.minor}"
@@ -102,6 +97,9 @@ elif _platform == 'emscripten':
 elif _platform == 'darwin':
     # OSX
     PLATFORM = 'osx'
+    EXECUTABLE_OUTPUT_DIR            = 'bin'
+    SHARED_LIBRARY_OUTPUT_DIR        = 'lib'
+    STATIC_LIBRARY_OUTPUT_DIR        = 'lib'
     PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
     PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "lib"
     PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}.{_version_info.minor}"
@@ -110,6 +108,9 @@ elif _platform == 'darwin':
 elif _platform == 'win32':
     # Windows
     PLATFORM = 'windows'
+    EXECUTABLE_OUTPUT_DIR            = 'bin'
+    SHARED_LIBRARY_OUTPUT_DIR        = 'bin'
+    STATIC_LIBRARY_OUTPUT_DIR        = 'lib'
     PLATFORM_PYTHON_INCLUDE_PATH     = _Path(_get_paths()['include'])
     PLATFORM_PYTHON_LIBRARY_PATH     = _Path(_get_paths()['data']) / "libs"
     PLATFORM_PYTHON_LIBRARY_NAME     = f"python{_version_info.major}{_version_info.minor}"
