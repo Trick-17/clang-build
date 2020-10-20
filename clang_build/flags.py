@@ -85,7 +85,7 @@ class BuildFlags:
         return [] if self._for_c_target else [self._tool_chain.max_cpp_standard]
 
     def final_link_flags_list(self):
-        return self._language_flags() + list(dict.fromkeys(self.link_private + self.link_public))
+        return list(dict.fromkeys(self.link_private + self.link_public))
 
     def _parse_flags_config(self, options, flags_kind='flags'):
         flags_dicts   = []

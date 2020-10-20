@@ -384,7 +384,7 @@ class LLVM:
 
         return self._run_clang_command(command)
 
-    def archive(self, object_files, output_file):
+    def archive(self, object_files, output_file, flags):
         """Archive object files into a static library.
 
         Parameters
@@ -393,9 +393,9 @@ class LLVM:
             Object files to put in a static library
         output_file : pathlib.Path
             The static library to create
+        flags : list of str
+            Flags to pass to the archiver
 
-        Returns
-        -------
         Returns
         -------
         bool
@@ -409,6 +409,7 @@ class LLVM:
         command = (
             [str(self.archiver), "rc", str(output_file)]
             + [str(o) for o in object_files]
+            + flags
         )
 
         return self._run_clang_command(command)

@@ -515,13 +515,18 @@ class Executable(Compilable):
         success, self.link_report = self._environment.tool_chain.link(
             [buildable.object_file for buildable in self.buildables],
             self.outfile,
-            self._build_flags.final_link_flags_list(),
+            self._build_flags._language_flags() + self._build_flags.final_link_flags_list(),
             [target.output_folder.resolve() for target in self.dependencies if target.__class__ is not HeaderOnly],
             [target.outname for target in self.dependencies if target.__class__ is not HeaderOnly],
             False,
             self.is_c_target)
 
         self.unsuccessful_link = not success
+
+        # Catch link errors
+        if self.unsuccessful_link:
+            raise _LinkError('Linking was unsuccessful',
+                {self.identifier: self.link_report})
 
 class SharedLibrary(Compilable):
     def __init__(self, target_description, files, dependencies=None):
@@ -591,13 +596,18 @@ class SharedLibrary(Compilable):
         success, self.link_report = self._environment.tool_chain.link(
             [buildable.object_file for buildable in self.buildables],
             self.outfile,
-            self._build_flags.final_link_flags_list(),
+            self._build_flags._language_flags() + self._build_flags.final_link_flags_list(),
             [target.output_folder.resolve() for target in self.dependencies if target.__class__ is not HeaderOnly],
             [target.outname for target in self.dependencies if target.__class__ is not HeaderOnly],
             True,
             self.is_c_target)
 
         self.unsuccessful_link = not success
+
+        # Catch link errors
+        if self.unsuccessful_link:
+            raise _LinkError('Linking was unsuccessful',
+                {self.identifier: self.link_report})
 
 
 class StaticLibrary(Compilable):
@@ -613,19 +623,6 @@ class StaticLibrary(Compilable):
             dependencies=dependencies,
         )
 
-        ### Link self
-        # self.link_command += [
-        #     str(buildable.object_file) for buildable in self.buildables
-        # ]
-        self.link_command += self._build_flags.final_link_flags_list()
-
-        ### Link dependencies
-        for target in self.dependencies:
-            if not target.__class__ is HeaderOnly:
-                self.link_command += [
-                    str(buildable.object_file) for buildable in target.buildables
-                ]
-
     def _add_dependency_flags(self, target):
         """Add dependencies' public flags to the own and forwards their public and interface flags.
 
@@ -637,13 +634,28 @@ class StaticLibrary(Compilable):
         self._build_flags.forward_interface_flags(target)
 
     def link(self):
-        # Although not really a "link" procedure, but really only an archiving procedure
-        # for simplicity's sake, this is also called link
+        """Although not really a "link" procedure, but really only an archiving procedure
+        for simplicity's sake, this is also called link
+        """
+        # This library's objects
+        objects = [buildable.object_file for buildable in self.buildables]
+
+        # Dependencies' objects
+        for target in self.dependencies:
+            if not target.__class__ is HeaderOnly:
+                objects += [buildable.object_file for buildable in target.buildables]
+
         success, self.link_report = self._environment.tool_chain.archive(
-            [buildable.object_file for buildable in self.buildables],
-            self.outfile)
+            objects,
+            self.outfile,
+            self._build_flags.final_link_flags_list())
 
         self.unsuccessful_link = not success
+
+        # Catch link errors
+        if self.unsuccessful_link:
+            raise _LinkError('Linking was unsuccessful',
+                {self.identifier: self.link_report})
 
 
 TARGET_MAP = {
