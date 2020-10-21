@@ -2,10 +2,10 @@ import clang_build
 
 def get_project(directory, environment, parent=None) -> clang_build.project.Project:
 
-    py_include_dir = clang_build.platform.PLATFORM_PYTHON_INCLUDE_PATH
-    py_library_dir = clang_build.platform.PLATFORM_PYTHON_LIBRARY_PATH
-    py_library_name = clang_build.platform.PLATFORM_PYTHON_LIBRARY_NAME
-    py_library_extension = clang_build.platform.PLATFORM_PYTHON_EXTENSION_SUFFIX
+    py_include_dir = environment.tool_chain.platform_defaults['PLATFORM_PYTHON_INCLUDE_PATH']
+    py_library_dir = environment.tool_chain.platform_defaults['PLATFORM_PYTHON_LIBRARY_PATH']
+    py_library_name = environment.tool_chain.platform_defaults['PLATFORM_PYTHON_LIBRARY_NAME']
+    py_library_extension = environment.tool_chain.platform_defaults['PLATFORM_PYTHON_EXTENSION_SUFFIX']
 
     project = clang_build.project.Project("", {}, directory, environment, parent=parent)
 

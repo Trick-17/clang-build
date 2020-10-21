@@ -679,6 +679,7 @@ class Project(_NamedLogger, _TreeEntry):
         target_description.get_sources()
         files = _get_sources_and_headers(
             target_description.name,
+            self._environment.tool_chain.platform,
             target_description.config,
             target_description.root_directory,
             target_description.build_directory,

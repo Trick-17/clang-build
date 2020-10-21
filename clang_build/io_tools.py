@@ -1,8 +1,6 @@
 from glob import iglob as _iglob
 from pathlib import Path as _Path
 
-from .platform import PLATFORM as _PLATFORM
-
 def _get_header_files_in_folders(folders, exclude_patterns=[], recursive=True):
     delimiter = '/**/' if recursive else '/*'
     patterns  = [str(folder) + delimiter + ext for ext in ('*.hpp', '*.hxx', '*.h') for folder in folders]
@@ -18,7 +16,7 @@ def _get_files_in_patterns(patterns, exclude_patterns=[], recursive=True):
     excluded = [_Path(f) for pattern in exclude_patterns for f in _iglob(str(pattern), recursive=recursive) if _Path(f).is_file()]
     return list(f.resolve() for f in (set(included) - set(excluded)))
 
-def get_sources_and_headers(target_name, target_options, target_root_directory, target_build_directory):
+def get_sources_and_headers(target_name, platform, target_options, target_root_directory, target_build_directory):
     output = {'headers': [], 'include_directories': [], 'include_directories_public': [], 'sourcefiles': []}
 
     # TODO: maybe the output should also include the root dir, build dir and potentially download dir?
@@ -28,12 +26,12 @@ def get_sources_and_headers(target_name, target_options, target_root_directory, 
     include_options = []
     include_options += target_options.get('include_directories', [])
 
-    include_options += target_options.get(_PLATFORM, {}).get('include_directories', [])
+    include_options += target_options.get(platform, {}).get('include_directories', [])
 
     exclude_options = []
     exclude_options += target_options.get('headers_exclude', [])
 
-    exclude_options += target_options.get(_PLATFORM, {}).get('headers_exclude', [])
+    exclude_options += target_options.get(platform, {}).get('headers_exclude', [])
 
     include_patterns = list(set(target_root_directory.joinpath(path) for path in include_options))
     exclude_patterns = list(set(target_root_directory.joinpath(path) for path in exclude_options))
@@ -51,7 +49,7 @@ def get_sources_and_headers(target_name, target_options, target_root_directory, 
     include_options_public = []
     include_options_public += target_options.get('include_directories_public', [])
 
-    include_options_public += target_options.get(_PLATFORM, {}).get('include_directories_public', [])
+    include_options_public += target_options.get(platform, {}).get('include_directories_public', [])
 
     include_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in include_options_public))
     exclude_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in exclude_options))
@@ -73,12 +71,12 @@ def get_sources_and_headers(target_name, target_options, target_root_directory, 
     sources_options = []
     sources_options += target_options.get('sources', [])
 
-    sources_options += target_options.get(_PLATFORM, {}).get('sources', [])
+    sources_options += target_options.get(platform, {}).get('sources', [])
 
     exclude_options = []
     exclude_options += target_options.get('sources_exclude', [])
 
-    exclude_options += target_options.get(_PLATFORM, {}).get('sources_exclude', [])
+    exclude_options += target_options.get(platform, {}).get('sources_exclude', [])
 
     sources_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in sources_options))
     exclude_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in exclude_options))

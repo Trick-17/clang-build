@@ -1,5 +1,4 @@
 from .build_type import BuildType
-from .platform import PLATFORM as _PLATFORM
 
 class BuildFlags:
     def __init__(
@@ -57,19 +56,19 @@ class BuildFlags:
         self.compile_interface += target.build_flags.compile_interface
         self.link_interface += target.build_flags.link_interface
 
-    def add_target_flags(self, config):
+    def add_target_flags(self, platform, config):
         # Own private flags
-        cf, lf = self._parse_flags_config(config, "flags")
+        cf, lf = self._parse_flags_config(config, platform, "flags")
         self.compile_private += cf
         self.link_private += lf
 
         # Own interface flags
-        cf, lf = self._parse_flags_config(config, "interface-flags")
+        cf, lf = self._parse_flags_config(config, platform, "interface-flags")
         self.compile_interface += cf
         self.link_interface += lf
 
         # Own public flags
-        cf, lf = self._parse_flags_config(config, "public-flags")
+        cf, lf = self._parse_flags_config(config, platform, "public-flags")
         self.compile_public += cf
         self.link_public += lf
 
@@ -87,7 +86,7 @@ class BuildFlags:
     def final_link_flags_list(self):
         return list(dict.fromkeys(self.link_private + self.link_public))
 
-    def _parse_flags_config(self, options, flags_kind='flags'):
+    def _parse_flags_config(self, options, platform, flags_kind='flags'):
         flags_dicts   = []
         compile_flags = []
         link_flags    = []
@@ -95,7 +94,7 @@ class BuildFlags:
         if flags_kind in options:
             flags_dicts.append(options.get(flags_kind, {}))
 
-        flags_dicts.append(options.get(_PLATFORM, {}).get(flags_kind, {}))
+        flags_dicts.append(options.get(platform, {}).get(flags_kind, {}))
 
         for fdict in flags_dicts:
             compile_flags += fdict.get('compile', [])
