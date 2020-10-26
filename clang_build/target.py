@@ -639,7 +639,7 @@ class StaticLibrary(Compilable):
     def link(self):
         # Although not really a "link" procedure, but really only an archiving procedure
         # for simplicity's sake, this is also called link
-        success, self.link_report = self._environment.tool_chain.link(
+        success, self.link_report = self._environment.tool_chain.archive(
             [buildable.object_file for buildable in self.buildables],
             self.outfile)
 

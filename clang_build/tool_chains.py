@@ -157,21 +157,27 @@ class LLVM:
 
         raise RuntimeError("Could not find a supported C++ standard.")
 
-
     def _get_compiler(self, is_c_target):
         return [str(self.c_compiler)] if is_c_target else [str(self.cpp_compiler)]
 
-    def _get_compiler_command(self, source_file, object_file, include_directories, flags, is_c_target):
+    def _get_compiler_command(
+        self, source_file, object_file, include_directories, flags, is_c_target
+    ):
         return (
             self._get_compiler(is_c_target)
             + (["-o", str(object_file)] if object_file else [])
             + ["-c", str(source_file)]
             + flags
-            + [item for include_directory in include_directories for item in ["-I", str(include_directory)]]
+            + [
+                item
+                for include_directory in include_directories
+                for item in ["-I", str(include_directory)]
+            ]
         )
 
-
-    def compile(self, source_file, object_file, include_directories, flags, is_c_target):
+    def compile(
+        self, source_file, object_file, include_directories, flags, is_c_target
+    ):
         """Compile a given source file into an object file.
 
         If the object file is placed into a non-existing folder, this
@@ -199,7 +205,9 @@ class LLVM:
         object_file.parents[0].mkdir(parents=True, exist_ok=True)
 
         return self._run_clang_command(
-            self._get_compiler_command(source_file, object_file, include_directories, flags, is_c_target)
+            self._get_compiler_command(
+                source_file, object_file, include_directories, flags, is_c_target
+            )
         )
 
     def generate_dependency_file(
@@ -232,7 +240,9 @@ class LLVM:
         dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
         return self._run_clang_command(
-            self._get_compiler_command(source_file, None, include_directories, flags, is_c_target)
+            self._get_compiler_command(
+                source_file, None, include_directories, flags, is_c_target
+            )
             + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
         )
 
@@ -313,8 +323,8 @@ class LLVM:
         """
         output_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        command = str(self.archiver) + (
-            ["rc", output_file] + [str(o) for o in object_files]
+        command = [str(self.archiver)] + (
+            ["rc", str(output_file)] + [str(o) for o in object_files]
         )
 
         return self._run_clang_command(command)
@@ -322,8 +332,11 @@ class LLVM:
     def _run_clang_command(self, command):
         _LOGGER.debug(f"Running: {' '.join(command)}")
         try:
-            return True, _subprocess.check_output(
-                command, encoding="utf8", stderr=_subprocess.STDOUT
+            return (
+                True,
+                _subprocess.check_output(
+                    command, encoding="utf8", stderr=_subprocess.STDOUT
+                ),
             )
         except _subprocess.CalledProcessError as error:
             return False, error.output.strip()
