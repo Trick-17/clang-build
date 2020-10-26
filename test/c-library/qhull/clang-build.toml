@@ -30,6 +30,8 @@ version = "v7.2.0"
     sources = ["src/libqhull/*.c"]
     [qhullstatic.flags]
         compile = ["-Wno-deprecated-declarations"]
+    [qhullstatic.linux.interface-flags]
+        link = ["-lm"]
 
 [qhullstatic_r]
     target_type = "static library"
@@ -37,6 +39,8 @@ version = "v7.2.0"
     sources = ["src/libqhull_r/*.c"]
     [qhullstatic_r.flags]
         compile = ["-Wno-deprecated-declarations"]
+    [qhullstatic_r.linux.interface-flags]
+        link = ["-lm"]
 
 # Executables
 

@@ -1,44 +1,8 @@
 from .build_type import BuildType
-from . import platform as _platform
 
 class BuildFlags:
-    DEFAULT_COMPILE_FLAGS = {
-        BuildType.Default: ["-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-Werror"],
-        BuildType.Release: ["-O3", "-DNDEBUG"],
-        BuildType.RelWithDebInfo: ["-O3", "-g3", "-DNDEBUG"],
-        BuildType.Debug: [
-            "-Og",
-            "-g3",
-            "-DDEBUG",
-            "-fno-optimize-sibling-calls",
-            "-fno-omit-frame-pointer",
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-        ],
-        BuildType.Coverage: [
-            "-Og",
-            "-g3",
-            "-DDEBUG",
-            "-fno-optimize-sibling-calls",
-            "-fno-omit-frame-pointer",
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-            "--coverage",
-            "-fno-inline",
-        ],
-    }
-    DEFAULT_LINK_FLAGS = {
-        BuildType.Debug: ["-fsanitize=address", "-fsanitize=undefined"],
-        BuildType.Coverage: [
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-            "--coverage",
-            "-fno-inline",
-        ],
-    }
-
     def __init__(
-        self, build_type, tool_chain, for_c_target, default_compile_flags=False, default_link_flags=False
+        self, build_type, toolchain, for_c_target, default_compile_flags=False, default_link_flags=False
     ):
         # TODO: Store default flags separately
         self.compile_default = []
@@ -54,20 +18,20 @@ class BuildFlags:
         self.link_public = []
 
         self._build_type = build_type
-        self._tool_chain = tool_chain
+        self._toolchain = toolchain
         self._for_c_target = for_c_target
 
         if default_compile_flags:
-            self.compile_default = self.DEFAULT_COMPILE_FLAGS[BuildType.Default]
+            self.compile_default = toolchain.DEFAULT_COMPILE_FLAGS[BuildType.Default]
             # self.compile_private += DEFAULT_COMPILE_FLAGS.get(BuildType.Default, [])
             if build_type != BuildType.Default:
-                self.compile_default = self.DEFAULT_COMPILE_FLAGS.get(
+                self.compile_default = toolchain.DEFAULT_COMPILE_FLAGS.get(
                     build_type, []
                 )
                 # self.compile_private += DEFAULT_COMPILE_FLAGS.get(build_type, [])
 
         if default_link_flags:
-            self.link_default = self.DEFAULT_LINK_FLAGS.get(build_type, [])
+            self.link_default = toolchain.DEFAULT_LINK_FLAGS.get(build_type, [])
             # self.link_private += DEFAULT_LINK_FLAGS.get(build_type, [])
 
     def make_private_flags_public(self):
@@ -92,24 +56,24 @@ class BuildFlags:
         self.compile_interface += target.build_flags.compile_interface
         self.link_interface += target.build_flags.link_interface
 
-    def add_target_flags(self, config):
+    def add_target_flags(self, platform, config):
         # Own private flags
-        cf, lf = self._parse_flags_config(config, "flags")
+        cf, lf = self._parse_flags_config(config, platform, "flags")
         self.compile_private += cf
         self.link_private += lf
 
         # Own interface flags
-        cf, lf = self._parse_flags_config(config, "interface-flags")
+        cf, lf = self._parse_flags_config(config, platform, "interface-flags")
         self.compile_interface += cf
         self.link_interface += lf
 
         # Own public flags
-        cf, lf = self._parse_flags_config(config, "public-flags")
+        cf, lf = self._parse_flags_config(config, platform, "public-flags")
         self.compile_public += cf
         self.link_public += lf
 
     def add_bundling_flags(self):
-        self.link_private += _platform.PLATFORM_BUNDLING_LINKER_FLAGS
+        self.link_private += self._toolchain.platform_defaults['PLATFORM_BUNDLING_LINKER_FLAGS']
 
     def final_compile_flags_list(self):
         # TODO: Add max_dialect and plattform specific flags here as well
@@ -117,12 +81,12 @@ class BuildFlags:
         return self._language_flags() + list(dict.fromkeys(self.compile_private + self.compile_public))
 
     def _language_flags(self):
-        return [] if self._for_c_target else [self._tool_chain.max_cpp_standard]
+        return [] if self._for_c_target else [self._toolchain.max_cpp_standard]
 
     def final_link_flags_list(self):
-        return self._language_flags() + list(dict.fromkeys(self.link_private + self.link_public))
+        return list(dict.fromkeys(self.link_private + self.link_public))
 
-    def _parse_flags_config(self, options, flags_kind='flags'):
+    def _parse_flags_config(self, options, platform, flags_kind='flags'):
         flags_dicts   = []
         compile_flags = []
         link_flags    = []
@@ -130,7 +94,7 @@ class BuildFlags:
         if flags_kind in options:
             flags_dicts.append(options.get(flags_kind, {}))
 
-        flags_dicts.append(options.get(_platform.PLATFORM, {}).get(flags_kind, {}))
+        flags_dicts.append(options.get(platform, {}).get(flags_kind, {}))
 
         for fdict in flags_dicts:
             compile_flags += fdict.get('compile', [])
