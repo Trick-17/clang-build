@@ -10,7 +10,6 @@ from abc import abstractmethod
 from multiprocessing import freeze_support as _freeze_support
 from pathlib import Path as _Path
 
-from . import platform as _platform
 from .directories import Directories
 from .errors import BundleError as _BundleError
 from .errors import CompileError as _CompileError
@@ -129,7 +128,7 @@ class Target(_TreeEntry, _NamedLogger):
             # Header only libraries will forward all non-private flags
             self._add_dependency_flags(target)
 
-        self._build_flags.add_target_flags(target_description.config)
+        self._build_flags.add_target_flags(self._environment.toolchain.platform, target_description.config)
 
     def __repr__(self) -> str:
         return f"clang_build.target.Target('{self.identifier}')"
@@ -141,13 +140,11 @@ class Target(_TreeEntry, _NamedLogger):
     def _get_default_flags(self):
         """Overload to return any:`clang_build.flags.BuildFlags`, which the target should use.
         """
-        pass
 
     @abstractmethod
     def _add_dependency_flags(self, target):
         """Overload to add flags from dependencies of this target to its own.
         """
-        pass
 
     @abstractmethod
     def compile(self, process_pool, progress_disabled):
@@ -155,7 +152,6 @@ class Target(_TreeEntry, _NamedLogger):
 
         This produces an OS-dependent output in the build/bin folder.
         """
-        pass
 
     @abstractmethod
     def link(self):
@@ -236,7 +232,7 @@ class HeaderOnly(Target):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` without compile or link flags.
         """
-        return BuildFlags(self._environment.build_type)
+        return BuildFlags(self._environment.build_type, self._environment.toolchain, True)
 
     def _add_dependency_flags(self, target):
         """Forward dependencies' public and interface flags.
@@ -263,20 +259,22 @@ class Compilable(Target):
         self,
         target_description,
         files,
-        link_command,
         output_folder,
         platform_flags,
         prefix,
         suffix,
         dependencies=None,
     ):
+        self.source_files = files["sourcefiles"]
+        self.is_c_target = not any(
+            not (f.suffix.lower() in ['.c', '.cc']) for f in self.source_files
+        )
+
         super().__init__(
             target_description=target_description,
             files=files,
             dependencies=dependencies,
         )
-
-        self.source_files = files["sourcefiles"]
 
         if not self.source_files:
             error_message = f"[{self.identifier}]: ERROR: Target was defined as a {self.__class__.__name__} but no source files were found"
@@ -287,6 +285,9 @@ class Compilable(Target):
         self.depfile_directory = (self.build_directory / "dep").resolve()
         self.output_folder = (self.build_directory / output_folder).resolve()
         self.redistributable_folder = (self.build_directory / "redistributable").resolve()
+        self.link_command = []
+        self.unsuccessful_link = None
+        self.link_report = None
 
         prefix = target_description.config.get("output_prefix", prefix)
         suffix = target_description.config.get("output_suffix", suffix)
@@ -295,21 +296,21 @@ class Compilable(Target):
         self.outfilename = prefix + self.outname + suffix
         self.outfile = (self.output_folder / self.outfilename).resolve()
 
-        compile_flags = self._build_flags.final_compile_flags_list()
+        compile_flags = self._build_flags.final_compile_flags_list() + platform_flags
 
         # Buildables which this Target contains
-        self.include_directories_command = self._directories.include_command()
+        include_directories = self._directories.final_directories_list()
 
         self.buildables = [
             _SingleSource(
                 environment=self._environment,
                 source_file=source_file,
-                platform_flags=platform_flags,
                 current_target_root_path=self.root_directory,
                 depfile_directory=self.depfile_directory,
                 object_directory=self.object_directory,
-                include_strings=self.include_directories_command,
+                include_directories=include_directories,
                 compile_flags=compile_flags,
+                is_c_target=self.is_c_target
             )
             for source_file in self.source_files
         ]
@@ -317,13 +318,11 @@ class Compilable(Target):
         # If compilation of buildables fail, they will be stored here later
         self._unsuccessful_compilations = []
 
-        # Linking setup
-        self.link_command = link_command + [str(self.outfile)]
 
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags but without link flags.
         """
-        return BuildFlags(self._environment.build_type, default_compile_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.toolchain, self.is_c_target, default_compile_flags=True)
 
     def compile(self, process_pool, progress_disabled):
         """From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed.
@@ -353,8 +352,6 @@ class Compilable(Target):
         #
         #
         self._logger.info(f"generate dependency files")
-        for b in self.needed_buildables:
-            self._logger.debug(" ".join(b.dependency_command))
         self.needed_buildables = list(
             _get_build_progress_bar(
                 process_pool.imap(
@@ -368,8 +365,6 @@ class Compilable(Target):
 
         # Execute compile command
         self._logger.info("compile object files")
-        for b in self.needed_buildables:
-            self._logger.debug(" ".join(b.compile_command))
         self.needed_buildables = list(
             _get_build_progress_bar(
                 process_pool.imap(compile_single_source, self.needed_buildables),
@@ -390,28 +385,7 @@ class Compilable(Target):
                 {self.identifier: [source.compile_report for source in self._unsuccessful_compilations]})
 
     def link(self):
-        link_command = str(" ".join(dict.fromkeys(self.link_command)))
-        self._logger.info(f'link -> "{self.outfile}"')
-        self._logger.debug("    " + link_command)
-        link_command = list(link_command.split())
-
-        # Execute link command
-        try:
-            self.output_folder.mkdir(parents=True, exist_ok=True)
-            self.link_report = (
-                _subprocess.check_output(link_command, stderr=_subprocess.STDOUT)
-                .decode("utf-8")
-                .strip()
-            )
-            self.unsuccessful_link = False
-        except _subprocess.CalledProcessError as error:
-            self.unsuccessful_link = True
-            self.link_report = error.output.decode("utf-8").strip()
-
-        # Catch link errors
-        if self.unsuccessful_link:
-            raise _LinkError('Linking was unsuccessful',
-                {self.identifier: self.link_report})
+        pass
 
 
 class Executable(Compilable):
@@ -427,34 +401,16 @@ class Executable(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[str(target_description.environment.compiler.clangpp), "-o"],
-            output_folder=_platform.EXECUTABLE_OUTPUT,
-            platform_flags=_platform.PLATFORM_EXTRA_FLAGS_EXECUTABLE,
-            prefix=_platform.EXECUTABLE_PREFIX,
-            suffix=_platform.EXECUTABLE_SUFFIX,
+            output_folder=target_description.environment.toolchain.platform_defaults['EXECUTABLE_OUTPUT_DIR'],
+            platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_EXECUTABLE'],
+            prefix=target_description.environment.toolchain.platform_defaults['EXECUTABLE_PREFIX'],
+            suffix=target_description.environment.toolchain.platform_defaults['EXECUTABLE_SUFFIX'],
             dependencies=dependencies,
         )
-
-        ### Link self
-        self.link_command += [
-            str(buildable.object_file) for buildable in self.buildables
-        ]
-
-        ### Library dependency search paths
-        for target in self.dependencies:
-            if target.__class__ is not HeaderOnly:
-                self.link_command.append("-L " + str(target.output_folder.resolve()))
 
         ### Bundling requires extra flags
         if self._environment.bundle:
             self._build_flags.add_bundling_flags()
-
-        self.link_command += self._build_flags.final_link_flags_list()
-
-        ### Link dependencies
-        for target in self.dependencies:
-            if target.__class__ is not HeaderOnly:
-                self.link_command.append("-l" + target.outname)
 
     def bundle(self):
         self.unsuccessful_bundle = False
@@ -481,7 +437,7 @@ class Executable(Compilable):
 
     def redistributable(self):
         self.unsuccessful_redistributable = False
-        if _platform.PLATFORM == "osx":
+        if self._environment.toolchain.platform == "osx":
             appfolder = self.redistributable_folder / f"{self.outname}.app"
             binfolder = appfolder / "Contents"/ "MacOS"
             try:
@@ -522,14 +478,14 @@ class Executable(Compilable):
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_redistributable = True
                 self.redistributable_report = error.output.decode("utf-8").strip()
-        elif _platform.PLATFORM == "linux":
+        elif self._environment.toolchain.platform == "linux":
             try:
                 self.redistributable_folder.mkdir(parents=True, exist_ok=True)
                 # TODO: gather includes and shared libraries
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_redistributable = True
                 self.redistributable_report = error.output.decode("utf-8").strip()
-        elif _platform.PLATFORM == "windows":
+        elif self._environment.toolchain.platform == "windows":
             try:
                 self.redistributable_folder.mkdir(parents=True, exist_ok=True)
                 # TODO: gather includes and shared libraries
@@ -545,7 +501,7 @@ class Executable(Compilable):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
         """
-        return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.toolchain, self.is_c_target, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
         """Add dependencies' public and interface flags to the own and forward their public flags.
@@ -554,6 +510,22 @@ class Executable(Compilable):
         self._build_flags.forward_public_flags(target)
         self._build_flags.apply_interface_flags(target)
 
+    def link(self):
+        success, self.link_report = self._environment.toolchain.link(
+            [buildable.object_file for buildable in self.buildables],
+            self.outfile,
+            self._build_flags._language_flags() + self._build_flags.final_link_flags_list(),
+            [target.output_folder.resolve() for target in self.dependencies if target.__class__ is not HeaderOnly],
+            [target.outname for target in self.dependencies if target.__class__ is not HeaderOnly],
+            False,
+            self.is_c_target)
+
+        self.unsuccessful_link = not success
+
+        # Catch link errors
+        if self.unsuccessful_link:
+            raise _LinkError('Linking was unsuccessful',
+                {self.identifier: self.link_report})
 
 class SharedLibrary(Compilable):
     def __init__(self, target_description, files, dependencies=None):
@@ -561,47 +533,30 @@ class SharedLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[str(target_description.environment.compiler.clangpp), "-shared", "-o"],
-            output_folder=_platform.SHARED_LIBRARY_OUTPUT,
-            platform_flags=_platform.PLATFORM_EXTRA_FLAGS_SHARED,
-            prefix=_platform.SHARED_LIBRARY_PREFIX,
-            suffix=_platform.SHARED_LIBRARY_SUFFIX,
+            output_folder=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_OUTPUT_DIR'],
+            platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_SHARED'],
+            prefix=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_PREFIX'],
+            suffix=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_SUFFIX'],
             dependencies=dependencies,
         )
 
-        ### Link self
-        self.link_command += [
-            str(buildable.object_file) for buildable in self.buildables
-        ]
-
-        ### Library dependency search paths
-        for target in self.dependencies:
-            if target.__class__ is not HeaderOnly:
-                self.link_command.append("-L " + str(target.output_folder.resolve()))
-
-        self.link_command += self._build_flags.final_link_flags_list()
-
-        ### Link dependencies
-        for target in self.dependencies:
-            if target.__class__ is not HeaderOnly:
-                self.link_command.append("-l" + target.outname)
-
+        # TODO: This has to go to the flags department I guess
         ### Bundling requires some link flags
-        if self._environment.bundle:
-            if _platform.PLATFORM == "osx":
-                ### Install name for OSX
-                self.link_command += [f"-install_name @rpath/{self.outfilename}"]
-            elif _platform.PLATFORM == "linux":
-                pass
-            elif _platform.PLATFORM == "windows":
-                pass
+        #if self._environment.bundle:
+        #    if _platform.PLATFORM == "osx":
+        #        ### Install name for OSX
+        #        self.link_command += ["-install_name", f"@rpath/{self.outfilename}"]
+        #    elif _platform.PLATFORM == "linux":
+        #        pass
+        #    elif _platform.PLATFORM == "windows":
+        #        pass
 
     def bundle(self):
         self.unsuccessful_bundle = False
 
         ### Gather
         self_bundle_files = [self.outfile]
-        if _platform.PLATFORM == "windows":
+        if self._environment.toolchain.platform == "windows":
             self_bundle_files.append(_Path(str(self.outfile)[:-3] + "exp"))
             self_bundle_files.append(_Path(str(self.outfile)[:-3] + "lib"))
 
@@ -627,7 +582,7 @@ class SharedLibrary(Compilable):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
         """
-        return BuildFlags(self._environment.build_type, default_compile_flags=True, default_link_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.toolchain, self.is_c_target, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
         """Add dependencies' public and interface flags to the own and forwards their public flags.
@@ -636,6 +591,23 @@ class SharedLibrary(Compilable):
         self._build_flags.forward_public_flags(target)
         self._build_flags.apply_interface_flags(target)
 
+    def link(self):
+        success, self.link_report = self._environment.toolchain.link(
+            [buildable.object_file for buildable in self.buildables],
+            self.outfile,
+            self._build_flags._language_flags() + self._build_flags.final_link_flags_list(),
+            [target.output_folder.resolve() for target in self.dependencies if target.__class__ is not HeaderOnly],
+            [target.outname for target in self.dependencies if target.__class__ is not HeaderOnly],
+            True,
+            self.is_c_target)
+
+        self.unsuccessful_link = not success
+
+        # Catch link errors
+        if self.unsuccessful_link:
+            raise _LinkError('Linking was unsuccessful',
+                {self.identifier: self.link_report})
+
 
 class StaticLibrary(Compilable):
     def __init__(self, target_description, files, dependencies=None):
@@ -643,36 +615,46 @@ class StaticLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            link_command=[str(target_description.environment.compiler.clang_ar), "rc"],
-            output_folder=_platform.STATIC_LIBRARY_OUTPUT,
-            platform_flags=_platform.PLATFORM_EXTRA_FLAGS_STATIC,
-            prefix=_platform.STATIC_LIBRARY_PREFIX,
-            suffix=_platform.STATIC_LIBRARY_SUFFIX,
+            output_folder=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_OUTPUT_DIR'],
+            platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_STATIC'],
+            prefix=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_PREFIX'],
+            suffix=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_SUFFIX'],
             dependencies=dependencies,
         )
-
-        ### Link self
-        self.link_command += [
-            str(buildable.object_file) for buildable in self.buildables
-        ]
-        self.link_command += self._build_flags.final_link_flags_list()
-
-        ### Link dependencies
-        for target in self.dependencies:
-            if not target.__class__ is HeaderOnly:
-                self.link_command += [
-                    str(buildable.object_file) for buildable in target.buildables
-                ]
 
     def _add_dependency_flags(self, target):
         """Add dependencies' public flags to the own and forwards their public and interface flags.
 
-        This is done, because the dependency's interface flags will contain a header-only or static
-        library's link dependencies, which cannot be applied to this static library either.
+        This is done, because the dependency's interface flags cannot be applied to this static
+        library but only to the shared library or executable that includes this static library.
         """
         self._build_flags.apply_public_flags(target)
         self._build_flags.forward_public_flags(target)
         self._build_flags.forward_interface_flags(target)
+
+    def link(self):
+        """Although not really a "link" procedure, but really only an archiving procedure
+        for simplicity's sake, this is also called link
+        """
+        # This library's objects
+        objects = [buildable.object_file for buildable in self.buildables]
+
+        # Dependencies' objects
+        for target in self.dependencies:
+            if not target.__class__ is HeaderOnly:
+                objects += [buildable.object_file for buildable in target.buildables]
+
+        success, self.link_report = self._environment.toolchain.archive(
+            objects,
+            self.outfile,
+            self._build_flags.final_link_flags_list())
+
+        self.unsuccessful_link = not success
+
+        # Catch link errors
+        if self.unsuccessful_link:
+            raise _LinkError('Linking was unsuccessful',
+                {self.identifier: self.link_report})
 
 
 TARGET_MAP = {

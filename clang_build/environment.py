@@ -8,7 +8,8 @@ from multiprocessing import Pool as _Pool
 from pathlib import Path as _Path
 
 from .build_type import BuildType as _BuildType
-from .compiler import Clang as _Clang
+from .clang_build import __version__
+from .toolchain import LLVM as _Clang
 
 _LOGGER = _logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class Environment:
     def __init__(self, args):
 
 
-        self.compiler = _Clang()
+        self.toolchain = _Clang()
 
         # Build type (Default, Release, Debug)
         self.build_type = args.get("build_type", _BuildType.Default)
