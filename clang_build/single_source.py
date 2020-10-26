@@ -69,7 +69,7 @@ class SingleSource:
         self.object_file = _Path(object_directory,  relpath, self.source_file.stem + '.o')
         self.depfile     = _Path(depfile_directory, relpath, self.source_file.stem + '.d')
 
-        self.tool_chain = environment.tool_chain
+        self.toolchain = environment.toolchain
         self.is_c_target = is_c_target
 
         self.needs_rebuild = _needs_rebuild(self.object_file, self.source_file, self.depfile)
@@ -81,7 +81,7 @@ class SingleSource:
 
 
     def generate_depfile(self):
-        success, self.depfile_report = self.tool_chain.generate_dependency_file(
+        success, self.depfile_report = self.toolchain.generate_dependency_file(
             self.source_file,
             self.depfile,
             self.flags,
@@ -89,9 +89,8 @@ class SingleSource:
             self.is_c_target)
         self.depfile_failed = not success
 
-
     def compile(self):
-        success, self.compile_report = self.tool_chain.compile(
+        success, self.compile_report = self.toolchain.compile(
             self.source_file,
             self.object_file,
             self.include_directories,

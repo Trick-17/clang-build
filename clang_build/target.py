@@ -128,7 +128,7 @@ class Target(_TreeEntry, _NamedLogger):
             # Header only libraries will forward all non-private flags
             self._add_dependency_flags(target)
 
-        self._build_flags.add_target_flags(self._environment.tool_chain.platform, target_description.config)
+        self._build_flags.add_target_flags(self._environment.toolchain.platform, target_description.config)
 
     def __repr__(self) -> str:
         return f"clang_build.target.Target('{self.identifier}')"
@@ -232,7 +232,7 @@ class HeaderOnly(Target):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` without compile or link flags.
         """
-        return BuildFlags(self._environment.build_type, self._environment.tool_chain, True)
+        return BuildFlags(self._environment.build_type, self._environment.toolchain, True)
 
     def _add_dependency_flags(self, target):
         """Forward dependencies' public and interface flags.
@@ -322,7 +322,7 @@ class Compilable(Target):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags but without link flags.
         """
-        return BuildFlags(self._environment.build_type, self._environment.tool_chain, self.is_c_target, default_compile_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.toolchain, self.is_c_target, default_compile_flags=True)
 
     def compile(self, process_pool, progress_disabled):
         """From the list of source files, compile those which changed or whose dependencies (included headers, ...) changed.
@@ -401,10 +401,10 @@ class Executable(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            output_folder=target_description.environment.tool_chain.platform_defaults['EXECUTABLE_OUTPUT_DIR'],
-            platform_flags=target_description.environment.tool_chain.platform_defaults['PLATFORM_EXTRA_FLAGS_EXECUTABLE'],
-            prefix=target_description.environment.tool_chain.platform_defaults['EXECUTABLE_PREFIX'],
-            suffix=target_description.environment.tool_chain.platform_defaults['EXECUTABLE_SUFFIX'],
+            output_folder=target_description.environment.toolchain.platform_defaults['EXECUTABLE_OUTPUT_DIR'],
+            platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_EXECUTABLE'],
+            prefix=target_description.environment.toolchain.platform_defaults['EXECUTABLE_PREFIX'],
+            suffix=target_description.environment.toolchain.platform_defaults['EXECUTABLE_SUFFIX'],
             dependencies=dependencies,
         )
 
@@ -437,7 +437,7 @@ class Executable(Compilable):
 
     def redistributable(self):
         self.unsuccessful_redistributable = False
-        if self._environment.tool_chain.platform == "osx":
+        if self._environment.toolchain.platform == "osx":
             appfolder = self.redistributable_folder / f"{self.outname}.app"
             binfolder = appfolder / "Contents"/ "MacOS"
             try:
@@ -478,14 +478,14 @@ class Executable(Compilable):
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_redistributable = True
                 self.redistributable_report = error.output.decode("utf-8").strip()
-        elif self._environment.tool_chain.platform == "linux":
+        elif self._environment.toolchain.platform == "linux":
             try:
                 self.redistributable_folder.mkdir(parents=True, exist_ok=True)
                 # TODO: gather includes and shared libraries
             except _subprocess.CalledProcessError as error:
                 self.unsuccessful_redistributable = True
                 self.redistributable_report = error.output.decode("utf-8").strip()
-        elif self._environment.tool_chain.platform == "windows":
+        elif self._environment.toolchain.platform == "windows":
             try:
                 self.redistributable_folder.mkdir(parents=True, exist_ok=True)
                 # TODO: gather includes and shared libraries
@@ -501,7 +501,7 @@ class Executable(Compilable):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
         """
-        return BuildFlags(self._environment.build_type, self._environment.tool_chain, self.is_c_target, default_compile_flags=True, default_link_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.toolchain, self.is_c_target, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
         """Add dependencies' public and interface flags to the own and forward their public flags.
@@ -511,7 +511,7 @@ class Executable(Compilable):
         self._build_flags.apply_interface_flags(target)
 
     def link(self):
-        success, self.link_report = self._environment.tool_chain.link(
+        success, self.link_report = self._environment.toolchain.link(
             [buildable.object_file for buildable in self.buildables],
             self.outfile,
             self._build_flags._language_flags() + self._build_flags.final_link_flags_list(),
@@ -533,10 +533,10 @@ class SharedLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            output_folder=target_description.environment.tool_chain.platform_defaults['SHARED_LIBRARY_OUTPUT_DIR'],
-            platform_flags=target_description.environment.tool_chain.platform_defaults['PLATFORM_EXTRA_FLAGS_SHARED'],
-            prefix=target_description.environment.tool_chain.platform_defaults['SHARED_LIBRARY_PREFIX'],
-            suffix=target_description.environment.tool_chain.platform_defaults['SHARED_LIBRARY_SUFFIX'],
+            output_folder=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_OUTPUT_DIR'],
+            platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_SHARED'],
+            prefix=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_PREFIX'],
+            suffix=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_SUFFIX'],
             dependencies=dependencies,
         )
 
@@ -556,7 +556,7 @@ class SharedLibrary(Compilable):
 
         ### Gather
         self_bundle_files = [self.outfile]
-        if self._environment.tool_chain.platform == "windows":
+        if self._environment.toolchain.platform == "windows":
             self_bundle_files.append(_Path(str(self.outfile)[:-3] + "exp"))
             self_bundle_files.append(_Path(str(self.outfile)[:-3] + "lib"))
 
@@ -582,7 +582,7 @@ class SharedLibrary(Compilable):
     def _get_default_flags(self):
         """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags.
         """
-        return BuildFlags(self._environment.build_type, self._environment.tool_chain, self.is_c_target, default_compile_flags=True, default_link_flags=True)
+        return BuildFlags(self._environment.build_type, self._environment.toolchain, self.is_c_target, default_compile_flags=True, default_link_flags=True)
 
     def _add_dependency_flags(self, target):
         """Add dependencies' public and interface flags to the own and forwards their public flags.
@@ -592,7 +592,7 @@ class SharedLibrary(Compilable):
         self._build_flags.apply_interface_flags(target)
 
     def link(self):
-        success, self.link_report = self._environment.tool_chain.link(
+        success, self.link_report = self._environment.toolchain.link(
             [buildable.object_file for buildable in self.buildables],
             self.outfile,
             self._build_flags._language_flags() + self._build_flags.final_link_flags_list(),
@@ -615,10 +615,10 @@ class StaticLibrary(Compilable):
         super().__init__(
             target_description=target_description,
             files=files,
-            output_folder=target_description.environment.tool_chain.platform_defaults['STATIC_LIBRARY_OUTPUT_DIR'],
-            platform_flags=target_description.environment.tool_chain.platform_defaults['PLATFORM_EXTRA_FLAGS_STATIC'],
-            prefix=target_description.environment.tool_chain.platform_defaults['STATIC_LIBRARY_PREFIX'],
-            suffix=target_description.environment.tool_chain.platform_defaults['STATIC_LIBRARY_SUFFIX'],
+            output_folder=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_OUTPUT_DIR'],
+            platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_STATIC'],
+            prefix=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_PREFIX'],
+            suffix=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_SUFFIX'],
             dependencies=dependencies,
         )
 
@@ -644,7 +644,7 @@ class StaticLibrary(Compilable):
             if not target.__class__ is HeaderOnly:
                 objects += [buildable.object_file for buildable in target.buildables]
 
-        success, self.link_report = self._environment.tool_chain.archive(
+        success, self.link_report = self._environment.toolchain.archive(
             objects,
             self.outfile,
             self._build_flags.final_link_flags_list())

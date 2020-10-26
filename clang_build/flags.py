@@ -2,7 +2,7 @@ from .build_type import BuildType
 
 class BuildFlags:
     def __init__(
-        self, build_type, tool_chain, for_c_target, default_compile_flags=False, default_link_flags=False
+        self, build_type, toolchain, for_c_target, default_compile_flags=False, default_link_flags=False
     ):
         # TODO: Store default flags separately
         self.compile_default = []
@@ -18,20 +18,20 @@ class BuildFlags:
         self.link_public = []
 
         self._build_type = build_type
-        self._tool_chain = tool_chain
+        self._toolchain = toolchain
         self._for_c_target = for_c_target
 
         if default_compile_flags:
-            self.compile_default = tool_chain.DEFAULT_COMPILE_FLAGS[BuildType.Default]
+            self.compile_default = toolchain.DEFAULT_COMPILE_FLAGS[BuildType.Default]
             # self.compile_private += DEFAULT_COMPILE_FLAGS.get(BuildType.Default, [])
             if build_type != BuildType.Default:
-                self.compile_default = tool_chain.DEFAULT_COMPILE_FLAGS.get(
+                self.compile_default = toolchain.DEFAULT_COMPILE_FLAGS.get(
                     build_type, []
                 )
                 # self.compile_private += DEFAULT_COMPILE_FLAGS.get(build_type, [])
 
         if default_link_flags:
-            self.link_default = tool_chain.DEFAULT_LINK_FLAGS.get(build_type, [])
+            self.link_default = toolchain.DEFAULT_LINK_FLAGS.get(build_type, [])
             # self.link_private += DEFAULT_LINK_FLAGS.get(build_type, [])
 
     def make_private_flags_public(self):
@@ -73,7 +73,7 @@ class BuildFlags:
         self.link_public += lf
 
     def add_bundling_flags(self):
-        self.link_private += self._tool_chain.platform_defaults['PLATFORM_BUNDLING_LINKER_FLAGS']
+        self.link_private += self._toolchain.platform_defaults['PLATFORM_BUNDLING_LINKER_FLAGS']
 
     def final_compile_flags_list(self):
         # TODO: Add max_dialect and plattform specific flags here as well
@@ -81,7 +81,7 @@ class BuildFlags:
         return self._language_flags() + list(dict.fromkeys(self.compile_private + self.compile_public))
 
     def _language_flags(self):
-        return [] if self._for_c_target else [self._tool_chain.max_cpp_standard]
+        return [] if self._for_c_target else [self._toolchain.max_cpp_standard]
 
     def final_link_flags_list(self):
         return list(dict.fromkeys(self.link_private + self.link_public))

@@ -10,7 +10,7 @@ from multiprocessing import freeze_support
 from sys import platform as _platform
 
 from clang_build import clang_build
-from clang_build import tool_chains
+from clang_build import toolchain
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
 from clang_build.logging_tools import TqdmHandler as TqdmHandler
@@ -242,7 +242,7 @@ class TestClangBuild(unittest.TestCase):
     def test_pybind11(self):
         clang_build_try_except(['-d', 'test/pybind11', '-V'])
 
-        pylib_dir = os.path.abspath(os.path.join("build", "pylib", "default", tool_chains.LLVM.PLATFORM_DEFAULTS[_platform]['SHARED_LIBRARY_OUTPUT_DIR']))
+        pylib_dir = os.path.abspath(os.path.join("build", "pylib", "default", toolchain.LLVM.PLATFORM_DEFAULTS[_platform]['SHARED_LIBRARY_OUTPUT_DIR']))
         sys.path.insert(0, pylib_dir)
 
         try:
