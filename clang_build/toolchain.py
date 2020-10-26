@@ -446,7 +446,6 @@ class LLVM:
         command = (
             [str(self.archiver), "rc", str(output_file)]
             + [str(o) for o in object_files]
-            + flags
         )
 
         return self._run_clang_command(command)
