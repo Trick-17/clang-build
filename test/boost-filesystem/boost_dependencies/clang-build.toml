@@ -13,7 +13,7 @@ target_type = "static library"
 url = "https://github.com/boostorg/system"
 version = "boost-1.65.0"
 dependencies = ["core", "winapi", "config", "predef", "assert"]
-[system.flags]
+[system.public_flags]
 compile = ['-DBOOST_NO_CXX11_HDR_SYSTEM_ERROR', '-Wno-deprecated-declarations', '-Wno-language-extension-token']
 
 [winapi]
