@@ -9,11 +9,7 @@ import logging as _logging
 from pathlib import Path as _Path
 from multiprocessing import freeze_support as _freeze_support
 
-from pbr.version import VersionInfo as _VersionInfo
-_v = _VersionInfo('clang-build').semantic_version()
-__version__ = _v.release_string()
-version_info = _v.version_tuple
-
+import clang_build as _clang_build
 from .build_type import BuildType as _BuildType
 from .project import Project as _Project
 from .progress_bar import CategoryProgress as _CategoryProgress
@@ -24,7 +20,7 @@ from .errors import LinkError as _LinkError
 from .errors import BundleError as _BundleError
 from .errors import RedistributableError as _RedistributableError
 
-_LOGGER = _logging.getLogger(__name__)
+_LOGGER = _logging.getLogger("clang_build")
 
 def _setup_logger(log_level=None):
     _LOGGER.setLevel(_logging.DEBUG)
@@ -131,7 +127,7 @@ def _main():
                 _setup_logger(None)
         else:
             _setup_logger(_logging.DEBUG)
-
+        _LOGGER.info("clang-build %s", _clang_build.__version__)
         build(args)
 
     except _CompileError as compile_error:

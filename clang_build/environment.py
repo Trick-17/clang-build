@@ -20,8 +20,6 @@ class Environment:
 
     def __init__(self, args):
 
-        # TODO: Move this out
-        _LOGGER.info(f"clang-build {__version__}")
 
         self.toolchain = _Clang()
 
