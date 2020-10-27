@@ -7,7 +7,7 @@ Per-Platform Target Configuration
 
 The following lists and sections of the target configuration can be specified individually per platform:
 
-- `include_directories` and `public_include_directories`
+- `include_directories` and `include_directories_public`
 - `sources`
 - `flags`
 
@@ -26,7 +26,7 @@ Example
         include_directories_public = ["include"]
         sources = ["src/common.c"]
 
-        [mylib.public-flags]
+        [mylib.public_flags]
             compile = ["-DMYLIB_VERSION_MAJOR=2", "-DMYLIB_VERSION_MINOR=1", "-DMYLIB_VERSION_PATCH=2"]
 
         [mylib.osx]
@@ -35,7 +35,7 @@ Example
 
             [mylib.osx.flags]
                 compile = ["-DMYLIB_OSX"]
-            [mylib.osx.interface-flags]
+            [mylib.osx.interface_flags]
                 link = ["-framework", "Cocoa"]
 
         [mylib.windows]

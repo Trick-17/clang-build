@@ -63,12 +63,12 @@ class BuildFlags:
         self.link_private += lf
 
         # Own interface flags
-        cf, lf = self._parse_flags_config(config, platform, "interface-flags")
+        cf, lf = self._parse_flags_config(config, platform, "interface_flags")
         self.compile_interface += cf
         self.link_interface += lf
 
         # Own public flags
-        cf, lf = self._parse_flags_config(config, platform, "public-flags")
+        cf, lf = self._parse_flags_config(config, platform, "public_flags")
         self.compile_public += cf
         self.link_public += lf
 
