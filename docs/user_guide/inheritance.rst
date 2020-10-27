@@ -11,7 +11,7 @@ Include directories
 
     Defaults are the target directory and "include".
 
-**`include_directories_public`**
+**`public_include_directories`**
 
     A list of public include directories, which are accessible to any dependent target.
     Note that these are forwarded up the dependency graph, i.e. a target adds all of
@@ -25,7 +25,7 @@ Include directories
 
     [mylib]
         include_directories = ["src/mylib/include", "src/mylib/detail/include"]
-        include_directories_public = ["src/mylib/include"]
+        public_include_directories = ["src/mylib/include"]
 
 
 Flags

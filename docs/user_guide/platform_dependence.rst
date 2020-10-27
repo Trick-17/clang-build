@@ -7,7 +7,7 @@ Per-Platform Target Configuration
 
 The following lists and sections of the target configuration can be specified individually per platform:
 
-- `include_directories` and `include_directories_public`
+- `include_directories` and `public_include_directories`
 - `sources`
 - `flags`
 
@@ -23,7 +23,7 @@ Example
 
     [mylib]
         target_type = "static library"
-        include_directories_public = ["include"]
+        public_include_directories = ["include"]
         sources = ["src/common.c"]
 
         [mylib.public_flags]

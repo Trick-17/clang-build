@@ -4,7 +4,7 @@ class Directories:
 
         # Include directories
         self.include_private = files["include_directories"]
-        self.include_public = files["include_directories_public"]
+        self.include_public = files["public_include_directories"]
 
         # Default include path
         # if self.root_directory.joinpath('include').exists():
