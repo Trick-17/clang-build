@@ -548,6 +548,8 @@ class Executable(Compilable):
 
 class SharedLibrary(Compilable):
     def __init__(self, target_description, files, dependencies=None, public_dependencies=None):
+        """Initialise a shared library target.
+        """
 
         super().__init__(
             target_description=target_description,
@@ -631,6 +633,8 @@ class SharedLibrary(Compilable):
 
 class StaticLibrary(Compilable):
     def __init__(self, target_description, files, dependencies=None, public_dependencies=None):
+        """Initialise a static library target.
+        """
 
         super().__init__(
             target_description=target_description,

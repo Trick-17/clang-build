@@ -1,5 +1,11 @@
 class Directories:
     def __init__(self, files, dependencies, public_dependencies):
+        """The root and build directories are taken from `target_description`,
+        include directories from `files` and `dependencies`.
+
+        Include directories are made unique.
+        """
+
         self.dependencies = dependencies
 
         # Include directories
