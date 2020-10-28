@@ -18,7 +18,7 @@ version = "v7.2.0"
 
 [qhullcpp]
     target_type = "static library"
-    include_directories_public = ["src"]
+    public_include_directories = ["src"]
     sources = ["src/libqhullcpp/*.cpp"]
     sources_exclude = ["src/libqhullcpp/qt-qhull.cpp", "src/libqhullcpp/usermem_r-cpp.cpp"]
     [qhullcpp.flags]
@@ -26,7 +26,7 @@ version = "v7.2.0"
 
 [qhullstatic]
     target_type = "static library"
-    include_directories_public = ["src"]
+    public_include_directories = ["src"]
     sources = ["src/libqhull/*.c"]
     [qhullstatic.flags]
         compile = ["-Wno-deprecated-declarations"]
@@ -35,7 +35,7 @@ version = "v7.2.0"
 
 [qhullstatic_r]
     target_type = "static library"
-    include_directories_public = ["src"]
+    public_include_directories = ["src"]
     sources = ["src/libqhull_r/*.c"]
     [qhullstatic_r.flags]
         compile = ["-Wno-deprecated-declarations"]

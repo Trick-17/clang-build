@@ -17,7 +17,7 @@ def _get_files_in_patterns(patterns, exclude_patterns=[], recursive=True):
     return list(f.resolve() for f in (set(included) - set(excluded)))
 
 def get_sources_and_headers(target_name, platform, target_options, target_root_directory, target_build_directory):
-    output = {'headers': [], 'include_directories': [], 'include_directories_public': [], 'sourcefiles': []}
+    output = {'headers': [], 'include_directories': [], 'public_include_directories': [], 'sourcefiles': []}
 
     # TODO: maybe the output should also include the root dir, build dir and potentially download dir?
     # TODO: should warn when a specified directory does not exist!
@@ -47,25 +47,25 @@ def get_sources_and_headers(target_name, platform, target_options, target_root_d
 
     # Options for public include directories, exclude patterns are the same
     include_options_public = []
-    include_options_public += target_options.get('include_directories_public', [])
+    include_options_public += target_options.get('public_include_directories', [])
 
-    include_options_public += target_options.get(platform, {}).get('include_directories_public', [])
+    include_options_public += target_options.get(platform, {}).get('public_include_directories', [])
 
     include_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in include_options_public))
     exclude_patterns = list(dict.fromkeys(target_root_directory.joinpath(path) for path in exclude_options))
 
     # Find header files
     if include_patterns:
-        output['include_directories_public'] = include_patterns
-        output['headers'] += _get_header_files_in_folders(output['include_directories_public'], exclude_patterns=exclude_patterns, recursive=True)
+        output['public_include_directories'] = include_patterns
+        output['headers'] += _get_header_files_in_folders(output['public_include_directories'], exclude_patterns=exclude_patterns, recursive=True)
     else:
-        output['include_directories_public'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include'),
+        output['public_include_directories'] += [target_root_directory.joinpath(''), target_root_directory.joinpath('include'),
                                                 target_root_directory.joinpath(target_name, 'include')]
-        output['headers'] += _get_header_files_in_folders(output['include_directories_public'], exclude_patterns=exclude_patterns, recursive=False)
+        output['headers'] += _get_header_files_in_folders(output['public_include_directories'], exclude_patterns=exclude_patterns, recursive=False)
 
     # Keep only include directories which exist
     output['include_directories'] = [directory for directory in output['include_directories'] if directory.exists()]
-    output['include_directories_public'] = [directory for directory in output['include_directories_public'] if directory.exists()]
+    output['public_include_directories'] = [directory for directory in output['public_include_directories'] if directory.exists()]
 
     # Options for sources
     sources_options = []
@@ -94,7 +94,7 @@ def get_sources_and_headers(target_name, platform, target_options, target_root_d
 
     # Fill return dict
     output['include_directories']        = list(dict.fromkeys(output['include_directories'] ))
-    output['include_directories_public'] = list(dict.fromkeys(output['include_directories_public'] ))
+    output['public_include_directories'] = list(dict.fromkeys(output['public_include_directories'] ))
     output['headers']                    = list(dict.fromkeys(output['headers'] ))
     output['sourcefiles']                = list(dict.fromkeys(output['sourcefiles'] ))
 
