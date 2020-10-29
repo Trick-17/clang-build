@@ -121,7 +121,8 @@ class Target(_TreeEntry, _NamedLogger):
 
         self._dependencies = dependencies
 
-        # TODO: parse user-specified target version
+        if public_dependencies is None:
+            public_dependencies = []
 
         if public_dependencies is None:
             public_dependencies = []
