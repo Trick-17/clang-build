@@ -26,8 +26,12 @@ from .errors import RedistributableError as _RedistributableError
 
 _LOGGER = _logging.getLogger(__name__)
 
+
 def _setup_logger(log_level=None):
-    _LOGGER.setLevel(_logging.DEBUG)
+    """Setup the root namespace logger of the clang_build module
+    """
+    logger = _logging.getLogger("clang_build")
+    logger.setLevel(_logging.DEBUG)
 
     # create formatter _and add it to the handlers
     formatter = _logging.Formatter('%(message)s')
@@ -36,13 +40,13 @@ def _setup_logger(log_level=None):
     fh = _logging.FileHandler('clang-build.log', mode='w')
     fh.setLevel(_logging.DEBUG)
     fh.setFormatter(formatter)
-    _LOGGER.addHandler(fh)
+    logger.addHandler(fh)
 
     if log_level is not None:
         ch = _TqdmHandler()
         ch.setLevel(log_level)
         ch.setFormatter(formatter)
-        _LOGGER.addHandler(ch)
+        logger.addHandler(ch)
 
 
 def parse_args(args):
