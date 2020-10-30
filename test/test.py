@@ -162,16 +162,6 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Hello! mylib::triple(3) returned 9')
 
-    def test_public_dependency(self):
-        clang_build_try_except(['-d', 'test/public_dependency', '-V'])
-
-        try:
-            output = subprocess.check_output(['./build/myexe/default/bin/runLib'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        except subprocess.CalledProcessError as e:
-            self.fail(f'Could not run compiled program. Message:\n{e.output}')
-
-        self.assertEqual(output, 'Hello! libC::half(libA::triple(4)) returned 6')
-
     def test_pyapi_subproject(self):
         clang_build_try_except(['-d', 'test/py-api/subproject', '-V'])
 

@@ -53,13 +53,6 @@ class Target(_TreeEntry, _NamedLogger):
         return self._dependencies
 
     @property
-    def public_dependencies(self):
-        """Return a list of any:`clang_build.target.Target`, which this
-        target depends on.
-        """
-        return self._public_dependencies
-
-    @property
     def root_directory(self):
         """Folders "include", "src", etc. are searched
         relative to this folder.
@@ -87,7 +80,7 @@ class Target(_TreeEntry, _NamedLogger):
         """
         return self._directories
 
-    def __init__(self, target_description, files, dependencies=None, public_dependencies=None):
+    def __init__(self, target_description, files, dependencies=None):
         """Initialise a target.
 
         The procedure for initialisation is:
@@ -107,9 +100,6 @@ class Target(_TreeEntry, _NamedLogger):
         dependencies
             Optional. A list of any:`clang_build.target.Target` which this target
             depends on.
-        public_dependencies
-            Optional. A list of any:`clang_build.target.Target` which this target
-            depends on and which should also be available to dependent targets.
         """
         _NamedLogger.__init__(self, _LOGGER)
         self._name = target_description.name
@@ -118,23 +108,20 @@ class Target(_TreeEntry, _NamedLogger):
 
         if dependencies is None:
             dependencies = []
-
         self._dependencies = dependencies
 
-        if public_dependencies is None:
-            public_dependencies = []
-
-        self._public_dependencies = public_dependencies
+        self._root_directory = _Path(target_description.root_directory)
+        self._build_directory = target_description.build_directory
 
         self._headers = list(dict.fromkeys(files["headers"]))
 
-        self._directories = Directories(files, self.dependencies, self.public_dependencies)
+        self._directories = Directories(files, self.dependencies)
 
         # Compile and link flags
         self._build_flags = self._get_default_flags()
 
         # Dependencies' flags
-        for target in self.dependencies + self.public_dependencies:
+        for target in self.dependencies:
             # Header only libraries will forward all non-private flags
             self._add_dependency_flags(target)
 
@@ -182,7 +169,7 @@ class Target(_TreeEntry, _NamedLogger):
         """
         self.unsuccessful_bundle = False
         bundle_files = []
-        for dependency in self.dependencies + self.public_dependencies:
+        for dependency in self.dependencies:
             bundle_files += dependency.bundle()
         return bundle_files
 
@@ -213,7 +200,7 @@ class HeaderOnly(Target):
     TODO: need to check whether "public" makes sense for header-only, when we have implemented "private" dependencies
     """
 
-    def __init__(self, target_description, files, dependencies=None, public_dependencies=None):
+    def __init__(self, target_description, files, dependencies=None):
         """Initialise a header-only target.
 
         Header-only targets' private flags and include-directories are public.
@@ -221,8 +208,7 @@ class HeaderOnly(Target):
         super().__init__(
             target_description=target_description,
             files=files,
-            dependencies=dependencies,
-            public_dependencies=public_dependencies
+            dependencies=dependencies
         )
 
         if files["sourcefiles"]:
@@ -274,8 +260,7 @@ class Compilable(Target):
         platform_flags,
         prefix,
         suffix,
-        dependencies=None,
-        public_dependencies=None
+        dependencies=None
     ):
         self.source_files = files["sourcefiles"]
         self.is_c_target = not any(
@@ -285,8 +270,7 @@ class Compilable(Target):
         super().__init__(
             target_description=target_description,
             files=files,
-            dependencies=dependencies,
-            public_dependencies=public_dependencies
+            dependencies=dependencies
         )
 
         if not self.source_files:
@@ -342,12 +326,12 @@ class Compilable(Target):
         """
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        if not self._environment.force_build:
+        if self._environment.force_build:
+            self.needed_buildables = self.buildables
+        else:
             self.needed_buildables = [
                 buildable for buildable in self.buildables if buildable.needs_rebuild
             ]
-        else:
-            self.needed_buildables = self.buildables
 
         # If the target was not modified, it may not need to compile
         if not self.needed_buildables:
@@ -407,7 +391,7 @@ class Executable(Compilable):
     An executable cannot be the dependency of another target.
     """
 
-    def __init__(self, target_description, files, dependencies=None, public_dependencies=None):
+    def __init__(self, target_description, files, dependencies=None):
         """Initialise an executable target.
         """
 
@@ -418,8 +402,7 @@ class Executable(Compilable):
             platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_EXECUTABLE'],
             prefix=target_description.environment.toolchain.platform_defaults['EXECUTABLE_PREFIX'],
             suffix=target_description.environment.toolchain.platform_defaults['EXECUTABLE_SUFFIX'],
-            dependencies=dependencies,
-            public_dependencies=public_dependencies
+            dependencies=dependencies
         )
 
         ### Bundling requires extra flags
@@ -431,7 +414,7 @@ class Executable(Compilable):
 
         ### Gather
         bundle_files = []
-        for dependency in self.dependencies + self.public_dependencies:
+        for dependency in self.dependencies:
             bundle_files += dependency.bundle()
 
         ### Copy
@@ -529,8 +512,8 @@ class Executable(Compilable):
             [buildable.object_file for buildable in self.buildables],
             self.outfile,
             self._build_flags._language_flags() + self._build_flags.final_link_flags_list(),
-            [target.output_folder.resolve() for target in self.dependencies+self.public_dependencies if target.__class__ is not HeaderOnly],
-            [target.outname for target in self.dependencies+self.public_dependencies if target.__class__ is not HeaderOnly],
+            [target.output_folder.resolve() for target in self.dependencies if target.__class__ is not HeaderOnly],
+            [target.outname for target in self.dependencies if target.__class__ is not HeaderOnly],
             False,
             self.is_c_target)
 
@@ -542,7 +525,7 @@ class Executable(Compilable):
                 {self.identifier: self.link_report})
 
 class SharedLibrary(Compilable):
-    def __init__(self, target_description, files, dependencies=None, public_dependencies=None):
+    def __init__(self, target_description, files, dependencies=None):
 
         super().__init__(
             target_description=target_description,
@@ -551,8 +534,7 @@ class SharedLibrary(Compilable):
             platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_SHARED'],
             prefix=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_PREFIX'],
             suffix=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_SUFFIX'],
-            dependencies=dependencies,
-            public_dependencies=public_dependencies
+            dependencies=dependencies
         )
 
         # TODO: This has to go to the flags department I guess
@@ -576,7 +558,7 @@ class SharedLibrary(Compilable):
             self_bundle_files.append(_Path(str(self.outfile)[:-3] + "lib"))
 
         bundle_files = []
-        for dependency in self.dependencies + self.public_dependencies:
+        for dependency in self.dependencies:
             bundle_files += dependency.bundle()
 
         ### Copy
@@ -611,8 +593,8 @@ class SharedLibrary(Compilable):
             [buildable.object_file for buildable in self.buildables],
             self.outfile,
             self._build_flags._language_flags() + self._build_flags.final_link_flags_list(),
-            [target.output_folder.resolve() for target in self.dependencies+self.public_dependencies if target.__class__ is not HeaderOnly],
-            [target.outname for target in self.dependencies+self.public_dependencies if target.__class__ is not HeaderOnly],
+            [target.output_folder.resolve() for target in self.dependencies if target.__class__ is not HeaderOnly],
+            [target.outname for target in self.dependencies if target.__class__ is not HeaderOnly],
             True,
             self.is_c_target)
 
@@ -634,8 +616,7 @@ class StaticLibrary(Compilable):
             platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_STATIC'],
             prefix=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_PREFIX'],
             suffix=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_SUFFIX'],
-            dependencies=dependencies,
-            public_dependencies=public_dependencies
+            dependencies=dependencies
         )
 
     def _add_dependency_flags(self, target):
@@ -656,7 +637,7 @@ class StaticLibrary(Compilable):
         objects = [buildable.object_file for buildable in self.buildables]
 
         # Dependencies' objects
-        for target in self.dependencies+self.public_dependencies:
+        for target in self.dependencies:
             if not target.__class__ is HeaderOnly:
                 objects += [buildable.object_file for buildable in target.buildables]
 

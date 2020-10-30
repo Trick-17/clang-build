@@ -1,7 +1,5 @@
 class Directories:
-    def __init__(self, files, dependencies, public_dependencies):
-        self.dependencies = dependencies
-
+    def __init__(self, files, public_dependencies):
         # Include directories
         self.include_private = files["include_directories"]
         self.include_public = files["public_include_directories"]
