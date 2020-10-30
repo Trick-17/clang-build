@@ -118,15 +118,10 @@ class Target(_TreeEntry, _NamedLogger):
 
         if dependencies is None:
             dependencies = []
-
         self._dependencies = dependencies
 
         if public_dependencies is None:
             public_dependencies = []
-
-        if public_dependencies is None:
-            public_dependencies = []
-
         self._public_dependencies = public_dependencies
 
         self._root_directory = _Path(target_description.root_directory)
@@ -348,12 +343,12 @@ class Compilable(Target):
         """
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        if not self._environment.force_build:
+        if self._environment.force_build:
+            self.needed_buildables = self.buildables
+        else:
             self.needed_buildables = [
                 buildable for buildable in self.buildables if buildable.needs_rebuild
             ]
-        else:
-            self.needed_buildables = self.buildables
 
         # If the target was not modified, it may not need to compile
         if not self.needed_buildables:

@@ -323,7 +323,6 @@ class Project(_NamedLogger, _TreeEntry):
         # Add nodes and edges for targets in self
         for target in target_list:
             self._project_tree.add_node(target, data=target)
-        self._project_tree.add_edges_from((self, target) for target in target_list)
 
         # Create a dotfile of the dependency graph
         create_dotfile = False
@@ -445,43 +444,47 @@ class Project(_NamedLogger, _TreeEntry):
         targets_to_build = self._get_targets_to_build(build_all, target_list)
 
         # Sort targets in build order
-        target_build_description_list = [
+        build_list = [
             target
             for target in reversed(list(_nx.topological_sort(self._project_tree)))
-            if target in targets_to_build
+            if (target in targets_to_build or build_all)
             and not isinstance(self._project_tree.nodes[target]["data"], Project)
         ]
 
         # Get project sources, if any
         project_build_list = []
-        for target_description in target_build_description_list:
-            for predecessor in self._project_tree.predecessors(target_description):
-                if isinstance(predecessor, Project):
-                    project_build_list.append(predecessor)
+        for target_description in build_list:
+            project_build_list.append(target_description.parent_project)
         project_build_list = list(dict.fromkeys(project_build_list))
         for project in project_build_list:
             project.get_sources()
 
-        for target in target_build_description_list:
-            parent_project = next(self._project_tree.predecessors(target))
-            target.parent_directory = parent_project._directory
-            target.parent_build_directory = parent_project._build_directory
-
         ### Note: the project_tree needs to be updated directly for dependencies
         ### to be used correctly in the `_target_from_description` function
         target_build_list = []
-        for target in target_build_description_list:
-            if isinstance(target, _TargetDescription):
-                target_instance = self._target_from_description(
-                        self._project_tree.nodes[target]["data"]#, self._project_tree
+        for list_entry in build_list:
+            if isinstance(list_entry, _TargetDescription):
+                target = self._target_from_description(
+                        self._project_tree.nodes[list_entry]["data"]
                     )
-                target_build_list.append(target_instance)
-                self._project_tree.nodes[target]["data"] = target_instance
+                if target:
+                    target_build_list.append(target)
+                self._project_tree.nodes[list_entry]["data"] = target
+            elif isinstance(list_entry, _Target):
+                target_build_list.append(list_entry)
             else:
-                target_build_list.append(target)
+                error_message = self.parent.log_message(
+                    f"Found {target} in target list, which cannot be used because"
+                    " it is not derived from Target or TargetDescription."
+                )
+
+                self._logger.exception(error_message)
+                raise RuntimeError(error_message)
 
         if not target_build_list:
             self._logger.info("No targets to be built")
+        else:
+            self._logger.info(f"Building {', '.join([str(target) for target in target_build_list])}")
 
         # Compile
         with _Pool(processes=number_of_threads) as process_pool:
