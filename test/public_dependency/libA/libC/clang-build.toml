@@ -1,0 +1,4 @@
+name = "libC"
+
+[libC]
+    target_type  = "header only"

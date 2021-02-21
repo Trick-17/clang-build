@@ -4,7 +4,8 @@ name = "boost"
 target_type = "static library"
 url = "https://github.com/boostorg/filesystem"
 version = "boost-1.65.0"
-dependencies = ["system", "throw_exception", "functional", "smart_ptr", "config", "io", "range", "detail", "core", "type_traits", "predef", "assert", "iterator", "mpl", "static_assert"]
+dependencies = ["detail"]
+public_dependencies = ["assert", "config", "core", "io", "iterator", "functional", "mpl", "predef", "range", "smart_ptr", "static_assert", "system", "throw_exception", "type_traits"]
 [filesystem.flags]
 compile = ["-Wno-parentheses-equality", "-Wno-unused-parameter", "-Wno-nested-anon-types", "-Wno-vla-extension", "-Wno-pedantic"]
 

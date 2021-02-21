@@ -1,0 +1,8 @@
+name = "mainproject"
+
+subprojects = ["libA"]
+
+[myexe]
+    output_name  = "runLib"
+    directory    = "myexe"
+    dependencies = ["libA.libA"]

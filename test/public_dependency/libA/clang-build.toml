@@ -1,0 +1,9 @@
+name = "libA"
+
+subprojects = ["libB", "libC"]
+
+[libA]
+    version      = "0.0.0"
+    target_type  = "static library"
+    dependencies = ["libB.libB"]
+    public_dependencies = ["libC.libC"]

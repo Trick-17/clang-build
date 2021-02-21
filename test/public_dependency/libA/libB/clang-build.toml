@@ -1,0 +1,5 @@
+name = "libB"
+
+[libB]
+    version      = "0.0.0"
+    target_type  = "static library"
