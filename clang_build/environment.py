@@ -7,8 +7,8 @@ import shutil as _shutil
 from multiprocessing import Pool as _Pool
 from pathlib import Path as _Path
 
+from . import __version__
 from .build_type import BuildType as _BuildType
-from .clang_build import __version__
 from .toolchain import LLVM as _Clang
 
 _LOGGER = _logging.getLogger(__name__)

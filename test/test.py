@@ -10,7 +10,6 @@ from multiprocessing import freeze_support
 from sys import platform as _platform
 
 from clang_build import cli
-from clang_build import platform
 from clang_build import toolchain
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
