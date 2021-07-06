@@ -78,7 +78,7 @@ and this is your toml file:
 
     [Eigen]
         target_type = "header only"
-        url         = "https://github.com/eigenteam/eigen-git-mirror"
+        url         = "https://gitlab.com/libeigen/eigen.git"
     [Eigen.flags]
         compile  = ["-Wno-deprecated-declarations"]
         compileRelease = ["-DEIGEN_NO_DEBUG"]
