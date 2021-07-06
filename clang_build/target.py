@@ -94,8 +94,8 @@ class Target(_TreeEntry, _NamedLogger):
         ----------
         target_description : :any:`clang_build.target.TargetDescription`
             All the information on how to gather sources and build the target.
-        environment : any:`clang_build.clang_build.Environment`
-            An any:`clang_build.clang_build.Environment` instance defining some global
+        environment : any:`clang_build.environment.Environment`
+            An any:`clang_build.environment.Environment` instance defining some global
             settings for this run of clang-build.
         dependencies
             Optional. A list of any:`clang_build.target.Target` which this target

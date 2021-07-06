@@ -170,8 +170,8 @@ class Project(_NamedLogger, _TreeEntry):
         ----------
         directory : str or :any:`pathlib.Path`
             The directory to search for a ``toml`` file or source files
-        environment : any:`clang_build.clang_build.Environment`
-            An any:`clang_build.clang_build.Environment` instance defining some global
+        environment : any:`clang_build.environment.Environment`
+            An any:`clang_build.environment.Environment` instance defining some global
             settings for this run of clang-build.
         kwargs
             Used for internal purposes only.

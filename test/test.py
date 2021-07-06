@@ -9,7 +9,7 @@ from pathlib import Path as _Path
 from multiprocessing import freeze_support
 from sys import platform as _platform
 
-from clang_build import clang_build
+from clang_build import cli
 from clang_build import toolchain
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
@@ -26,7 +26,7 @@ def on_rm_error( func, path, exc_info):
 
 def clang_build_try_except( args ):
     try:
-        clang_build.build(clang_build.parse_args(args))
+        cli.build(cli.parse_args(args))
     except CompileError as compile_error:
         logger = logging.getLogger('clang_build')
         logger.error('Compilation was unsuccessful:')
@@ -65,11 +65,11 @@ class TestClangBuild(unittest.TestCase):
 
     def test_compile_error(self):
         with self.assertRaises(CompileError):
-            clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/compile_error', '-V']))
+            cli.build(cli.parse_args(['-d', 'test/build_errors/compile_error', '-V']))
 
     def test_link_error(self):
         with self.assertRaises(LinkError):
-            clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/link_error', '-V']))
+            cli.build(cli.parse_args(['-d', 'test/build_errors/link_error', '-V']))
 
     def test_script_call(self):
         try:
