@@ -1,8 +1,7 @@
 Clang-build
 ==================================================================
 
-[![Linux and OSX](https://travis-ci.org/Trick-17/clang-build.svg?branch=master)](https://travis-ci.org/Trick-17/clang-build)
-[![Windows](https://ci.appveyor.com/api/projects/status/57qv53r4totihxrj/branch/master?svg=true)](https://ci.appveyor.com/project/GPMueller/clang-build)
+[![CI](https://github.com/Trick-17/clang-build/actions/workflows/ci.yml/badge.svg)](https://github.com/Trick-17/clang-build/actions/workflows/ci.yml)
 [![Code quality](https://api.codacy.com/project/badge/Grade/2bcc761ed19844c48f92f7779e2cf67f)](https://www.codacy.com/app/Trick-17/clang-build?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Trick-17/clang-build&amp;utm_campaign=Badge_Grade)
 [![Coverage](https://codecov.io/gh/Trick-17/clang-build/branch/master/graph/badge.svg)](https://codecov.io/gh/Trick-17/clang-build)
 
