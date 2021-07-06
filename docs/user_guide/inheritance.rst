@@ -5,13 +5,13 @@ Inheritance
 Include directories
 ----------------------------------------------
 
-**`include-directories`**
+**`include_directories`**
 
     A list of private include directories, i.e. accessible only to the target itself.
 
     Defaults are the target directory and "include".
 
-**`public-include-directories`**
+**`public_include_directories`**
 
     A list of public include directories, which are accessible to any dependent target.
     Note that these are forwarded up the dependency graph, i.e. a target adds all of
@@ -39,7 +39,7 @@ The following sections of a target configuration can each contain `compile` and
     Private flags which are only applied to the target itself, with the exception
     of header-only libraries, for which they are added to the public flags.
 
-**`interface-flags`**
+**`interface_flags`**
 
     Interface flags are potentially applied to dependent targets, but not the target itself.
     An example use-case is a static library, which depends on a dynamic library, which can
@@ -49,13 +49,13 @@ The following sections of a target configuration can each contain `compile` and
     to themselves (i.e. add them to their own `flags`) and will not forward them.
 
     Header only and static libraries will not apply their dependencies' interface flags to
-    themselves, but will forward them (i.e. add them to their own `interface-flags`).
+    themselves, but will forward them (i.e. add them to their own `interface_flags`).
 
-**`public-flags`**
+**`public_flags`**
 
     Public flags are applied to the target and any dependent target.
 
-    Public flags are always forwarded (i.e. added to a target's own `public-flags`).
+    Public flags are always forwarded (i.e. added to a target's own `public_flags`).
 
 
 Note a slightly subtle difference between interface and public flags:

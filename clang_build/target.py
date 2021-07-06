@@ -108,17 +108,14 @@ class Target(_TreeEntry, _NamedLogger):
 
         if dependencies is None:
             dependencies = []
-
         self._dependencies = dependencies
-
-        # TODO: parse user-specified target version
 
         self._root_directory = _Path(target_description.root_directory)
         self._build_directory = target_description.build_directory
 
         self._headers = list(dict.fromkeys(files["headers"]))
 
-        self._directories = Directories(files, self._dependencies)
+        self._directories = Directories(files, self.dependencies)
 
         # Compile and link flags
         self._build_flags = self._get_default_flags()
@@ -211,7 +208,7 @@ class HeaderOnly(Target):
         super().__init__(
             target_description=target_description,
             files=files,
-            dependencies=dependencies,
+            dependencies=dependencies
         )
 
         if files["sourcefiles"]:
@@ -263,7 +260,7 @@ class Compilable(Target):
         platform_flags,
         prefix,
         suffix,
-        dependencies=None,
+        dependencies=None
     ):
         self.source_files = files["sourcefiles"]
         self.is_c_target = not any(
@@ -273,7 +270,7 @@ class Compilable(Target):
         super().__init__(
             target_description=target_description,
             files=files,
-            dependencies=dependencies,
+            dependencies=dependencies
         )
 
         if not self.source_files:
@@ -329,12 +326,12 @@ class Compilable(Target):
         """
 
         # Object file only needs to be (re-)compiled if the source file or headers it depends on changed
-        if not self._environment.force_build:
+        if self._environment.force_build:
+            self.needed_buildables = self.buildables
+        else:
             self.needed_buildables = [
                 buildable for buildable in self.buildables if buildable.needs_rebuild
             ]
-        else:
-            self.needed_buildables = self.buildables
 
         # If the target was not modified, it may not need to compile
         if not self.needed_buildables:
@@ -405,7 +402,7 @@ class Executable(Compilable):
             platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_EXECUTABLE'],
             prefix=target_description.environment.toolchain.platform_defaults['EXECUTABLE_PREFIX'],
             suffix=target_description.environment.toolchain.platform_defaults['EXECUTABLE_SUFFIX'],
-            dependencies=dependencies,
+            dependencies=dependencies
         )
 
         ### Bundling requires extra flags
@@ -537,7 +534,7 @@ class SharedLibrary(Compilable):
             platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_SHARED'],
             prefix=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_PREFIX'],
             suffix=target_description.environment.toolchain.platform_defaults['SHARED_LIBRARY_SUFFIX'],
-            dependencies=dependencies,
+            dependencies=dependencies
         )
 
         # TODO: This has to go to the flags department I guess
@@ -619,7 +616,7 @@ class StaticLibrary(Compilable):
             platform_flags=target_description.environment.toolchain.platform_defaults['PLATFORM_EXTRA_FLAGS_STATIC'],
             prefix=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_PREFIX'],
             suffix=target_description.environment.toolchain.platform_defaults['STATIC_LIBRARY_SUFFIX'],
-            dependencies=dependencies,
+            dependencies=dependencies
         )
 
     def _add_dependency_flags(self, target):

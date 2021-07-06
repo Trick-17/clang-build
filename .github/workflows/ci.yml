@@ -1,0 +1,59 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+
+  test:
+    runs-on: ${{ matrix.os }}
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, macos-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+
+    - name: Install LLVM (Ubuntu) 📚
+      if: matrix.os == 'ubuntu-20.04'
+      shell: bash
+      run: |
+        sudo apt update
+        sudo apt install --fix-broken libc++-dev llvm clang libomp-dev
+
+    - name: Install LLVM (MacOS) 📚
+      if: matrix.os == 'macos-latest'
+      shell: bash
+      run: |
+        brew update
+        brew install llvm
+
+    - name: Install LLVM (Windows) book 📚
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        choco install llvm
+
+    - name: Install clang-build ⚙
+      run: |
+        pip install setuptools
+        pip install codecov
+        python setup.py develop
+
+    - name: Run tests 🧪
+      shell: bash
+      run: |
+        if [ ${{ matrix.os == 'macos-latest' }} ]; then export PATH=/usr/local/opt/llvm/bin:$PATH; fi
+        if [ ${{ matrix.os == 'macos-latest' }} ]; then export LIBRARY_PATH=/usr/local/opt/llvm/lib:$PATH; fi
+        if [ ${{ matrix.os == 'windows-latest' }} ]; then export PATH=/c/Program\ Files/LLVM/bin:$PATH; fi
+        python setup.py test
+        python -m coverage run setup.py test
+        python -m coverage combine
+
+    - name: Upload coverage 👆
+      run: codecov

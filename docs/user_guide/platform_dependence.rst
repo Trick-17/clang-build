@@ -23,10 +23,10 @@ Example
 
     [mylib]
         target_type = "static library"
-        include_directories_public = ["include"]
+        public_include_directories = ["include"]
         sources = ["src/common.c"]
 
-        [mylib.public-flags]
+        [mylib.public_flags]
             compile = ["-DMYLIB_VERSION_MAJOR=2", "-DMYLIB_VERSION_MINOR=1", "-DMYLIB_VERSION_PATCH=2"]
 
         [mylib.osx]
@@ -35,7 +35,7 @@ Example
 
             [mylib.osx.flags]
                 compile = ["-DMYLIB_OSX"]
-            [mylib.osx.interface-flags]
+            [mylib.osx.interface_flags]
                 link = ["-framework", "Cocoa"]
 
         [mylib.windows]
