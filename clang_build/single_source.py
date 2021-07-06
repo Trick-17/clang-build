@@ -5,7 +5,6 @@ import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
 # import logging as _logging
 
-# _LOGGER = _logging.getLogger('clang_build.clang_build')
 
 # Find and parse the dependency file, return list of headers this file depends on
 # See e.g. https://gcc.gnu.org/onlinedocs/gcc-8.1.0/gcc/Preprocessor-Options.html#Preprocessor-Options for documentation

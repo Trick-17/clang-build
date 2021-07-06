@@ -195,7 +195,7 @@ def get_sources_and_headers(
     target_name,
     platform,
     target_config,
-    project_root_directory,
+    target_root_directory
 ):
     """Get sources, headers, and include folders (public and private) of a target.
 
@@ -207,7 +207,7 @@ def get_sources_and_headers(
         the platform for which to build
     target_config : dict
         the configuration dict of the target
-    project_root_directory : pathlib.Path
+    target_root_directory : pathlib.Path
         the directory of the project that owns this target
 
     Returns
@@ -230,10 +230,10 @@ def get_sources_and_headers(
     # Behaviour of the search lateron depends on whether there is a dedicated target directory
     if (
         in_project_root := not (
-            target_root_directory := (project_root_directory / target_name).resolve()
+            target_root_directory := (target_root_directory / target_name).resolve()
         ).is_dir()
     ) :
-        target_root_directory = project_root_directory
+        target_root_directory = target_root_directory
 
     # Options for include directories
     custom_include_directories = _existing_directories(

@@ -9,7 +9,7 @@
 
 [Eigen]
     target_type = "header only"
-    url         = "https://github.com/eigenteam/eigen-git-mirror"
+    url         = "https://gitlab.com/libeigen/eigen.git"
     [Eigen.flags]
-        compile  = ["-Wno-deprecated-declarations", "-Wno-shadow"]
+        compile  = ["-DEIGEN_HAS_STD_RESULT_OF=0", "-Wno-deprecated-declarations", "-Wno-shadow"]
         compile_release = ["-DEIGEN_NO_DEBUG"]

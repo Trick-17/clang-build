@@ -1,7 +1,5 @@
 class Directories:
-    def __init__(self, files, dependencies):
-        self.dependencies = dependencies
-
+    def __init__(self, files, public_dependencies):
         # Include directories
         self.include_private = files["include_directories"]
         self.include_public = files["public_include_directories"]
@@ -10,8 +8,8 @@ class Directories:
         # if self.root_directory.joinpath('include').exists():
         #    self._include_directories_public = [self.root_directory.joinpath('include')] + self._include_directories_public
 
-        # Public include directories of dependencies are forwarded
-        for target in self.dependencies:
+        # Public include directories of public dependencies are forwarded
+        for target in public_dependencies:
             self.include_public += target.directories.include_public
 
         # Make unique and resolve
