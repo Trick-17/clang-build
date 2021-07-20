@@ -1,5 +1,6 @@
 """Module containing tool chaines used for compiling and linking."""
 
+from abc import abstractmethod
 import logging as _logging
 import shutil as _shutil
 import subprocess as _subprocess
@@ -16,8 +17,237 @@ from .build_type import BuildType
 _LOGGER = _logging.getLogger(__name__)
 
 
-class LLVM:
-    """Class of the LLVM tool chain, i.e. the clang compiler etc.
+class Toolchain:
+    DEFAULT_COMPILE_FLAGS = {
+        BuildType.Default:        [],
+        BuildType.Release:        [],
+        BuildType.RelWithDebInfo: [],
+        BuildType.Debug:          [],
+        BuildType.Coverage:       []
+    }
+
+    DEFAULT_LINK_FLAGS = {
+        BuildType.Default:        [],
+        BuildType.Release:        [],
+        BuildType.RelWithDebInfo: [],
+        BuildType.Debug:          [],
+        BuildType.Coverage:       []
+    }
+
+    PLATFORM_DEFAULTS = {
+        "linux": {
+            'PLATFORM':                        'linux',
+            'EXECUTABLE_PREFIX':               '',
+            'EXECUTABLE_SUFFIX':               '',
+            'SHARED_LIBRARY_PREFIX':           'lib',
+            'SHARED_LIBRARY_SUFFIX':           '',
+            'STATIC_LIBRARY_PREFIX':           'lib',
+            'STATIC_LIBRARY_SUFFIX':           '',
+            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': [],
+            'PLATFORM_EXTRA_FLAGS_SHARED':     [],
+            'PLATFORM_EXTRA_FLAGS_STATIC':     [],
+            'PLATFORM_BUNDLING_LINKER_FLAGS':  [],
+
+            'EXECUTABLE_OUTPUT_DIR':           'bin',
+            'SHARED_LIBRARY_OUTPUT_DIR':       'lib',
+            'STATIC_LIBRARY_OUTPUT_DIR':       'lib',
+
+            'PLATFORM_PYTHON_INCLUDE_PATH':     _Path(_get_paths()['include']),
+            'PLATFORM_PYTHON_LIBRARY_PATH':     _Path(_get_paths()['data']) / "lib",
+            'PLATFORM_PYTHON_LIBRARY_NAME':     f"python{_version_info.major}.{_version_info.minor}",
+            'PLATFORM_PYTHON_EXTENSION_SUFFIX': _get_config_var('EXT_SUFFIX')
+        },
+        "darwin": {
+            'PLATFORM':                        'osx',
+            'EXECUTABLE_PREFIX':               '',
+            'EXECUTABLE_SUFFIX':               '',
+            'SHARED_LIBRARY_PREFIX':           'lib',
+            'SHARED_LIBRARY_SUFFIX':           '',
+            'STATIC_LIBRARY_PREFIX':           'lib',
+            'STATIC_LIBRARY_SUFFIX':           '',
+            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': [],
+            'PLATFORM_EXTRA_FLAGS_SHARED':     [],
+            'PLATFORM_EXTRA_FLAGS_STATIC':     [],
+            'PLATFORM_BUNDLING_LINKER_FLAGS':  [],
+
+            'EXECUTABLE_OUTPUT_DIR':           'bin',
+            'SHARED_LIBRARY_OUTPUT_DIR':       'lib',
+            'STATIC_LIBRARY_OUTPUT_DIR':       'lib',
+
+            'PLATFORM_PYTHON_INCLUDE_PATH':     _Path(_get_paths()['include']),
+            'PLATFORM_PYTHON_LIBRARY_PATH':     _Path(_get_paths()['data']) / "lib",
+            'PLATFORM_PYTHON_LIBRARY_NAME':     f"python{_version_info.major}.{_version_info.minor}",
+            'PLATFORM_PYTHON_EXTENSION_SUFFIX': _get_config_var('EXT_SUFFIX')
+        },
+        "win32": {
+            'PLATFORM':                        'windows',
+            'EXECUTABLE_PREFIX':               '',
+            'EXECUTABLE_SUFFIX':               '',
+            'SHARED_LIBRARY_PREFIX':           '',
+            'SHARED_LIBRARY_SUFFIX':           '',
+            'STATIC_LIBRARY_PREFIX':           '',
+            'STATIC_LIBRARY_SUFFIX':           '',
+            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': [],
+            'PLATFORM_EXTRA_FLAGS_SHARED':     [],
+            'PLATFORM_EXTRA_FLAGS_STATIC':     [],
+            'PLATFORM_BUNDLING_LINKER_FLAGS':  [],
+
+            'EXECUTABLE_OUTPUT_DIR':           'bin',
+            'SHARED_LIBRARY_OUTPUT_DIR':       'bin',
+            'STATIC_LIBRARY_OUTPUT_DIR':       'lib',
+
+            'PLATFORM_PYTHON_INCLUDE_PATH':     _Path(_get_paths()['include']),
+            'PLATFORM_PYTHON_LIBRARY_PATH':     _Path(_get_paths()['data']) / "libs",
+            'PLATFORM_PYTHON_LIBRARY_NAME':     f"python{_version_info.major}{_version_info.minor}",
+            'PLATFORM_PYTHON_EXTENSION_SUFFIX': _get_config_var('EXT_SUFFIX')
+        }
+    }
+
+    def __init__(self):
+        self.c_compiler   = None
+        self.cpp_compiler = None
+        self.archiver     = None
+
+        self.max_cpp_standard = None
+
+        if _platform == 'linux':
+            self.platform = 'linux'
+        elif _platform == 'darwin':
+            self.platform = 'osx'
+        elif _platform == 'win32':
+            self.platform = 'windows'
+        else:
+            raise RuntimeError('Platform ' + _platform + 'is currently not supported.')
+
+        self.platform_defaults = self.PLATFORM_DEFAULTS[_platform]
+
+        _LOGGER.info("Platform: %s", self.platform)
+
+    @abstractmethod
+    def generate_dependency_file(
+        self, source_file, dependency_file, flags, include_directories, is_c_target
+    ):
+        """Generate a dependency file for a given source file.
+
+        If the dependency file is placed into a non-existing folder, this
+        folder is generated before compilation.
+
+        Parameters
+        ----------
+        source_file : pathlib.Path
+            The source file to compile
+
+        dependency_file : pathlib.Path
+            The dependency file to generate
+
+        flags : list of str
+            List of flags to pass to the compiler
+
+        Returns
+        -------
+        bool
+            True if the dependency file generation was successful, else False
+        str
+            Output of the compiler
+
+        """
+
+    @abstractmethod
+    def compile(
+        self, source_file, object_file, include_directories, flags, is_c_target
+    ):
+        """Compile a given source file into an object file.
+
+        If the object file is placed into a non-existing folder, this
+        folder is generated before compilation.
+
+        Parameters
+        ----------
+        source_file : pathlib.Path
+            The source file to compile
+
+        object_file : pathlib.Path
+            The object file to generate during compilation
+
+        flags : list of str
+            List of flags to pass to the compiler
+
+        Returns
+        -------
+        bool
+            True if the compilation was successful, else False
+        str
+            Output of the compiler
+
+        """
+
+    @abstractmethod
+    def link(
+        self,
+        object_files,
+        output_file,
+        flags,
+        library_directories,
+        libraries,
+        is_library,
+        is_c_target,
+    ):
+        """Link into the given output_file.
+
+        The command should contain all object files, library search paths
+        and libraries against which to link. If the output_file is placed
+        in a non-existing folder, the folder and all required parents
+        are generated.
+
+        Parameters
+        ----------
+        object_files : list of pathlib.Path
+            Object files to link
+        output_file : pathlib.Path
+            The output file to generate
+        flags : list of str
+            Flags to pass to the linker
+        library_directories : list of pathlib.Path
+            Directories to search for libraries during linking
+        libraries : list of pathlib.Path
+            Libraries to link to
+        is_library : bool
+            If true, create a shared library. Else, create an executable.
+
+        Returns
+        -------
+        bool
+            True if linking was successful, False otherwise
+        str
+            The output of the linker
+
+        """
+
+    @abstractmethod
+    def archive(self, object_files, output_file, flags):
+        """Archive object files into a static library.
+
+        Parameters
+        ----------
+        object_files : list of pathlib.Path
+            Object files to put in a static library
+        output_file : pathlib.Path
+            The static library to create
+        flags : list of str
+            Flags to pass to the archiver
+
+        Returns
+        -------
+        bool
+            True if archiving was successful, False otherwise
+        str
+            The output of the archiver
+
+        """
+
+
+class LLVM(Toolchain):
+    """The LLVM toolchain: clang and clang++ compilers, etc.
 
     This class abstracts away many features of the compiler and provides
     mildly generic compile, link and archive functions.
@@ -37,9 +267,22 @@ class LLVM:
     """
 
     DEFAULT_COMPILE_FLAGS = {
-        BuildType.Default: ["-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-Werror"],
-        BuildType.Release: ["-O3", "-DNDEBUG"],
-        BuildType.RelWithDebInfo: ["-O3", "-g3", "-DNDEBUG"],
+        BuildType.Default: [
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-Wshadow",
+            "-Werror"
+        ],
+        BuildType.Release: [
+            "-O3",
+            "-DNDEBUG"
+        ],
+        BuildType.RelWithDebInfo: [
+            "-O3",
+            "-g3",
+            "-DNDEBUG"
+        ],
         BuildType.Debug: [
             "-Og",
             "-g3",
@@ -62,7 +305,10 @@ class LLVM:
         ],
     }
     DEFAULT_LINK_FLAGS = {
-        BuildType.Debug: ["-fsanitize=address", "-fsanitize=undefined"],
+        BuildType.Debug: [
+            "-fsanitize=address",
+            "-fsanitize=undefined"
+        ],
         BuildType.Coverage: [
             "-fsanitize=address",
             "-fsanitize=undefined",
@@ -151,9 +397,11 @@ class LLVM:
             If a compiler or linker tool wasn't found on the system.
 
         """
-        self.c_compiler = self._find("clang")
+        super().__init__()
+
+        self.c_compiler   = self._find("clang")
         self.cpp_compiler = self._find("clang++")
-        self.archiver = self._find("llvm-ar")
+        self.archiver     = self._find("llvm-ar")
 
         self.max_cpp_standard = self._get_max_supported_compiler_dialect()
 
@@ -168,7 +416,6 @@ class LLVM:
 
         self.platform_defaults = self.PLATFORM_DEFAULTS[_platform]
 
-        _LOGGER.info("Platform: %s", self.platform)
         _LOGGER.info("llvm root directory: %s", self.cpp_compiler.parents[0])
         _LOGGER.info("clang executable:    %s", self.c_compiler)
         _LOGGER.info("clang++ executable:  %s", self.cpp_compiler)
@@ -295,68 +542,21 @@ class LLVM:
             ]
         )
 
-    def compile(
-        self, source_file, object_file, include_directories, flags, is_c_target
-    ):
-        """Compile a given source file into an object file.
-
-        If the object file is placed into a non-existing folder, this
-        folder is generated before compilation.
-
-        Parameters
-        ----------
-        source_file : pathlib.Path
-            The source file to compile
-
-        object_file : pathlib.Path
-            The object file to generate during compilation
-
-        flags : list of str
-            List of flags to pass to the compiler
-
-        Returns
-        -------
-        bool
-            True if the compilation was successful, else False
-        str
-            Output of the compiler
-
-        """
-        object_file.parents[0].mkdir(parents=True, exist_ok=True)
-
-        return self._run_clang_command(
-            self._get_compiler_command(
-                source_file, object_file, include_directories, flags, is_c_target
+    def _run_clang_command(self, command):
+        _LOGGER.debug(f"Running: {' '.join(command)}")
+        try:
+            return (
+                True,
+                _subprocess.check_output(
+                    command, encoding="utf8", stderr=_subprocess.STDOUT
+                ),
             )
-        )
+        except _subprocess.CalledProcessError as error:
+            return False, error.output.strip()
 
     def generate_dependency_file(
         self, source_file, dependency_file, flags, include_directories, is_c_target
     ):
-        """Generate a dependency file for a given source file.
-
-        If the dependency file is placed into a non-existing folder, this
-        folder is generated before compilation.
-
-        Parameters
-        ----------
-        source_file : pathlib.Path
-            The source file to compile
-
-        dependency_file : pathlib.Path
-            The dependency file to generate
-
-        flags : list of str
-            List of flags to pass to the compiler
-
-        Returns
-        -------
-        bool
-            True if the dependency file generation was successful, else False
-        str
-            Output of the compiler
-
-        """
         dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
         return self._run_clang_command(
@@ -364,6 +564,17 @@ class LLVM:
                 source_file, None, include_directories, flags, is_c_target
             )
             + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
+        )
+
+    def compile(
+        self, source_file, object_file, include_directories, flags, is_c_target
+    ):
+        object_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        return self._run_clang_command(
+            self._get_compiler_command(
+                source_file, object_file, include_directories, flags, is_c_target
+            )
         )
 
     def link(
@@ -376,36 +587,6 @@ class LLVM:
         is_library,
         is_c_target,
     ):
-        """Link into the given output_file.
-
-        The command should contain all object files, library search paths
-        and libraries against which to link. If the output_file is placed
-        in a non-existing folder, the folder and all required parents
-        are generated.
-
-        Parameters
-        ----------
-        object_files : list of pathlib.Path
-            Object files to link
-        output_file : pathlib.Path
-            The output file to generate
-        flags : list of str
-            Flags to pass to the linker
-        library_directories : list of pathlib.Path
-            Directories to search for libraries during linking
-        libraries : list of pathlib.Path
-            Libraries to link to
-        is_library : bool
-            If true, create a shared library. Else, create an executable.
-
-        Returns
-        -------
-        bool
-            True if linking was successful, False otherwise
-        str
-            The output of the linker
-
-        """
         _LOGGER.info(f'link -> "{output_file}"')
         output_file.parents[0].mkdir(parents=True, exist_ok=True)
 
@@ -422,25 +603,6 @@ class LLVM:
         return self._run_clang_command(command)
 
     def archive(self, object_files, output_file, flags):
-        """Archive object files into a static library.
-
-        Parameters
-        ----------
-        object_files : list of pathlib.Path
-            Object files to put in a static library
-        output_file : pathlib.Path
-            The static library to create
-        flags : list of str
-            Flags to pass to the archiver
-
-        Returns
-        -------
-        bool
-            True if archiving was successful, False otherwise
-        str
-            The output of the archiver
-
-        """
         output_file.parents[0].mkdir(parents=True, exist_ok=True)
 
         command = (
@@ -449,15 +611,3 @@ class LLVM:
         )
 
         return self._run_clang_command(command)
-
-    def _run_clang_command(self, command):
-        _LOGGER.debug(f"Running: {' '.join(command)}")
-        try:
-            return (
-                True,
-                _subprocess.check_output(
-                    command, encoding="utf8", stderr=_subprocess.STDOUT
-                ),
-            )
-        except _subprocess.CalledProcessError as error:
-            return False, error.output.strip()

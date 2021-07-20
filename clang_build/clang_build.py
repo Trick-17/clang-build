@@ -100,6 +100,10 @@ def parse_args(args):
     parser.add_argument('--redistributable',
                         help='Automatically create redistributable bundles from binary bundles. Implies `--bundle`',
                         action='store_true')
+    parser.add_argument('--toolchain',
+                        type=str,
+                        # nargs=1,
+                        help='specify a toolchain file to be used instead of the provided LLVM toolchain')
     return parser.parse_args(args=args)
 
 
@@ -113,8 +117,12 @@ def build(args):
     if environment.redistributable:
         categories.append('Generate redistributable')
 
+    directory = _Path()
+    if args.directory:
+        directory = _Path(args.directory)
+
     with _CategoryProgress(categories, not args.progress) as progress_bar:
-        project = _Project.from_directory(args.directory, environment)
+        project = _Project.from_directory(directory, environment)
         project.build(args.all, args.targets, args.jobs)
         progress_bar.update()
 

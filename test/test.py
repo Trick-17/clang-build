@@ -267,6 +267,9 @@ class TestClangBuild(unittest.TestCase):
                 print(f'Expected location "{pylib_dir}" does not exist!')
             self.fail('Import of pylib failed!')
 
+    def test_toolchain_emscripten(self):
+        clang_build_try_except(['-d', 'test/toolchains/emscripten', '--toolchain="test/toolchains/emscripten/emscripten-toolchain.py"', '-V', ])
+
     def setUp(self):
         logger = logging.getLogger('clang_build')
         logger.setLevel(logging.INFO)
