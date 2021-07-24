@@ -341,8 +341,12 @@ class Project(_NamedLogger, _TreeEntry):
         # Add edges for dependencies in targets defined in project
         for target in target_list:
             target.config["dependencies"] = self._get_dependencies_2(target, target.config.get("dependencies", []))
+            target.config["public_dependencies"] = self._get_dependencies_2(target, target.config.get("public_dependencies", []))
+
             for dependency in target.config["dependencies"]:
                 self._project_tree.add_edge(target, dependency)
+            for dependency in target.config["public_dependencies"]:
+                self._project_tree.add_edge(target, dependency, public=True)
 
         # Create new dotfile with full dependency graph
         if create_dotfile:
@@ -622,9 +626,15 @@ class Project(_NamedLogger, _TreeEntry):
             for dependency in self._project_tree.successors(target_description)
         ]
 
+        public_dependencies = []
+        successors = self._project_tree.successors(target_description)
+        for target, dependency, public in self._project_tree.subgraph([target_description] + [s for s in successors]).edges(data="public"):
+            if public == True:
+                public_dependencies.append(self._project_tree.nodes()[dependency]["data"])
+
         # Are there executables named as dependencies?
         executable_dependencies = [
-            target for target in dependencies if isinstance(target, _Executable)
+            target for target in dependencies+public_dependencies if isinstance(target, _Executable)
         ]
         if executable_dependencies:
             exelist = ", ".join([f"[{dep.name}]" for dep in executable_dependencies])
@@ -634,7 +644,7 @@ class Project(_NamedLogger, _TreeEntry):
             self._logger.error(error_message)
             raise RuntimeError(error_message)
 
-        return dependencies
+        return dependencies, public_dependencies
 
     def _get_dependencies_2(self, target, names):
         dependencies = []
@@ -679,7 +689,7 @@ class Project(_NamedLogger, _TreeEntry):
             Returns the correct target type based on input parameters
         """
 
-        dependencies = self._get_dependencies(target_description)
+        dependencies, public_dependencies = self._get_dependencies(target_description)
 
         # Sources
         target_description.get_sources()
@@ -696,7 +706,7 @@ class Project(_NamedLogger, _TreeEntry):
         if target_type is not None:
             target_type = str(target_type).lower()
             if target_type in _TARGET_MAP:
-                return _TARGET_MAP[target_type](target_description, files, dependencies)
+                return _TARGET_MAP[target_type](target_description, files, dependencies, public_dependencies)
             else:
                 error_message = target_description.log_message(
                     f'ERROR: Unsupported target type: "{target_description.config["target_type"].lower()}"'
@@ -710,12 +720,12 @@ class Project(_NamedLogger, _TreeEntry):
                 target_description.log_message(
                     "no source files found. Creating header-only target."
                 )
-                return _HeaderOnly(target_description, files, dependencies)
+                return _HeaderOnly(target_description, files, dependencies, public_dependencies)
 
             target_description.log_message(
                 f'{len(files["sourcefiles"])} source file(s) found. Creating executable target.'
             )
-            return _Executable(target_description, files, dependencies)
+            return _Executable(target_description, files, dependencies, public_dependencies)
 
     def get_sources(self):
         """External sources, if present, will be downloaded to build_directory/external_sources.
