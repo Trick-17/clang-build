@@ -323,12 +323,8 @@ class LLVM:
 
         """
         object_file.parents[0].mkdir(parents=True, exist_ok=True)
-
-        return self._run_clang_command(
-            self._get_compiler_command(
-                source_file, object_file, include_directories, flags, is_c_target
-            )
-        )
+        command = self._get_compiler_command(source_file, object_file, include_directories, flags, is_c_target)
+        return command, *self._run_clang_command(command)
 
     def generate_dependency_file(
         self, source_file, dependency_file, flags, include_directories, is_c_target
@@ -359,12 +355,8 @@ class LLVM:
         """
         dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        return self._run_clang_command(
-            self._get_compiler_command(
-                source_file, None, include_directories, flags, is_c_target
-            )
-            + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
-        )
+        command = self._get_compiler_command(source_file, None, include_directories, flags, is_c_target) + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
+        return command, *self._run_clang_command(command)
 
     def link(
         self,

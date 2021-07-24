@@ -5,6 +5,8 @@ import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
 # import logging as _logging
 
+import json
+
 
 # Find and parse the dependency file, return list of headers this file depends on
 # See e.g. https://gcc.gnu.org/onlinedocs/gcc-8.1.0/gcc/Preprocessor-Options.html#Preprocessor-Options for documentation
@@ -54,6 +56,8 @@ class SingleSource:
             compile_flags,
             is_c_target):
 
+        self._environment = environment
+
         # Get the relative file path
         self.name        = source_file.name
         self.source_file = source_file
@@ -80,7 +84,7 @@ class SingleSource:
 
 
     def generate_depfile(self):
-        success, self.depfile_report = self.toolchain.generate_dependency_file(
+        command, success, self.depfile_report = self.toolchain.generate_dependency_file(
             self.source_file,
             self.depfile,
             self.flags,
@@ -88,14 +92,72 @@ class SingleSource:
             self.is_c_target)
         self.depfile_failed = not success
 
+        # TODO: make this a part of `Environment`
+        database_file = (self._environment.build_directory / 'compile_commands.json')
+        database = []
+        if database_file.exists():
+            database = json.loads(database_file.read_text())
+
+        command_missing = True
+        for idx, db_command in enumerate(database):
+            if str(self.source_file) == db_command["file"] and str(self.depfile) == db_command["output"]:
+                database[idx] = {
+                    'directory': str(self._environment.build_directory),
+                    'command': ' '.join(command),
+                    'file': str(self.source_file),
+                    'output': str(self.depfile)
+                }
+                command_missing = False
+                break
+        if command_missing:
+            database.append({
+                'directory': str(self._environment.build_directory),
+                'command': ' '.join(command),
+                'file': str(self.source_file),
+                'output': str(self.depfile)
+            })
+
+        database_file.write_text(
+            json.dumps(database, indent=4, sort_keys=True)
+        )
+
     def compile(self):
-        success, self.compile_report = self.toolchain.compile(
+        command, success, self.compile_report = self.toolchain.compile(
             self.source_file,
             self.object_file,
             self.include_directories,
             self.flags,
             self.is_c_target)
         self.compilation_failed = not success
+
+        # TODO: make this a part of `Environment`
+        database_file = (self._environment.build_directory / 'compile_commands.json')
+        database = []
+        if database_file.exists():
+            database = json.loads(database_file.read_text())
+
+        command_missing = True
+        for idx, db_command in enumerate(database):
+            if str(self.source_file) == db_command["file"] and str(self.object_file) == db_command["output"]:
+                database[idx] = {
+                    'directory': str(self._environment.build_directory),
+                    'command': ' '.join(command),
+                    'file': str(self.source_file),
+                    'output': str(self.object_file)
+                }
+                command_missing = False
+                break
+        if command_missing:
+            database.append({
+                'directory': str(self._environment.build_directory),
+                'command': ' '.join(command),
+                'file': str(self.source_file),
+                'output': str(self.object_file)
+            })
+
+        database_file.write_text(
+            json.dumps(database, indent=4, sort_keys=True)
+        )
 
 if __name__ == '__name__':
     _freeze_support()
