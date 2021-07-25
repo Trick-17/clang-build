@@ -92,16 +92,10 @@ class SingleSource:
             self.is_c_target)
         self.depfile_failed = not success
 
-        # TODO: make this a part of `Environment`
-        database_file = (self._environment.build_directory / 'compile_commands.json')
-        database = []
-        if database_file.exists():
-            database = json.loads(database_file.read_text())
-
         command_missing = True
-        for idx, db_command in enumerate(database):
+        for idx, db_command in enumerate(self._environment.compilation_database):
             if str(self.source_file) == db_command["file"] and str(self.depfile) == db_command["output"]:
-                database[idx] = {
+                self._environment.compilation_database[idx] = {
                     'directory': str(self._environment.build_directory),
                     'command': ' '.join(command),
                     'file': str(self.source_file),
@@ -110,15 +104,15 @@ class SingleSource:
                 command_missing = False
                 break
         if command_missing:
-            database.append({
+            self._environment.compilation_database.append({
                 'directory': str(self._environment.build_directory),
                 'command': ' '.join(command),
                 'file': str(self.source_file),
                 'output': str(self.depfile)
             })
 
-        database_file.write_text(
-            json.dumps(database, indent=4, sort_keys=True)
+        self._environment.compilation_database_file.write_text(
+            json.dumps(self._environment.compilation_database, indent=4, sort_keys=True)
         )
 
     def compile(self):
@@ -130,16 +124,10 @@ class SingleSource:
             self.is_c_target)
         self.compilation_failed = not success
 
-        # TODO: make this a part of `Environment`
-        database_file = (self._environment.build_directory / 'compile_commands.json')
-        database = []
-        if database_file.exists():
-            database = json.loads(database_file.read_text())
-
         command_missing = True
-        for idx, db_command in enumerate(database):
+        for idx, db_command in enumerate(self._environment.compilation_database):
             if str(self.source_file) == db_command["file"] and str(self.object_file) == db_command["output"]:
-                database[idx] = {
+                self._environment.compilation_database[idx] = {
                     'directory': str(self._environment.build_directory),
                     'command': ' '.join(command),
                     'file': str(self.source_file),
@@ -148,15 +136,15 @@ class SingleSource:
                 command_missing = False
                 break
         if command_missing:
-            database.append({
+            self._environment.compilation_database.append({
                 'directory': str(self._environment.build_directory),
                 'command': ' '.join(command),
                 'file': str(self.source_file),
                 'output': str(self.object_file)
             })
 
-        database_file.write_text(
-            json.dumps(database, indent=4, sort_keys=True)
+        self._environment.compilation_database_file.write_text(
+            json.dumps(self._environment.compilation_database, indent=4, sort_keys=True)
         )
 
 if __name__ == '__name__':
