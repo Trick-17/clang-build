@@ -30,6 +30,7 @@ Clang-build
 **Goals:**
 
 - One compiler (Clang), one build system (written in Python)
+- Automatic integration with language servers (compile_commands.json)
 - Simple projects should be simple to build
 - Build process for reasonable project structures should still be easy
 - Adding third-party dependencies should be manageable
