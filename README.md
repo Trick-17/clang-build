@@ -1,6 +1,7 @@
 Clang-build
 ==================================================================
 
+[![PyPI version](https://badge.fury.io/py/clang-build.svg)](https://badge.fury.io/py/clang-build)
 [![CI](https://github.com/Trick-17/clang-build/actions/workflows/ci.yml/badge.svg)](https://github.com/Trick-17/clang-build/actions/workflows/ci.yml)
 [![Code quality](https://api.codacy.com/project/badge/Grade/2bcc761ed19844c48f92f7779e2cf67f)](https://www.codacy.com/app/Trick-17/clang-build?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Trick-17/clang-build&amp;utm_campaign=Badge_Grade)
 [![Coverage](https://codecov.io/gh/Trick-17/clang-build/branch/master/graph/badge.svg)](https://codecov.io/gh/Trick-17/clang-build)
