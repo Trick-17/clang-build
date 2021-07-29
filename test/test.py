@@ -9,6 +9,8 @@ from pathlib import Path as _Path
 from multiprocessing import freeze_support
 from sys import platform as _platform
 
+import json
+
 from clang_build import cli
 from clang_build import toolchain
 from clang_build.errors import CompileError
@@ -51,6 +53,21 @@ class TestClangBuild(unittest.TestCase):
             self.fail(f'Could not run compiled program. Message:\n{e.output}')
 
         self.assertEqual(output, 'Hello!')
+
+        compile_commands_file = _Path("build") / "compile_commands.json"
+        compile_commands = []
+        self.assertTrue(compile_commands_file.exists())
+
+        compile_commands_str = compile_commands_file.read_text()
+        logger = logging.getLogger('clang_build')
+        logger.info(compile_commands_str)
+        compile_commands = json.loads(compile_commands_str)
+        for command in compile_commands:
+            self.assertEqual(str(_Path('test/mwe/hello.cpp').resolve()), str(_Path(command["file"]).resolve()))
+            self.assertTrue(
+                str(_Path('./build/default/obj/hello.o').resolve()) == str(_Path(command["output"]).resolve()) or
+                str(_Path('./build/default/dep/hello.d').resolve()) == str(_Path(command["output"]).resolve())
+            )
 
     def test_build_types(self):
         for build_type in ['release', 'relwithdebinfo', 'debug', 'coverage']:

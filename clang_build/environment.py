@@ -7,6 +7,8 @@ import shutil as _shutil
 from multiprocessing import Pool as _Pool
 from pathlib import Path as _Path
 
+import json
+
 from . import __version__
 from .build_type import BuildType as _BuildType
 from .toolchain import LLVM as _Clang
@@ -19,7 +21,6 @@ class Environment:
     """
 
     def __init__(self, args):
-
 
         self.toolchain = _Clang()
 
@@ -51,3 +52,8 @@ class Environment:
         if self.redistributable:
             self.bundle = True
             _LOGGER.info("Redistributable bundling of binary dependencies is activated")
+
+        self.compilation_database_file = (self.build_directory / 'compile_commands.json')
+        self.compilation_database = []
+        if self.compilation_database_file.exists():
+            self.compilation_database = json.loads(self.compilation_database_file.read_text())
