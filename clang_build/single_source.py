@@ -5,8 +5,6 @@ import subprocess as _subprocess
 from multiprocessing import freeze_support as _freeze_support
 # import logging as _logging
 
-import json
-
 
 # Find and parse the dependency file, return list of headers this file depends on
 # See e.g. https://gcc.gnu.org/onlinedocs/gcc-8.1.0/gcc/Preprocessor-Options.html#Preprocessor-Options for documentation
@@ -111,10 +109,6 @@ class SingleSource:
                 'output': str(self.depfile)
             })
 
-        self._environment.compilation_database_file.write_text(
-            json.dumps(self._environment.compilation_database, indent=4, sort_keys=True)
-        )
-
     def compile(self):
         command, success, self.compile_report = self.toolchain.compile(
             self.source_file,
@@ -143,9 +137,6 @@ class SingleSource:
                 'output': str(self.object_file)
             })
 
-        self._environment.compilation_database_file.write_text(
-            json.dumps(self._environment.compilation_database, indent=4, sort_keys=True)
-        )
 
 if __name__ == '__name__':
     _freeze_support()
