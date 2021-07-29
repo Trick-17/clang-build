@@ -6,6 +6,7 @@ It has not yet been tested on Linux and building the Vulkan
 backend has not yet been attempted.
 
 .. code-block:: TOML
+
     name = "glfw"
     url = "https://github.com/glfw/glfw"
 
