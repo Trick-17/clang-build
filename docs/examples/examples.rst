@@ -9,3 +9,4 @@ we provide examples of some widely known ones.
    :caption: Contents:
 
    glfw.rst
+   tinygrad.rst
