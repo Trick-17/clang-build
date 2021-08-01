@@ -9,6 +9,7 @@ we provide examples of some widely known ones.
    :caption: Contents:
 
    glfw.rst
+   lz4.rst
    codeplea_genann.rst
    nikoreun_tinygrad.rst
    boost_filesystem.rst
