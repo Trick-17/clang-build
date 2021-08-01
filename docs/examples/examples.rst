@@ -12,3 +12,4 @@ we provide examples of some widely known ones.
    codeplea_genann.rst
    nikoreun_tinygrad.rst
    boost_filesystem.rst
+   eidheim_tiny_process.rst
