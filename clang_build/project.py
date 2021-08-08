@@ -697,8 +697,7 @@ class Project(_NamedLogger, _TreeEntry):
             target_description.name,
             self._environment.toolchain.platform,
             target_description.config,
-            target_description.root_directory,
-            target_description.build_directory,
+            self.directory,
         )
 
         # Create specific target if the target type was specified
