@@ -1,5 +1,6 @@
 """Module for the Circle class."""
 
+
 class Circle(list):
     """List with a circular dependency representation.
 

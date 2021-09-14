@@ -3,20 +3,27 @@ from colorama import Fore as _Fore
 
 _MAX_DESCRIPTION_WIDTH = 16
 _ELLIPSIS_WIDTH = 2
-_BAR_FORMAT = "{desc: <%s}: {percentage:3.0f}%% |%s{bar}%s| {n_fmt: >5}/{total_fmt: >5} [{elapsed: >8}]" % (_MAX_DESCRIPTION_WIDTH, _Fore.BLUE, _Fore.RESET)
+_BAR_FORMAT = (
+    "{desc: <%s}: {percentage:3.0f}%% |%s{bar}%s| {n_fmt: >5}/{total_fmt: >5} [{elapsed: >8}]"
+    % (_MAX_DESCRIPTION_WIDTH, _Fore.BLUE, _Fore.RESET)
+)
 
 
 def _format_lenghty_string(text):
     text = str(text)
     if len(text) > _MAX_DESCRIPTION_WIDTH:
-        return ((text[:-(_MAX_DESCRIPTION_WIDTH-_ELLIPSIS_WIDTH)] and '.' * _ELLIPSIS_WIDTH)
-                + text[-(_MAX_DESCRIPTION_WIDTH-_ELLIPSIS_WIDTH):])
+        return (
+            text[: -(_MAX_DESCRIPTION_WIDTH - _ELLIPSIS_WIDTH)]
+            and "." * _ELLIPSIS_WIDTH
+        ) + text[-(_MAX_DESCRIPTION_WIDTH - _ELLIPSIS_WIDTH) :]
     else:
         return text
 
 
 def _get_clang_build_progress_bar(iterable, disable, total):
-    return _tqdm(iterable, bar_format=_BAR_FORMAT, leave=False, disable=disable, total=total)
+    return _tqdm(
+        iterable, bar_format=_BAR_FORMAT, leave=False, disable=disable, total=total
+    )
 
 
 class CategoryProgress:
@@ -38,9 +45,12 @@ class CategoryProgress:
         self.entered_pbar.update()
         self.current_catgeory += 1
         if self.current_catgeory >= self.index_limit:
-            self.entered_pbar.set_description_str('Finished')
+            self.entered_pbar.set_description_str("Finished")
         else:
-            self.entered_pbar.set_description_str(_format_lenghty_string(self.categories[self.current_catgeory]))
+            self.entered_pbar.set_description_str(
+                _format_lenghty_string(self.categories[self.current_catgeory])
+            )
+
 
 class IteratorProgress:
     def __init__(self, iterable, disable, total, access=lambda x: x):
@@ -55,6 +65,7 @@ class IteratorProgress:
         val = self.pbar_iter.__next__()
         self.pbar.set_description_str(_format_lenghty_string(self.access(val)))
         return val
+
 
 def get_build_progress_bar(iterable, disable, total, name):
     pbar = _get_clang_build_progress_bar(iterable, disable, total)

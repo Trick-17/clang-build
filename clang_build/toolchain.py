@@ -73,71 +73,68 @@ class LLVM:
 
     PLATFORM_DEFAULTS = {
         "linux": {
-            'PLATFORM':                        'linux',
-            'EXECUTABLE_PREFIX':               '',
-            'EXECUTABLE_SUFFIX':               '',
-            'SHARED_LIBRARY_PREFIX':           'lib',
-            'SHARED_LIBRARY_SUFFIX':           '.so',
-            'STATIC_LIBRARY_PREFIX':           'lib',
-            'STATIC_LIBRARY_SUFFIX':           '.a',
-            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': [],
-            'PLATFORM_EXTRA_FLAGS_SHARED':     ['-fpic'],
-            'PLATFORM_EXTRA_FLAGS_STATIC':     [],
-            'PLATFORM_BUNDLING_LINKER_FLAGS':  ["-Wl,-rpath,$ORIGIN"],
-
-            'EXECUTABLE_OUTPUT_DIR':            'bin',
-            'SHARED_LIBRARY_OUTPUT_DIR':        'lib',
-            'STATIC_LIBRARY_OUTPUT_DIR':        'lib',
-
-            'PLATFORM_PYTHON_INCLUDE_PATH':     _Path(_get_paths()['include']),
-            'PLATFORM_PYTHON_LIBRARY_PATH':     _Path(_get_paths()['data']) / "lib",
-            'PLATFORM_PYTHON_LIBRARY_NAME':     f"python{_version_info.major}.{_version_info.minor}",
-            'PLATFORM_PYTHON_EXTENSION_SUFFIX': _get_config_var('EXT_SUFFIX')
+            "PLATFORM": "linux",
+            "EXECUTABLE_PREFIX": "",
+            "EXECUTABLE_SUFFIX": "",
+            "SHARED_LIBRARY_PREFIX": "lib",
+            "SHARED_LIBRARY_SUFFIX": ".so",
+            "STATIC_LIBRARY_PREFIX": "lib",
+            "STATIC_LIBRARY_SUFFIX": ".a",
+            "PLATFORM_EXTRA_FLAGS_EXECUTABLE": [],
+            "PLATFORM_EXTRA_FLAGS_SHARED": ["-fpic"],
+            "PLATFORM_EXTRA_FLAGS_STATIC": [],
+            "PLATFORM_BUNDLING_LINKER_FLAGS": ["-Wl,-rpath,$ORIGIN"],
+            "EXECUTABLE_OUTPUT_DIR": "bin",
+            "SHARED_LIBRARY_OUTPUT_DIR": "lib",
+            "STATIC_LIBRARY_OUTPUT_DIR": "lib",
+            "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
+            "PLATFORM_PYTHON_LIBRARY_PATH": _Path(_get_paths()["data"]) / "lib",
+            "PLATFORM_PYTHON_LIBRARY_NAME": f"python{_version_info.major}.{_version_info.minor}",
+            "PLATFORM_PYTHON_EXTENSION_SUFFIX": _get_config_var("EXT_SUFFIX"),
         },
         "darwin": {
-            'PLATFORM':                        'osx',
-            'EXECUTABLE_PREFIX':               '',
-            'EXECUTABLE_SUFFIX':               '',
-            'SHARED_LIBRARY_PREFIX':           'lib',
-            'SHARED_LIBRARY_SUFFIX':           '.dylib',
-            'STATIC_LIBRARY_PREFIX':           'lib',
-            'STATIC_LIBRARY_SUFFIX':           '.a',
-            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': [],
-            'PLATFORM_EXTRA_FLAGS_SHARED':     [],
-            'PLATFORM_EXTRA_FLAGS_STATIC':     [],
-            'PLATFORM_BUNDLING_LINKER_FLAGS':  ["-Wl,-rpath,@executable_path"],
-
-            'EXECUTABLE_OUTPUT_DIR':            'bin',
-            'SHARED_LIBRARY_OUTPUT_DIR':        'lib',
-            'STATIC_LIBRARY_OUTPUT_DIR':        'lib',
-
-            'PLATFORM_PYTHON_INCLUDE_PATH':     _Path(_get_paths()['include']),
-            'PLATFORM_PYTHON_LIBRARY_PATH':     _Path(_get_paths()['data']) / "lib",
-            'PLATFORM_PYTHON_LIBRARY_NAME':     f"python{_version_info.major}.{_version_info.minor}",
-            'PLATFORM_PYTHON_EXTENSION_SUFFIX': _get_config_var('EXT_SUFFIX')
+            "PLATFORM": "osx",
+            "EXECUTABLE_PREFIX": "",
+            "EXECUTABLE_SUFFIX": "",
+            "SHARED_LIBRARY_PREFIX": "lib",
+            "SHARED_LIBRARY_SUFFIX": ".dylib",
+            "STATIC_LIBRARY_PREFIX": "lib",
+            "STATIC_LIBRARY_SUFFIX": ".a",
+            "PLATFORM_EXTRA_FLAGS_EXECUTABLE": [],
+            "PLATFORM_EXTRA_FLAGS_SHARED": [],
+            "PLATFORM_EXTRA_FLAGS_STATIC": [],
+            "PLATFORM_BUNDLING_LINKER_FLAGS": ["-Wl,-rpath,@executable_path"],
+            "EXECUTABLE_OUTPUT_DIR": "bin",
+            "SHARED_LIBRARY_OUTPUT_DIR": "lib",
+            "STATIC_LIBRARY_OUTPUT_DIR": "lib",
+            "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
+            "PLATFORM_PYTHON_LIBRARY_PATH": _Path(_get_paths()["data"]) / "lib",
+            "PLATFORM_PYTHON_LIBRARY_NAME": f"python{_version_info.major}.{_version_info.minor}",
+            "PLATFORM_PYTHON_EXTENSION_SUFFIX": _get_config_var("EXT_SUFFIX"),
         },
         "win32": {
-            'PLATFORM':                        'windows',
-            'EXECUTABLE_PREFIX':               '',
-            'EXECUTABLE_SUFFIX':               '.exe',
-            'SHARED_LIBRARY_PREFIX':           '',
-            'SHARED_LIBRARY_SUFFIX':           '.dll',
-            'STATIC_LIBRARY_PREFIX':           '',
-            'STATIC_LIBRARY_SUFFIX':           '.lib',
-            'PLATFORM_EXTRA_FLAGS_EXECUTABLE': ['-Xclang', '-flto-visibility-public-std'],
-            'PLATFORM_EXTRA_FLAGS_SHARED':     ['-Xclang', '-flto-visibility-public-std'],
-            'PLATFORM_EXTRA_FLAGS_STATIC':     ['-Xclang', '-flto-visibility-public-std'],
-            'PLATFORM_BUNDLING_LINKER_FLAGS':  [],
-
-            'EXECUTABLE_OUTPUT_DIR':            'bin',
-            'SHARED_LIBRARY_OUTPUT_DIR':        'bin',
-            'STATIC_LIBRARY_OUTPUT_DIR':        'lib',
-
-            'PLATFORM_PYTHON_INCLUDE_PATH':     _Path(_get_paths()['include']),
-            'PLATFORM_PYTHON_LIBRARY_PATH':     _Path(_get_paths()['data']) / "libs",
-            'PLATFORM_PYTHON_LIBRARY_NAME':     f"python{_version_info.major}{_version_info.minor}",
-            'PLATFORM_PYTHON_EXTENSION_SUFFIX': _get_config_var('EXT_SUFFIX')
-        }
+            "PLATFORM": "windows",
+            "EXECUTABLE_PREFIX": "",
+            "EXECUTABLE_SUFFIX": ".exe",
+            "SHARED_LIBRARY_PREFIX": "",
+            "SHARED_LIBRARY_SUFFIX": ".dll",
+            "STATIC_LIBRARY_PREFIX": "",
+            "STATIC_LIBRARY_SUFFIX": ".lib",
+            "PLATFORM_EXTRA_FLAGS_EXECUTABLE": [
+                "-Xclang",
+                "-flto-visibility-public-std",
+            ],
+            "PLATFORM_EXTRA_FLAGS_SHARED": ["-Xclang", "-flto-visibility-public-std"],
+            "PLATFORM_EXTRA_FLAGS_STATIC": ["-Xclang", "-flto-visibility-public-std"],
+            "PLATFORM_BUNDLING_LINKER_FLAGS": [],
+            "EXECUTABLE_OUTPUT_DIR": "bin",
+            "SHARED_LIBRARY_OUTPUT_DIR": "bin",
+            "STATIC_LIBRARY_OUTPUT_DIR": "lib",
+            "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
+            "PLATFORM_PYTHON_LIBRARY_PATH": _Path(_get_paths()["data"]) / "libs",
+            "PLATFORM_PYTHON_LIBRARY_NAME": f"python{_version_info.major}{_version_info.minor}",
+            "PLATFORM_PYTHON_EXTENSION_SUFFIX": _get_config_var("EXT_SUFFIX"),
+        },
     }
 
     _UNSUPPORTED_DIALECT_MESSAGE = "error: invalid value 'c++{0:02d}'"
@@ -157,14 +154,14 @@ class LLVM:
 
         self.max_cpp_standard = self._get_max_supported_compiler_dialect()
 
-        if _platform == 'linux':
-            self.platform = 'linux'
-        elif _platform == 'darwin':
-            self.platform = 'osx'
-        elif _platform == 'win32':
-            self.platform = 'windows'
+        if _platform == "linux":
+            self.platform = "linux"
+        elif _platform == "darwin":
+            self.platform = "osx"
+        elif _platform == "win32":
+            self.platform = "windows"
         else:
-            raise RuntimeError('Platform ' + _platform + 'is currently not supported.')
+            raise RuntimeError("Platform " + _platform + "is currently not supported.")
 
         self.platform_defaults = self.PLATFORM_DEFAULTS[_platform]
 
@@ -174,8 +171,14 @@ class LLVM:
         _LOGGER.info("clang++ executable:  %s", self.cpp_compiler)
         _LOGGER.info("llvm-ar executable:  %s", self.archiver)
         _LOGGER.info("Newest supported C++ dialect: %s", self.max_cpp_standard)
-        _LOGGER.info("Python headers in:   %s", self.platform_defaults['PLATFORM_PYTHON_INCLUDE_PATH'])
-        _LOGGER.info("Python library in:   %s", self.platform_defaults['PLATFORM_PYTHON_LIBRARY_PATH'])
+        _LOGGER.info(
+            "Python headers in:   %s",
+            self.platform_defaults["PLATFORM_PYTHON_INCLUDE_PATH"],
+        )
+        _LOGGER.info(
+            "Python library in:   %s",
+            self.platform_defaults["PLATFORM_PYTHON_LIBRARY_PATH"],
+        )
 
     def _find(self, executable):
         """Find path of executable.
@@ -323,7 +326,9 @@ class LLVM:
 
         """
         object_file.parents[0].mkdir(parents=True, exist_ok=True)
-        command = self._get_compiler_command(source_file, object_file, include_directories, flags, is_c_target)
+        command = self._get_compiler_command(
+            source_file, object_file, include_directories, flags, is_c_target
+        )
         return command, *self._run_clang_command(command)
 
     def generate_dependency_file(
@@ -355,7 +360,9 @@ class LLVM:
         """
         dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        command = self._get_compiler_command(source_file, None, include_directories, flags, is_c_target) + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
+        command = self._get_compiler_command(
+            source_file, None, include_directories, flags, is_c_target
+        ) + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
         return command, *self._run_clang_command(command)
 
     def link(
@@ -435,10 +442,9 @@ class LLVM:
         """
         output_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        command = (
-            [str(self.archiver), "rc", str(output_file)]
-            + [str(o) for o in object_files]
-        )
+        command = [str(self.archiver), "rc", str(output_file)] + [
+            str(o) for o in object_files
+        ]
 
         return self._run_clang_command(command)
 

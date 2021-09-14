@@ -1,6 +1,7 @@
 import logging as _logging
 import tqdm as _tqdm
 
+
 class TqdmHandler(_logging.StreamHandler):
     def __init__(self):
         _logging.StreamHandler.__init__(self)
@@ -9,15 +10,16 @@ class TqdmHandler(_logging.StreamHandler):
         msg = self.format(record)
         _tqdm.tqdm.write(msg)
 
+
 class NamedLoggerAdapter(_logging.LoggerAdapter):
     def process(self, msg, kwargs):
-        return '%s: %s' % (str(self.extra['tree_element']), msg), kwargs
+        return "%s: %s" % (str(self.extra["tree_element"]), msg), kwargs
+
 
 class NamedLogger:
     def __init__(self, logger):
-        self._logger = NamedLoggerAdapter(logger, {'tree_element': self})
+        self._logger = NamedLoggerAdapter(logger, {"tree_element": self})
 
     def log_message(self, message: str) -> str:
-        """
-        """
+        """ """
         return f"{self.__str__()}: {message}"
