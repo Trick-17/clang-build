@@ -559,23 +559,40 @@ class LLVM(Toolchain):
     ):
         dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        return self._run_clang_command(
-            self._get_compiler_command(
-                source_file, None, include_directories, flags, is_c_target
-            )
-            + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
-        )
+        command = self._get_compiler_command(source_file, None, include_directories, flags, is_c_target) + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
+        return command, *self._run_clang_command(command)
 
     def compile(
         self, source_file, object_file, include_directories, flags, is_c_target
     ):
+        """Compile a given source file into an object file.
+
+        If the object file is placed into a non-existing folder, this
+        folder is generated before compilation.
+
+        Parameters
+        ----------
+        source_file : pathlib.Path
+            The source file to compile
+
+        object_file : pathlib.Path
+            The object file to generate during compilation
+
+        flags : list of str
+            List of flags to pass to the compiler
+
+        Returns
+        -------
+        bool
+            True if the compilation was successful, else False
+        str
+            Output of the compiler
+
+        """
         object_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        return self._run_clang_command(
-            self._get_compiler_command(
-                source_file, object_file, include_directories, flags, is_c_target
-            )
-        )
+        command = self._get_compiler_command(source_file, object_file, include_directories, flags, is_c_target)
+        return command, *self._run_clang_command(command)
 
     def link(
         self,

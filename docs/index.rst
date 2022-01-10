@@ -30,6 +30,8 @@ documentation.
    :caption: Contents:
 
    user_guide/user_guide.rst
+   examples/examples.rst
+   config_reference/config_reference.rst
    code_documentation/code_documentation.rst
 
 

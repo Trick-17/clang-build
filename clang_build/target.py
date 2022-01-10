@@ -10,6 +10,8 @@ from abc import abstractmethod
 from multiprocessing import freeze_support as _freeze_support
 from pathlib import Path as _Path
 
+import json
+
 from .directories import Directories
 from .errors import BundleError as _BundleError
 from .errors import CompileError as _CompileError
@@ -101,8 +103,8 @@ class Target(_TreeEntry, _NamedLogger):
         ----------
         target_description : :any:`clang_build.target.TargetDescription`
             All the information on how to gather sources and build the target.
-        environment : any:`clang_build.clang_build.Environment`
-            An any:`clang_build.clang_build.Environment` instance defining some global
+        environment : any:`clang_build.environment.Environment`
+            An any:`clang_build.environment.Environment` instance defining some global
             settings for this run of clang-build.
         dependencies
             Optional. A list of any:`clang_build.target.Target` which this target
@@ -376,6 +378,10 @@ class Compilable(Target):
                 name=self.name,
             )
         )
+        # Update database with depfile commands
+        self._environment.compilation_database_file.write_text(
+            json.dumps(self._environment.compilation_database, indent=2, sort_keys=True)
+        )
 
         # Execute compile command
         self._logger.info("compile object files")
@@ -386,6 +392,10 @@ class Compilable(Target):
                 total=len(self.needed_buildables),
                 name=self.name,
             )
+        )
+        # Update database with compile commands
+        self._environment.compilation_database_file.write_text(
+            json.dumps(self._environment.compilation_database, indent=2, sort_keys=True)
         )
 
         # Catch compilation errors

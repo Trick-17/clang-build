@@ -8,8 +8,10 @@ from multiprocessing import Pool as _Pool
 from pathlib import Path as _Path
 from importlib import util as importlib_util
 
+import json
+
+from . import __version__
 from .build_type import BuildType as _BuildType
-from .clang_build import __version__
 from .toolchain import Toolchain as _Toolchain
 from .toolchain import LLVM as _LLVM
 
@@ -88,3 +90,8 @@ class Environment:
         if self.redistributable:
             self.bundle = True
             _LOGGER.info("Redistributable bundling of binary dependencies is activated")
+
+        self.compilation_database_file = (self.build_directory / 'compile_commands.json')
+        self.compilation_database = []
+        if self.compilation_database_file.exists():
+            self.compilation_database = json.loads(self.compilation_database_file.read_text())

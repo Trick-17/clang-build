@@ -8,7 +8,7 @@ import stat
 from pathlib import Path as _Path
 from multiprocessing import freeze_support
 
-from clang_build import clang_build
+from clang_build import cli
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
 from clang_build.logging_tools import TqdmHandler as TqdmHandler
@@ -21,7 +21,7 @@ def on_rm_error( func, path, exc_info):
 
 def clang_build_try_except( args ):
     try:
-        clang_build.build(clang_build.parse_args(args))
+        cli.build(cli.parse_args(args))
     except CompileError as compile_error:
         logger = logging.getLogger('clang_build')
         logger.error('Compilation was unsuccessful:')
@@ -39,19 +39,19 @@ def clang_build_try_except( args ):
 class TestClangBuild(unittest.TestCase):
     def test_circular_dependency(self):
         with self.assertRaisesRegex(RuntimeError, "(\[circular_project\.mylib1\] -> \[circular_project\.mylib2\] -> \[circular_project\.mylib1\])|(\[circular_project\.mylib2\] -> \[circular_project\.mylib1\] -> \[circular_project\.mylib2\])"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/circular_dependency']))
+            cli.build(cli.parse_args(['-d', 'test/configuration_errors/circular_dependency']))
 
     def test_missing_name_with_subproject(self):
         with self.assertRaisesRegex(RuntimeError, "defining a top-level project with subprojects but without a name is illegal"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_name_with_subproject']))
+            cli.build(cli.parse_args(['-d', 'test/configuration_errors/missing_name_with_subproject']))
 
     def test_missing_subproject_toml(self):
         with self.assertRaisesRegex(RuntimeError, "It is not allowed to add a subproject that does not have a project file"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_subproject_toml']))
+            cli.build(cli.parse_args(['-d', 'test/configuration_errors/missing_subproject_toml']))
 
     def test_missing_subproject_name(self):
         with self.assertRaisesRegex(RuntimeError, "It is not allowed to add a subproject that does not have a name"):
-            clang_build.build(clang_build.parse_args(['-d', 'test/configuration_errors/missing_subproject_name']))
+            cli.build(cli.parse_args(['-d', 'test/configuration_errors/missing_subproject_name']))
 
     def setUp(self):
         logger = logging.getLogger('clang_build')

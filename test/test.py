@@ -9,7 +9,9 @@ from pathlib import Path as _Path
 from multiprocessing import freeze_support
 from sys import platform as _platform
 
-from clang_build import clang_build
+import json
+
+from clang_build import cli
 from clang_build import toolchain
 from clang_build.errors import CompileError
 from clang_build.errors import LinkError
@@ -26,7 +28,7 @@ def on_rm_error( func, path, exc_info):
 
 def clang_build_try_except( args ):
     try:
-        clang_build.build(clang_build.parse_args(args))
+        cli.build(cli.parse_args(args))
     except CompileError as compile_error:
         logger = logging.getLogger('clang_build')
         logger.error('Compilation was unsuccessful:')
@@ -52,6 +54,21 @@ class TestClangBuild(unittest.TestCase):
 
         self.assertEqual(output, 'Hello!')
 
+        compile_commands_file = _Path("build") / "compile_commands.json"
+        compile_commands = []
+        self.assertTrue(compile_commands_file.exists())
+
+        compile_commands_str = compile_commands_file.read_text()
+        logger = logging.getLogger('clang_build')
+        logger.info(compile_commands_str)
+        compile_commands = json.loads(compile_commands_str)
+        for command in compile_commands:
+            self.assertEqual(str(_Path('test/mwe/hello.cpp').resolve()), str(_Path(command["file"]).resolve()))
+            self.assertTrue(
+                str(_Path('./build/default/obj/hello.o').resolve()) == str(_Path(command["output"]).resolve()) or
+                str(_Path('./build/default/dep/hello.d').resolve()) == str(_Path(command["output"]).resolve())
+            )
+
     def test_build_types(self):
         for build_type in ['release', 'relwithdebinfo', 'debug', 'coverage']:
             clang_build_try_except(['-d', 'test/mwe', '-b', build_type])
@@ -65,11 +82,11 @@ class TestClangBuild(unittest.TestCase):
 
     def test_compile_error(self):
         with self.assertRaises(CompileError):
-            clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/compile_error', '-V']))
+            cli.build(cli.parse_args(['-d', 'test/build_errors/compile_error', '-V']))
 
     def test_link_error(self):
         with self.assertRaises(LinkError):
-            clang_build.build(clang_build.parse_args(['-d', 'test/build_errors/link_error', '-V']))
+            cli.build(cli.parse_args(['-d', 'test/build_errors/link_error', '-V']))
 
     def test_script_call(self):
         try:
