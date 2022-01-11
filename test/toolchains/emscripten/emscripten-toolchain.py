@@ -67,9 +67,9 @@ class Emscripten(clang_build.toolchain.Toolchain):
             'PLATFORM':                        'windows',
             'EXECUTABLE_PREFIX':               '',
             'EXECUTABLE_SUFFIX':               '.js',
-            'SHARED_LIBRARY_PREFIX':           '',
+            'SHARED_LIBRARY_PREFIX':           'lib',
             'SHARED_LIBRARY_SUFFIX':           '.js',
-            'STATIC_LIBRARY_PREFIX':           '',
+            'STATIC_LIBRARY_PREFIX':           'lib',
             'STATIC_LIBRARY_SUFFIX':           '.js',
             'PLATFORM_EXTRA_FLAGS_EXECUTABLE': [],
             'PLATFORM_EXTRA_FLAGS_SHARED':     [],
@@ -205,23 +205,16 @@ class Emscripten(clang_build.toolchain.Toolchain):
     ):
         dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        return self._run_clang_command(
-            self._get_compiler_command(
-                source_file, None, include_directories, flags, is_c_target
-            )
-            + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
-        )
+        command = self._get_compiler_command(source_file, None, include_directories, flags, is_c_target) + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
+        return command, *self._run_clang_command(command)
 
     def compile(
         self, source_file, object_file, include_directories, flags, is_c_target
     ):
         object_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        return self._run_clang_command(
-            self._get_compiler_command(
-                source_file, object_file, include_directories, flags, is_c_target
-            )
-        )
+        command = self._get_compiler_command(source_file, object_file, include_directories, flags, is_c_target)
+        return command, *self._run_clang_command(command)
 
     def link(
         self,
