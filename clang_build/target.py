@@ -3,6 +3,7 @@ Target describes a single build or dependency target with all needed paths and
 a list of buildables that comprise it's compile and link steps.
 """
 
+import asyncio as _asyncio
 import logging as _logging
 import shutil as _shutil
 import subprocess as _subprocess
@@ -20,7 +21,6 @@ from .errors import RedistributableError as _RedistributableError
 from .flags import BuildFlags
 from .git_tools import download_sources as _git_download_sources
 from .logging_tools import NamedLogger as _NamedLogger
-from .progress_bar import get_build_progress_bar as _get_build_progress_bar
 from .single_source import SingleSource as _SingleSource
 from .tree_entry import TreeEntry as _TreeEntry
 
@@ -255,16 +255,6 @@ class HeaderOnly(Target):
         self._build_flags.forward_interface_flags(target)
 
 
-def generate_depfile_single_source(buildable):
-    buildable.generate_depfile()
-    return buildable
-
-
-def compile_single_source(buildable):
-    buildable.compile()
-    return buildable
-
-
 class Compilable(Target):
     """A compilable target will generate object files.
     """
@@ -368,16 +358,13 @@ class Compilable(Target):
         #
         #
         self._logger.info(f"generate dependency files")
-        self.needed_buildables = list(
-            _get_build_progress_bar(
-                process_pool.imap(
-                    generate_depfile_single_source, self.needed_buildables
-                ),
-                progress_disabled,
-                total=len(self.needed_buildables),
-                name=self.name,
-            )
-        )
+        async def async_generate_depfile():
+            threads = [
+                _asyncio.to_thread(b.generate_depfile)
+                for b in self.needed_buildables
+            ]
+            await _asyncio.gather(*threads)
+        _asyncio.run(async_generate_depfile())
         # Update database with depfile commands
         self._environment.compilation_database_file.write_text(
             json.dumps(self._environment.compilation_database, indent=2, sort_keys=True)
@@ -385,14 +372,13 @@ class Compilable(Target):
 
         # Execute compile command
         self._logger.info("compile object files")
-        self.needed_buildables = list(
-            _get_build_progress_bar(
-                process_pool.imap(compile_single_source, self.needed_buildables),
-                progress_disabled,
-                total=len(self.needed_buildables),
-                name=self.name,
-            )
-        )
+        async def async_compile():
+            threads = [
+                _asyncio.to_thread(b.compile)
+                for b in self.needed_buildables
+            ]
+            await _asyncio.gather(*threads)
+        _asyncio.run(async_compile())
         # Update database with compile commands
         self._environment.compilation_database_file.write_text(
             json.dumps(self._environment.compilation_database, indent=2, sort_keys=True)
