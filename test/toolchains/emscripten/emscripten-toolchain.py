@@ -77,7 +77,7 @@ class Emscripten(clang_build.toolchain.Toolchain):
             'PLATFORM_BUNDLING_LINKER_FLAGS':  [],
 
             'EXECUTABLE_OUTPUT_DIR':            'bin',
-            'SHARED_LIBRARY_OUTPUT_DIR':        'bin',
+            'SHARED_LIBRARY_OUTPUT_DIR':        'lib',
             'STATIC_LIBRARY_OUTPUT_DIR':        'lib',
 
             'PLATFORM_PYTHON_INCLUDE_PATH':     _Path(_get_paths()['include']),
