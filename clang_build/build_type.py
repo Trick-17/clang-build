@@ -1,11 +1,12 @@
 from enum import Enum as _Enum
 
+
 class BuildType(_Enum):
-    Default        = 'default'
-    Release        = 'release'
-    RelWithDebInfo = 'relwithdebinfo'
-    Debug          = 'debug'
-    Coverage       = 'coverage'
+    Default = "default"
+    Release = "release"
+    RelWithDebInfo = "relwithdebinfo"
+    Debug = "debug"
+    Coverage = "coverage"
 
     def __str__(self):
         return self.value

@@ -17,8 +17,7 @@ _LOGGER = _logging.getLogger(__name__)
 
 
 class Environment:
-    """
-    """
+    """ """
 
     def __init__(self, args):
 
@@ -53,7 +52,9 @@ class Environment:
             self.bundle = True
             _LOGGER.info("Redistributable bundling of binary dependencies is activated")
 
-        self.compilation_database_file = (self.build_directory / 'compile_commands.json')
+        self.compilation_database_file = self.build_directory / "compile_commands.json"
         self.compilation_database = []
         if self.compilation_database_file.exists():
-            self.compilation_database = json.loads(self.compilation_database_file.read_text())
+            self.compilation_database = json.loads(
+                self.compilation_database_file.read_text()
+            )

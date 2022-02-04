@@ -33,9 +33,7 @@ class Directories:
         )
 
     def final_directories_list(self):
-        return list(dict.fromkeys(
-            self.include_private + self.include_public
-        ))
+        return list(dict.fromkeys(self.include_private + self.include_public))
 
     def make_private_directories_public(self):
         self.include_public = self.final_directories_list()
