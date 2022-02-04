@@ -55,9 +55,7 @@ def clone_repository(url, download_directory, recursive, logger):
             encoding="utf-8",
         )
     except _subprocess.CalledProcessError as e:
-        error_message = (
-            f"Error trying to download external target. Message " + e.output
-        )
+        error_message = f"Error trying to download external target. Message " + e.output
         logger.exception(error_message)
         raise RuntimeError(error_message)
 
@@ -108,16 +106,11 @@ def get_latest_changes(repository, logger):
 
 
 def download_sources(url, directory, logger, version=None, clone_recursively=True):
-    """Download sources using git.
-    """
+    """Download sources using git."""
     # Check if directory is already present and non-empty
     if needs_download(url, directory, logger, version):
-        logger.info(
-            f"downloading external sources to '{str(directory.resolve())}'"
-        )
-        clone_repository(
-            url, directory, clone_recursively, logger
-        )
+        logger.info(f"downloading external sources to '{str(directory.resolve())}'")
+        clone_repository(url, directory, clone_recursively, logger)
         if version:
             checkout_version(version, directory, url, logger)
         else:

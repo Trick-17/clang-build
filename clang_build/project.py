@@ -36,13 +36,17 @@ def _get_project(directory, environment, parent=None):
 
     module_spec = importlib_util.spec_from_file_location(module_name, module_file_path)
     if module_spec is None:
-        raise RuntimeError(f'No "{module_name}" module could be found in "{directory.resolve()}"')
+        raise RuntimeError(
+            f'No "{module_name}" module could be found in "{directory.resolve()}"'
+        )
 
     clang_build_module = importlib_util.module_from_spec(module_spec)
     module_spec.loader.exec_module(clang_build_module)
 
     if clang_build_module.get_project is None:
-        raise RuntimeError(f'Module "{module_name}" in "{directory.resolve()}" does not contain a `get_project` method')
+        raise RuntimeError(
+            f'Module "{module_name}" in "{directory.resolve()}" does not contain a `get_project` method'
+        )
 
     return clang_build_module.get_project(directory, environment, parent=parent)
 
@@ -259,10 +263,12 @@ class Project(_NamedLogger, _TreeEntry):
             message_suffix = ""
 
         if py_file.exists():
-            logger.info(f"Using python project file \"{py_file}\"{message_suffix}")
+            logger.info(f'Using python project file "{py_file}"{message_suffix}')
             project = _get_project(directory, environment, parent=parent)
             if not isinstance(project, Project):
-                raise RuntimeError(f'Unable to initialize project:\nThe `get_project` method in "{py_file}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"')
+                raise RuntimeError(
+                    f'Unable to initialize project:\nThe `get_project` method in "{py_file}" did not return a valid `clang_build.project.Project`, its type is "{type(project)}"'
+                )
             return project
 
         elif toml_file.exists():
@@ -315,8 +321,12 @@ class Project(_NamedLogger, _TreeEntry):
         will raise an exception.
         """
         for target in target_list:
-            if not (isinstance(target, _TargetDescription) or isinstance(target, _Target)):
-                raise RuntimeError(f"clang_build.project.Project.add_targets: cannot add instance of type {type(target)}, it should be either a TargetDescription or Target.")
+            if not (
+                isinstance(target, _TargetDescription) or isinstance(target, _Target)
+            ):
+                raise RuntimeError(
+                    f"clang_build.project.Project.add_targets: cannot add instance of type {type(target)}, it should be either a TargetDescription or Target."
+                )
 
         self._current_targets += target_list
 
@@ -329,19 +339,29 @@ class Project(_NamedLogger, _TreeEntry):
         if self._environment.create_dependency_dotfile and not self._parent:
             try:
                 import pydot
+
                 create_dotfile = True
             except:
-                self._logger.error(f'Could not create dependency dotfile, as pydot is not installed')
+                self._logger.error(
+                    f"Could not create dependency dotfile, as pydot is not installed"
+                )
 
         # Create initial dotfile without full dependency resolution
         if create_dotfile:
             _Path(self._environment.build_directory).mkdir(parents=True, exist_ok=True)
-            _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
+            _nx.drawing.nx_pydot.write_dot(
+                self._project_tree,
+                str(self._environment.build_directory / "dependencies.dot"),
+            )
 
         # Add edges for dependencies in targets defined in project
         for target in target_list:
-            target.config["dependencies"] = self._get_dependencies_2(target, target.config.get("dependencies", []))
-            target.config["public_dependencies"] = self._get_dependencies_2(target, target.config.get("public_dependencies", []))
+            target.config["dependencies"] = self._get_dependencies_2(
+                target, target.config.get("dependencies", [])
+            )
+            target.config["public_dependencies"] = self._get_dependencies_2(
+                target, target.config.get("public_dependencies", [])
+            )
 
             for dependency in target.config["dependencies"]:
                 self._project_tree.add_edge(target, dependency)
@@ -350,7 +370,10 @@ class Project(_NamedLogger, _TreeEntry):
 
         # Create new dotfile with full dependency graph
         if create_dotfile:
-            _nx.drawing.nx_pydot.write_dot(self._project_tree, str(self._environment.build_directory / 'dependencies.dot'))
+            _nx.drawing.nx_pydot.write_dot(
+                self._project_tree,
+                str(self._environment.build_directory / "dependencies.dot"),
+            )
 
         # Check the dependency graph for cycles
         if not self.parent:
@@ -362,7 +385,6 @@ class Project(_NamedLogger, _TreeEntry):
 
         for target in self._current_targets:
             target.only_target = only_target
-
 
     def _parse_subprojects(self):
         """Generate all subprojects recursively.
@@ -378,7 +400,9 @@ class Project(_NamedLogger, _TreeEntry):
         subproject_list = []
         for directory in self.config.get("subprojects", []):
             subproject_dir = self._directory / directory
-            subproject_list.append(Project.from_directory(subproject_dir, self._environment, parent=self))
+            subproject_list.append(
+                Project.from_directory(subproject_dir, self._environment, parent=self)
+            )
         return subproject_list
 
     def _get_target_descriptions(self):
@@ -393,9 +417,7 @@ class Project(_NamedLogger, _TreeEntry):
             List of TargetDescription objects
         """
         return [
-            _TargetDescription(
-                key, val, self
-            )
+            _TargetDescription(key, val, self)
             for key, val in self.config.items()
             if isinstance(val, dict)
         ]
@@ -410,8 +432,12 @@ class Project(_NamedLogger, _TreeEntry):
 
         circles = [_Circle(circle + [circle[0]]) for circle in circles]
         if circles:
-            error_message = "Found the following circular dependencies:\n" + _textwrap.indent(
-                    "\n".join("- " + str(circle) for circle in circles), prefix=" " * 3)
+            error_message = (
+                "Found the following circular dependencies:\n"
+                + _textwrap.indent(
+                    "\n".join("- " + str(circle) for circle in circles), prefix=" " * 3
+                )
+            )
             self._logger.exception(error_message)
             raise RuntimeError(self.log_message(error_message))
 
@@ -465,8 +491,8 @@ class Project(_NamedLogger, _TreeEntry):
         for list_entry in build_list:
             if isinstance(list_entry, _TargetDescription):
                 target = self._target_from_description(
-                        self._project_tree.nodes[list_entry]["data"]
-                    )
+                    self._project_tree.nodes[list_entry]["data"]
+                )
                 if target:
                     target_build_list.append(target)
                 self._project_tree.nodes[list_entry]["data"] = target
@@ -484,7 +510,9 @@ class Project(_NamedLogger, _TreeEntry):
         if not target_build_list:
             self._logger.info("No targets to be built")
         else:
-            self._logger.info(f"Building {', '.join([str(target) for target in target_build_list])}")
+            self._logger.info(
+                f"Building {', '.join([str(target) for target in target_build_list])}"
+            )
 
         # Compile
         with _Pool(processes=number_of_threads) as process_pool:
@@ -542,7 +570,7 @@ class Project(_NamedLogger, _TreeEntry):
                     ).values()
                 )
                 for target in build_descendants_of
-            ]
+            ],
         )
 
         return [
@@ -583,7 +611,11 @@ class Project(_NamedLogger, _TreeEntry):
         if self.parent:
             self._build_directory = self.parent.build_directory / self.name
         if self._config.get("url", None):
-            self._directory = self.build_directory / "external_sources" / str(self._config.get("directory", ""))
+            self._directory = (
+                self.build_directory
+                / "external_sources"
+                / str(self._config.get("directory", ""))
+            )
 
     def _set_name(self, name=""):
         """Set the name.
@@ -628,13 +660,19 @@ class Project(_NamedLogger, _TreeEntry):
 
         public_dependencies = []
         successors = self._project_tree.successors(target_description)
-        for target, dependency, public in self._project_tree.subgraph([target_description] + [s for s in successors]).edges(data="public"):
+        for target, dependency, public in self._project_tree.subgraph(
+            [target_description] + [s for s in successors]
+        ).edges(data="public"):
             if public == True:
-                public_dependencies.append(self._project_tree.nodes()[dependency]["data"])
+                public_dependencies.append(
+                    self._project_tree.nodes()[dependency]["data"]
+                )
 
         # Are there executables named as dependencies?
         executable_dependencies = [
-            target for target in dependencies+public_dependencies if isinstance(target, _Executable)
+            target
+            for target in dependencies + public_dependencies
+            if isinstance(target, _Executable)
         ]
         if executable_dependencies:
             exelist = ", ".join([f"[{dep.name}]" for dep in executable_dependencies])
@@ -706,7 +744,9 @@ class Project(_NamedLogger, _TreeEntry):
         if target_type is not None:
             target_type = str(target_type).lower()
             if target_type in _TARGET_MAP:
-                return _TARGET_MAP[target_type](target_description, files, dependencies, public_dependencies)
+                return _TARGET_MAP[target_type](
+                    target_description, files, dependencies, public_dependencies
+                )
             else:
                 error_message = target_description.log_message(
                     f'ERROR: Unsupported target type: "{target_description.config["target_type"].lower()}"'
@@ -720,20 +760,29 @@ class Project(_NamedLogger, _TreeEntry):
                 target_description.log_message(
                     "no source files found. Creating header-only target."
                 )
-                return _HeaderOnly(target_description, files, dependencies, public_dependencies)
+                return _HeaderOnly(
+                    target_description, files, dependencies, public_dependencies
+                )
 
             target_description.log_message(
                 f'{len(files["sourcefiles"])} source file(s) found. Creating executable target.'
             )
-            return _Executable(target_description, files, dependencies, public_dependencies)
+            return _Executable(
+                target_description, files, dependencies, public_dependencies
+            )
 
     def get_sources(self):
-        """External sources, if present, will be downloaded to build_directory/external_sources.
-        """
+        """External sources, if present, will be downloaded to build_directory/external_sources."""
         url = self._config.get("url", None)
         if url:
             version = self._config.get("version", None)
             download_directory = self.build_directory / "external_sources"
-            _git_download_sources(url, download_directory, self._logger, version, self._environment.clone_recursive)
+            _git_download_sources(
+                url,
+                download_directory,
+                self._logger,
+                version,
+                self._environment.clone_recursive,
+            )
 
             self._directory = download_directory / self._config.get("directory", "")

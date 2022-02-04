@@ -1,8 +1,14 @@
 from .build_type import BuildType
 
+
 class BuildFlags:
     def __init__(
-        self, build_type, toolchain, for_c_target, default_compile_flags=False, default_link_flags=False
+        self,
+        build_type,
+        toolchain,
+        for_c_target,
+        default_compile_flags=False,
+        default_link_flags=False,
     ):
         # TODO: Store default flags separately
         self.compile_default = []
@@ -73,12 +79,16 @@ class BuildFlags:
         self.link_public += lf
 
     def add_bundling_flags(self):
-        self.link_private += self._toolchain.platform_defaults['PLATFORM_BUNDLING_LINKER_FLAGS']
+        self.link_private += self._toolchain.platform_defaults[
+            "PLATFORM_BUNDLING_LINKER_FLAGS"
+        ]
 
     def final_compile_flags_list(self):
         # TODO: Add max_dialect and plattform specific flags here as well
         #       Need to see how we get around the target-type-specific flags issue
-        return self._language_flags() + list(dict.fromkeys(self.compile_private + self.compile_public))
+        return self._language_flags() + list(
+            dict.fromkeys(self.compile_private + self.compile_public)
+        )
 
     def _language_flags(self):
         return [] if self._for_c_target else [self._toolchain.max_cpp_standard]
@@ -86,10 +96,10 @@ class BuildFlags:
     def final_link_flags_list(self):
         return list(dict.fromkeys(self.link_private + self.link_public))
 
-    def _parse_flags_config(self, options, platform, flags_kind='flags'):
-        flags_dicts   = []
+    def _parse_flags_config(self, options, platform, flags_kind="flags"):
+        flags_dicts = []
         compile_flags = []
-        link_flags    = []
+        link_flags = []
 
         if flags_kind in options:
             flags_dicts.append(options.get(flags_kind, {}))
@@ -97,10 +107,10 @@ class BuildFlags:
         flags_dicts.append(options.get(platform, {}).get(flags_kind, {}))
 
         for fdict in flags_dicts:
-            compile_flags += fdict.get('compile', [])
-            link_flags    += fdict.get('link', [])
+            compile_flags += fdict.get("compile", [])
+            link_flags += fdict.get("link", [])
 
             if self._build_type != BuildType.Default:
-                compile_flags += fdict.get(f'compile_{self._build_type}', [])
+                compile_flags += fdict.get(f"compile_{self._build_type}", [])
 
         return compile_flags, link_flags
