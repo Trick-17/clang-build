@@ -538,6 +538,30 @@ class LLVM(Toolchain):
     def generate_dependency_file(
         self, source_file, dependency_file, flags, include_directories, is_c_target
     ):
+        """Generate a dependency file for a given source file.
+
+        If the dependency file is placed into a non-existing folder, this
+        folder is generated before compilation.
+
+        Parameters
+        ----------
+        source_file : pathlib.Path
+            The source file to compile
+
+        dependency_file : pathlib.Path
+            The dependency file to generate
+
+        flags : list of str
+            List of flags to pass to the compiler
+
+        Returns
+        -------
+        bool
+            True if the dependency file generation was successful, else False
+        str
+            Output of the compiler
+
+        """
         dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
         command = self._get_compiler_command(

@@ -65,9 +65,35 @@ jobs:
       run: codecov
 
 
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+
+    - name: ⚙ Install clang-build
+      run: |
+        pip install setuptools
+        pip install black pylint
+        python setup.py develop
+
+    - name: 🧪 Code formatting check
+      shell: bash
+      run: black . --check
+
+    - name: 🧪 Code quality checks, linting
+      shell: bash
+      run: pylint clang_build --fail-under=8
+
+
   deploy-pypi:
     if: github.event_name == 'push' && ( startsWith( github.ref, 'refs/tags/' ) || github.ref == 'refs/heads/master' )
-    needs: test
+    needs: [test, lint]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -92,7 +118,7 @@ jobs:
 
   draft-release:
     if: github.event_name == 'push' && startsWith( github.ref, 'refs/tags/' )
-    needs: [test]
+    needs: [test, lint]
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
