@@ -1,0 +1,6 @@
+[backend]
+    target_type = "shared library"
+    [backend.flags]
+        compile = ["-s WASM=1", "-s MODULARIZE=1", "-s EXPORT_NAME='Module_Backend'"]
+        link = ["-s WASM=1", "-s MODULARIZE=1", "-s EXPORT_NAME='Module_Backend'",
+            "-s EXPORTED_FUNCTIONS=['_print_hi','_return_x']"]

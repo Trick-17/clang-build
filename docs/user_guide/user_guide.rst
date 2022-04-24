@@ -2,7 +2,7 @@ User's Guide
 ============
 
 The User's Guide should provide you with all the information necessary to build
-your C++ project with Clang Build.
+your C++ project with clang-build.
 
 .. toctree::
    :maxdepth: 2
@@ -17,3 +17,4 @@ your C++ project with Clang Build.
    bundling.rst
    scripting.rst
    defaults.rst
+   toolchains.rst
