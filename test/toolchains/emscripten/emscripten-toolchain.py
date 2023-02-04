@@ -15,7 +15,6 @@ _LOGGER = _logging.getLogger("clang-build")
 
 
 class Emscripten(clang_build.toolchain.Toolchain):
-
     DEFAULT_COMPILE_FLAGS = clang_build.toolchain.LLVM.DEFAULT_COMPILE_FLAGS
     DEFAULT_LINK_FLAGS = clang_build.toolchain.LLVM.DEFAULT_LINK_FLAGS
 

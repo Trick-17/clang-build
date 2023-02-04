@@ -2,7 +2,6 @@ import clang_build
 
 
 def get_project(directory, environment, parent=None) -> clang_build.project.Project:
-
     py_include_dir = environment.toolchain.platform_defaults[
         "PLATFORM_PYTHON_INCLUDE_PATH"
     ]

@@ -62,7 +62,6 @@ class SingleSource:
         compile_flags,
         is_c_target,
     ):
-
         self._environment = environment
 
         # Get the relative file path
