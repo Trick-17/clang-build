@@ -14,8 +14,8 @@ def _get_depfile_headers(depfile):
     depfileHeaders = []
     with open(depfile, "r") as the_file:
         depStr = the_file.read()
-        # Find the first colon, which will be right after the object file name
-        colonPos = depStr.find(":")
+        # Find the first colon with a space behind it, which will be right after the dependent file name
+        colonPos = depStr.find(": ")
         # Separate the remainder into lines
         for line in depStr[colonPos + 1 :].splitlines():
             # Remove the newline character ('\'-newline)
