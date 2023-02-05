@@ -16,6 +16,7 @@ from .logging_tools import NamedLogger as _NamedLogger
 from .target import TARGET_MAP as _TARGET_MAP
 from .target import Target as _Target
 from .target import Executable as _Executable
+from .target import Module as _Module
 from .target import HeaderOnly as _HeaderOnly
 from .target import TargetDescription as _TargetDescription
 from .tree_entry import TreeEntry as _TreeEntry
@@ -765,7 +766,7 @@ class Project(_NamedLogger, _TreeEntry):
                 )
 
             target_description.log_message(
-                f'{len(files["sourcefiles"])} source file(s) found. Creating executable target.'
+                "no module files found. Creating executable target."
             )
             return _Executable(
                 target_description, files, dependencies, public_dependencies

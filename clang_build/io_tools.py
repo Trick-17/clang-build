@@ -46,6 +46,7 @@ def get_sources_and_headers(
         "include_directories": [],
         "public_include_directories": [],
         "sourcefiles": [],
+        "modulefiles": [],
     }
 
     # TODO: maybe the output should also include the root dir, build dir and potentially download dir?
@@ -176,6 +177,32 @@ def get_sources_and_headers(
             [target_root_directory], exclude_patterns=exclude_patterns, recursive=False
         )
 
+    # Find source files from patterns (recursively)
+    if sources_patterns:
+        output["modulefiles"] += _get_files_in_patterns(
+            [target_root_directory.joinpath("*.cppm")],
+            exclude_patterns=[],
+            recursive=True,
+        )
+    # Else search source files in folder with same name as target and src folder (recursively)
+    else:
+        # output["modulefiles"] += _get_source_files_in_folders(
+        #     [
+        #         target_root_directory.joinpath(target_name),
+        #         target_root_directory.joinpath("src"),
+        #     ],
+        #     exclude_patterns=[],
+        #     recursive=True,
+        # )
+        pass
+
+    # Search the root folder as last resort (non-recursively)
+    if not output["modulefiles"]:
+        # output["modulefiles"] += _get_source_files_in_folders(
+        #     [target_root_directory], exclude_patterns=exclude_patterns, recursive=False
+        # )
+        pass
+
     # Fill return dict
     output["include_directories"] = list(dict.fromkeys(output["include_directories"]))
     output["public_include_directories"] = list(
@@ -183,5 +210,6 @@ def get_sources_and_headers(
     )
     output["headers"] = list(dict.fromkeys(output["headers"]))
     output["sourcefiles"] = list(dict.fromkeys(output["sourcefiles"]))
+    output["modulefiles"] = list(dict.fromkeys(output["modulefiles"]))
 
     return output

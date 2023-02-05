@@ -1,0 +1,8 @@
+[main]
+    output_name  = "main"
+    dependencies = ["hello_world"]
+    sources = ["main.cpp"]
+
+[hello_world]
+    target_type = "module"
+    sources = ["hello_world.cppm", "hello_world_impl.cpp", "hello_world_interface_world.cppm", "hello_world_impl_world.cppm"]

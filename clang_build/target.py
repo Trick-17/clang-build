@@ -292,6 +292,7 @@ class Compilable(Target):
 
         self.object_directory = (self.build_directory / "obj").resolve()
         self.depfile_directory = (self.build_directory / "dep").resolve()
+        self.precompiled_module_directory = (self.build_directory / "mod").resolve()
         self.output_folder = (self.build_directory / output_folder).resolve()
         self.redistributable_folder = (
             self.build_directory / "redistributable"
@@ -310,7 +311,8 @@ class Compilable(Target):
         compile_flags = self._build_flags.final_compile_flags_list() + platform_flags
 
         # Buildables which this Target contains
-        include_directories = self._directories.final_directories_list()
+        include_directories = self._directories.final_include_directories_list()
+        module_directories = self._directories.final_module_directories_list()
 
         self.buildables = [
             _SingleSource(
@@ -318,10 +320,13 @@ class Compilable(Target):
                 source_file=source_file,
                 current_target_root_path=self.root_directory,
                 depfile_directory=self.depfile_directory,
+                precompiled_module_directory=self.precompiled_module_directory,
                 object_directory=self.object_directory,
                 include_directories=include_directories,
+                module_directories=module_directories,
                 compile_flags=compile_flags,
                 is_c_target=self.is_c_target,
+                is_module=source_file.suffix == ".cppm",
             )
             for source_file in self.source_files
         ]
@@ -358,21 +363,22 @@ class Compilable(Target):
             "target needs to build sources %s", [b.name for b in self.needed_buildables]
         )
 
-        # Execute depfile generation command
+        # Execute depfile and module (pcm) generation command
         #
         #
         #    TODO: Remove hardcoded progress bar and use callback function instead
         #
         #
-        self._logger.info(f"generate dependency files")
+        self._logger.info(f"generate dependency and prebuilt module files")
 
-        async def async_generate_depfile():
+        async def async_precompile_and_generate_dependency_file():
             threads = [
-                _asyncio.to_thread(b.generate_depfile) for b in self.needed_buildables
+                _asyncio.to_thread(b.precompile_and_generate_dependency_file)
+                for b in self.needed_buildables
             ]
             await _asyncio.gather(*threads)
 
-        _asyncio.run(async_generate_depfile())
+        _asyncio.run(async_precompile_and_generate_dependency_file())
         # Update database with depfile commands
         self._environment.compilation_database_file.write_text(
             json.dumps(self._environment.compilation_database, indent=2, sort_keys=True)
@@ -395,7 +401,7 @@ class Compilable(Target):
         self._unsuccessful_compilations = [
             buildable
             for buildable in self.needed_buildables
-            if (buildable.compilation_failed or buildable.depfile_failed)
+            if (buildable.compilation_failed or buildable.depfile_and_pcm_failed)
         ]
         if self._unsuccessful_compilations:
             raise _CompileError(
@@ -551,19 +557,25 @@ class Executable(Compilable):
 
     def link(self):
         success, self.link_report = self._environment.toolchain.link(
-            [buildable.object_file for buildable in self.buildables],
+            [buildable.object_file for buildable in self.buildables]
+            + [
+                b.object_file
+                for target in self.dependencies + self.public_dependencies
+                for b in target.buildables
+                if target.__class__ is Module
+            ],
             self.outfile,
             self._build_flags._language_flags()
             + self._build_flags.final_link_flags_list(),
             [
                 target.output_folder.resolve()
                 for target in self.dependencies + self.public_dependencies
-                if target.__class__ is not HeaderOnly
+                if target.__class__ is not HeaderOnly and target.__class__ is not Module
             ],
             [
                 target.outname
                 for target in self.dependencies + self.public_dependencies
-                if target.__class__ is not HeaderOnly
+                if target.__class__ is not HeaderOnly and target.__class__ is not Module
             ],
             False,
             self.is_c_target,
@@ -661,19 +673,22 @@ class SharedLibrary(Compilable):
 
     def link(self):
         success, self.link_report = self._environment.toolchain.link(
-            [buildable.object_file for buildable in self.buildables],
+            [
+                buildable.object_file
+                for buildable in self.buildables
+            ],
             self.outfile,
             self._build_flags._language_flags()
             + self._build_flags.final_link_flags_list(),
             [
                 target.output_folder.resolve()
                 for target in self.dependencies + self.public_dependencies
-                if target.__class__ is not HeaderOnly
+                if target.__class__ is not HeaderOnly and target.__class__ is not Module
             ],
             [
                 target.outname
                 for target in self.dependencies + self.public_dependencies
-                if target.__class__ is not HeaderOnly
+                if target.__class__ is not HeaderOnly and target.__class__ is not Module
             ],
             True,
             self.is_c_target,
@@ -748,8 +763,59 @@ class StaticLibrary(Compilable):
             )
 
 
+class Module(Compilable):
+    def __init__(
+        self, target_description, files, dependencies=None, public_dependencies=None
+    ):
+        """Initialise a module target."""
+
+        super().__init__(
+            target_description=target_description,
+            files=files,
+            output_folder=target_description.environment.toolchain.platform_defaults[
+                "MODULE_OUTPUT_DIR"
+            ],
+            platform_flags=target_description.environment.toolchain.platform_defaults[
+                "PLATFORM_EXTRA_FLAGS_MODULE"
+            ],
+            prefix=target_description.environment.toolchain.platform_defaults[
+                "MODULE_PREFIX"
+            ],
+            suffix=target_description.environment.toolchain.platform_defaults[
+                "MODULE_SUFFIX"
+            ],
+            dependencies=dependencies,
+            public_dependencies=public_dependencies,
+        )
+
+    def bundle(self):
+        raise _LinkError(
+            "bundling a module is not yet implemented", {self.identifier: ""}
+        )
+
+    def _get_default_flags(self):
+        """Return the default any:`clang_build.flags.BuildFlags` with compile flags and link flags."""
+        return BuildFlags(
+            self._environment.build_type,
+            self._environment.toolchain,
+            self.is_c_target,
+            default_compile_flags=True,
+            default_link_flags=True,
+        )
+
+    def _add_dependency_flags(self, target):
+        """Add dependencies' public and interface flags to the own and forwards their public flags."""
+        self._build_flags.apply_public_flags(target)
+        self._build_flags.forward_public_flags(target)
+        self._build_flags.apply_interface_flags(target)
+
+    def link(self):
+        pass
+
+
 TARGET_MAP = {
     "executable": Executable,
+    "module": Module,
     "shared library": SharedLibrary,
     "static library": StaticLibrary,
     "header only": HeaderOnly,
