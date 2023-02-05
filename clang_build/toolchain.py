@@ -39,15 +39,19 @@ class Toolchain:
             "PLATFORM": "linux",
             "EXECUTABLE_PREFIX": "",
             "EXECUTABLE_SUFFIX": "",
+            "MODULE_PREFIX": "lib",
+            "MODULE_SUFFIX": "",
             "SHARED_LIBRARY_PREFIX": "lib",
             "SHARED_LIBRARY_SUFFIX": "",
             "STATIC_LIBRARY_PREFIX": "lib",
             "STATIC_LIBRARY_SUFFIX": "",
             "PLATFORM_EXTRA_FLAGS_EXECUTABLE": [],
+            "PLATFORM_EXTRA_FLAGS_MODULE": [],
             "PLATFORM_EXTRA_FLAGS_SHARED": [],
             "PLATFORM_EXTRA_FLAGS_STATIC": [],
             "PLATFORM_BUNDLING_LINKER_FLAGS": [],
             "EXECUTABLE_OUTPUT_DIR": "bin",
+            "MODULE_OUTPUT_DIR": "mod",
             "SHARED_LIBRARY_OUTPUT_DIR": "lib",
             "STATIC_LIBRARY_OUTPUT_DIR": "lib",
             "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
@@ -59,15 +63,19 @@ class Toolchain:
             "PLATFORM": "osx",
             "EXECUTABLE_PREFIX": "",
             "EXECUTABLE_SUFFIX": "",
+            "MODULE_PREFIX": "lib",
+            "MODULE_SUFFIX": "",
             "SHARED_LIBRARY_PREFIX": "lib",
             "SHARED_LIBRARY_SUFFIX": "",
             "STATIC_LIBRARY_PREFIX": "lib",
             "STATIC_LIBRARY_SUFFIX": "",
             "PLATFORM_EXTRA_FLAGS_EXECUTABLE": [],
+            "PLATFORM_EXTRA_FLAGS_MODULE": [],
             "PLATFORM_EXTRA_FLAGS_SHARED": [],
             "PLATFORM_EXTRA_FLAGS_STATIC": [],
             "PLATFORM_BUNDLING_LINKER_FLAGS": [],
             "EXECUTABLE_OUTPUT_DIR": "bin",
+            "MODULE_OUTPUT_DIR": "mod",
             "SHARED_LIBRARY_OUTPUT_DIR": "lib",
             "STATIC_LIBRARY_OUTPUT_DIR": "lib",
             "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
@@ -79,15 +87,19 @@ class Toolchain:
             "PLATFORM": "windows",
             "EXECUTABLE_PREFIX": "",
             "EXECUTABLE_SUFFIX": "",
+            "MODULE_PREFIX": "",
+            "MODULE_SUFFIX": ".pcm",
             "SHARED_LIBRARY_PREFIX": "",
             "SHARED_LIBRARY_SUFFIX": "",
             "STATIC_LIBRARY_PREFIX": "",
             "STATIC_LIBRARY_SUFFIX": "",
             "PLATFORM_EXTRA_FLAGS_EXECUTABLE": [],
+            "PLATFORM_EXTRA_FLAGS_MODULE": [],
             "PLATFORM_EXTRA_FLAGS_SHARED": [],
             "PLATFORM_EXTRA_FLAGS_STATIC": [],
             "PLATFORM_BUNDLING_LINKER_FLAGS": [],
             "EXECUTABLE_OUTPUT_DIR": "bin",
+            "MODULE_OUTPUT_DIR": "mod",
             "SHARED_LIBRARY_OUTPUT_DIR": "bin",
             "STATIC_LIBRARY_OUTPUT_DIR": "lib",
             "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
@@ -118,8 +130,15 @@ class Toolchain:
         _LOGGER.info("Platform: %s", self.platform)
 
     @abstractmethod
-    def generate_dependency_file(
-        self, source_file, dependency_file, flags, include_directories, is_c_target
+    def generate_dependency_and_module_files(
+        self,
+        source_file,
+        dependency_file,
+        module_file,
+        flags,
+        include_directories,
+        module_directories,
+        is_c_target,
     ):
         """Generate a dependency file for a given source file.
 
@@ -148,7 +167,13 @@ class Toolchain:
 
     @abstractmethod
     def compile(
-        self, source_file, object_file, include_directories, flags, is_c_target
+        self,
+        source_file,
+        object_file,
+        include_directories,
+        module_directories,
+        flags,
+        is_c_target,
     ):
         """Compile a given source file into an object file.
 
@@ -300,15 +325,19 @@ class LLVM(Toolchain):
             "PLATFORM": "linux",
             "EXECUTABLE_PREFIX": "",
             "EXECUTABLE_SUFFIX": "",
+            "MODULE_PREFIX": "lib",
+            "MODULE_SUFFIX": "",
             "SHARED_LIBRARY_PREFIX": "lib",
             "SHARED_LIBRARY_SUFFIX": ".so",
             "STATIC_LIBRARY_PREFIX": "lib",
             "STATIC_LIBRARY_SUFFIX": ".a",
             "PLATFORM_EXTRA_FLAGS_EXECUTABLE": [],
+            "PLATFORM_EXTRA_FLAGS_MODULE": [],
             "PLATFORM_EXTRA_FLAGS_SHARED": ["-fpic"],
             "PLATFORM_EXTRA_FLAGS_STATIC": [],
             "PLATFORM_BUNDLING_LINKER_FLAGS": ["-Wl,-rpath,$ORIGIN"],
             "EXECUTABLE_OUTPUT_DIR": "bin",
+            "MODULE_OUTPUT_DIR": "mod",
             "SHARED_LIBRARY_OUTPUT_DIR": "lib",
             "STATIC_LIBRARY_OUTPUT_DIR": "lib",
             "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
@@ -320,15 +349,19 @@ class LLVM(Toolchain):
             "PLATFORM": "osx",
             "EXECUTABLE_PREFIX": "",
             "EXECUTABLE_SUFFIX": "",
+            "MODULE_PREFIX": "lib",
+            "MODULE_SUFFIX": "",
             "SHARED_LIBRARY_PREFIX": "lib",
             "SHARED_LIBRARY_SUFFIX": ".dylib",
             "STATIC_LIBRARY_PREFIX": "lib",
             "STATIC_LIBRARY_SUFFIX": ".a",
             "PLATFORM_EXTRA_FLAGS_EXECUTABLE": [],
+            "PLATFORM_EXTRA_FLAGS_MODULE": [],
             "PLATFORM_EXTRA_FLAGS_SHARED": [],
             "PLATFORM_EXTRA_FLAGS_STATIC": [],
             "PLATFORM_BUNDLING_LINKER_FLAGS": ["-Wl,-rpath,@executable_path"],
             "EXECUTABLE_OUTPUT_DIR": "bin",
+            "MODULE_OUTPUT_DIR": "mod",
             "SHARED_LIBRARY_OUTPUT_DIR": "lib",
             "STATIC_LIBRARY_OUTPUT_DIR": "lib",
             "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
@@ -340,6 +373,8 @@ class LLVM(Toolchain):
             "PLATFORM": "windows",
             "EXECUTABLE_PREFIX": "",
             "EXECUTABLE_SUFFIX": ".exe",
+            "MODULE_PREFIX": "",
+            "MODULE_SUFFIX": ".pcm",
             "SHARED_LIBRARY_PREFIX": "",
             "SHARED_LIBRARY_SUFFIX": ".dll",
             "STATIC_LIBRARY_PREFIX": "",
@@ -348,10 +383,12 @@ class LLVM(Toolchain):
                 "-Xclang",
                 "-flto-visibility-public-std",
             ],
+            "PLATFORM_EXTRA_FLAGS_MODULE": [],
             "PLATFORM_EXTRA_FLAGS_SHARED": ["-Xclang", "-flto-visibility-public-std"],
             "PLATFORM_EXTRA_FLAGS_STATIC": ["-Xclang", "-flto-visibility-public-std"],
             "PLATFORM_BUNDLING_LINKER_FLAGS": [],
             "EXECUTABLE_OUTPUT_DIR": "bin",
+            "MODULE_OUTPUT_DIR": "mod",
             "SHARED_LIBRARY_OUTPUT_DIR": "bin",
             "STATIC_LIBRARY_OUTPUT_DIR": "lib",
             "PLATFORM_PYTHON_INCLUDE_PATH": _Path(_get_paths()["include"]),
@@ -494,7 +531,7 @@ class LLVM(Toolchain):
 
         """
         _, report = self._run_clang_command(
-            [str(self.cpp_compiler), "-std=dummpy", "-x", "c++", "-E", "-"]
+            [str(self.cpp_compiler), "-std=dummpy", "-x", "c++", "--preprocess", "-"]
         )
 
         for line in reversed(report.splitlines()):
@@ -508,21 +545,6 @@ class LLVM(Toolchain):
     def _get_compiler(self, is_c_target):
         return [str(self.c_compiler)] if is_c_target else [str(self.cpp_compiler)]
 
-    def _get_compiler_command(
-        self, source_file, object_file, include_directories, flags, is_c_target
-    ):
-        return (
-            self._get_compiler(is_c_target)
-            + (["-o", str(object_file)] if object_file else [])
-            + ["-c", str(source_file)]
-            + flags
-            + [
-                item
-                for include_directory in include_directories
-                for item in ["-I", str(include_directory)]
-            ]
-        )
-
     def _run_clang_command(self, command):
         _LOGGER.debug(f"Running: {' '.join(command)}")
         try:
@@ -535,8 +557,15 @@ class LLVM(Toolchain):
         except _subprocess.CalledProcessError as error:
             return False, error.output.strip()
 
-    def generate_dependency_file(
-        self, source_file, dependency_file, flags, include_directories, is_c_target
+    def precompile_and_generate_dependency_file(
+        self,
+        source_file,
+        out_dependency_file,
+        out_precompiled_module_file,
+        include_directories,
+        module_directories,
+        flags,
+        is_c_target,
     ):
         """Generate a dependency file for a given source file.
 
@@ -562,15 +591,46 @@ class LLVM(Toolchain):
             Output of the compiler
 
         """
-        dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        command = self._get_compiler_command(
-            source_file, None, include_directories, flags, is_c_target
-        ) + ["-E", "-MMD", str(source_file), "-MF", str(dependency_file)]
+        out_dependency_file.parents[0].mkdir(parents=True, exist_ok=True)
+        if out_precompiled_module_file:
+            out_precompiled_module_file.parents[0].mkdir(parents=True, exist_ok=True)
+
+        command = (
+            self._get_compiler(is_c_target)
+            + (
+                ["-o", str(out_precompiled_module_file)]
+                if out_precompiled_module_file
+                else []
+            )
+            + ["-MF", str(out_dependency_file)]
+            + ["-c", str(source_file)]
+            + ["--precompile", "--write-user-dependencies"]
+            + flags
+            + [
+                str(item)
+                for include_directory in include_directories
+                for item in ["-I", str(include_directory)]
+            ]
+            + [
+                str(item)
+                for module_directory in module_directories
+                for item in [f"-fprebuilt-module-path={module_directory}"]
+            ]
+        )
+
         return command, *self._run_clang_command(command)
 
     def compile(
-        self, source_file, object_file, include_directories, flags, is_c_target
+        self,
+        source_file,
+        module_file,
+        object_file,
+        include_directories,
+        module_directories,
+        flags,
+        is_c_target,
+        is_module,
     ):
         """Compile a given source file into an object file.
 
@@ -596,11 +656,27 @@ class LLVM(Toolchain):
             Output of the compiler
 
         """
+
         object_file.parents[0].mkdir(parents=True, exist_ok=True)
 
-        command = self._get_compiler_command(
-            source_file, object_file, include_directories, flags, is_c_target
+        command = (
+            self._get_compiler(is_c_target)
+            + ["-o", str(object_file), "-c"]
+            + ([str(source_file)] if not is_module else [str(module_file)])
+            + flags
+            + [
+                str(item)
+                for include_directory in include_directories
+                for item in ["-I", str(include_directory)]
+            ]
+            + [
+                str(item)
+                for module_directory in module_directories
+                for item in [f"-fprebuilt-module-path={module_directory}"]
+                if not is_module
+            ]
         )
+
         return command, *self._run_clang_command(command)
 
     def link(

@@ -31,7 +31,7 @@ def _get_depfile_headers(depfile):
     return depfileHeaders
 
 
-def _needs_rebuild(object_file, source_file, depfile):
+def _needs_rebuild(object_file, source_file, depfile, prebuilt_module):
     if depfile.exists():
         if object_file.exists():
             # If object file is found, check if it is up to date
@@ -57,16 +57,23 @@ class SingleSource:
         source_file,
         current_target_root_path,
         depfile_directory,
+        precompiled_module_directory,
         object_directory,
         include_directories,
+        module_directories,
         compile_flags,
         is_c_target,
+        is_module,
     ):
         self._environment = environment
 
         # Get the relative file path
         self.name = source_file.name
         self.source_file = source_file
+
+        self.toolchain = environment.toolchain
+        self.is_c_target = is_c_target
+        self.is_module = is_module
 
         # If the source file is in a directory called 'src', we do not create a
         # subdirectory called 'src' in the build folder structure
@@ -81,29 +88,42 @@ class SingleSource:
         self.object_file = _Path(
             object_directory, relpath, self.source_file.stem + ".o"
         )
+        self.precompiled_module_file = _Path(
+            precompiled_module_directory, relpath, self.source_file.stem + ".pcm"
+        )
         self.depfile = _Path(depfile_directory, relpath, self.source_file.stem + ".d")
-
-        self.toolchain = environment.toolchain
-        self.is_c_target = is_c_target
+        if self.is_module:
+            self.prebuilt_module = _Path(
+                precompiled_module_directory, relpath, self.source_file.stem + ".pcm"
+            )
+        else:
+            self.prebuilt_module = None
 
         self.needs_rebuild = _needs_rebuild(
-            self.object_file, self.source_file, self.depfile
+            self.object_file, self.source_file, self.depfile, self.prebuilt_module
         )
 
         self.include_directories = include_directories
+        self.module_directories = [precompiled_module_directory] + module_directories
         self.flags = compile_flags
 
         self.compilation_failed = False
 
-    def generate_depfile(self):
-        command, success, self.depfile_report = self.toolchain.generate_dependency_file(
+    def precompile_and_generate_dependency_file(self):
+        (
+            command,
+            success,
+            self.depfile_and_pcm_report,
+        ) = self.toolchain.precompile_and_generate_dependency_file(
             self.source_file,
             self.depfile,
-            self.flags,
+            self.prebuilt_module,
             self.include_directories,
+            self.module_directories,
+            self.flags,
             self.is_c_target,
         )
-        self.depfile_failed = not success
+        self.depfile_and_pcm_failed = not success
 
         command_missing = True
         for idx, db_command in enumerate(self._environment.compilation_database):
@@ -132,10 +152,13 @@ class SingleSource:
     def compile(self):
         command, success, self.compile_report = self.toolchain.compile(
             self.source_file,
+            self.prebuilt_module,
             self.object_file,
             self.include_directories,
+            self.module_directories,
             self.flags,
             self.is_c_target,
+            self.is_module,
         )
         self.compilation_failed = not success
 

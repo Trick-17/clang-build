@@ -1,0 +1,8 @@
+[main]
+    output_name  = "main"
+    sources = ["main.cpp"]
+    dependencies = ["test"]
+
+[test]
+    target_type = "module"
+    sources = ["test.cppm"]
